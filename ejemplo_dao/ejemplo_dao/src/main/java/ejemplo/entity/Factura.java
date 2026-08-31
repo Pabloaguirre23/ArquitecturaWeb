@@ -2,13 +2,14 @@ package ejemplo.entity;
 
 import lombok.*;
 
+import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Setter
 @ToString
-public class Producto {
-    private int idProducto;
-    private String nombreP;
-    private Float valor;
+public class Pedido {
+    private int idFactura;
+    private int idCliente;
 }
+

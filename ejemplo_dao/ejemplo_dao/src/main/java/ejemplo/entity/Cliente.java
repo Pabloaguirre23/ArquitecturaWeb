@@ -2,17 +2,13 @@ package ejemplo.entity;
 
 import lombok.*;
 
-
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Setter
 @ToString
-public class Usuario {
-    private Long id;
-    private String nombre;
+public class DetallePedido {
+    private int idCliente;
+    private String nombreC;
     private String email;
-    private Integer edad;
-
 }
-

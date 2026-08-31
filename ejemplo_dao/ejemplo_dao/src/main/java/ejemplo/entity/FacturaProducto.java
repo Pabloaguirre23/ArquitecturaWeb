@@ -7,8 +7,8 @@ import lombok.*;
 @Getter
 @Setter
 @ToString
-public class Producto {
+public class FacturaProducto {
+    private int idFactura;
     private int idProducto;
-    private String nombreP;
-    private Float valor;
+    private int cantidad;
 }
