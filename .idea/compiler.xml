@@ -9,5 +9,8 @@
         <module name="ejemplo_dao" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="ejemplo_dao" target="21" />
+    </bytecodeTargetLevel>
   </component>
 </project>

@@ -4,7 +4,21 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5502063d-7248-4b6e-bc85-1bbdb557cb6b" name="Changes" comment="" />
+    <list default="true" id="5502063d-7248-4b6e-bc85-1bbdb557cb6b" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_google_protobuf_protobuf_java_3_21_9.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_mysql_mysql_connector_j_8_0_33.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_apache_commons_commons_csv_1_9_0.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_apache_derby_derby_10_17_1_0.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_apache_derby_derbyshared_10_17_1_0.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_apache_derby_derbytools_10_17_1_0.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_projectlombok_lombok_1_18_38.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ejemplo_dao/ejemplo_dao/src/main/java/ejemplo/dao/ClienteDAO.java" beforeDir="false" afterPath="$PROJECT_DIR$/ejemplo_dao/ejemplo_dao/src/main/java/ejemplo/dao/ClienteDAO.java" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -12,6 +26,65 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.000000000080067" />
+      <entry key="S2" value="1.002991324213075" />
+      <entry key="S5" value="1.097801472717064" />
+      <entry key="S10" value="1.3127322700283166" />
+      <entry key="S30" value="1.6787724899400034" />
+      <entry key="S60" value="1.8238765016311627" />
+      <entry key="M2" value="1.907676430029536" />
+      <entry key="M5" value="1.9619941327059434" />
+      <entry key="M10" value="1.9808129957876492" />
+      <entry key="M15" value="1.9871674065175542" />
+      <entry key="M30" value="1.9935629856821127" />
+      <entry key="H1" value="1.996776296709604" />
+      <entry key="H2" value="1.9983868472238624" />
+      <entry key="H4" value="1.999193098066566" />
+      <entry key="D1" value="1.9998654711074852" />
+      <entry key="W1" value="1.9999807804786491" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="0.0" />
+      <entry key="M5" value="0.0" />
+      <entry key="M10" value="0.0" />
+      <entry key="M15" value="0.0" />
+      <entry key="M30" value="0.0" />
+      <entry key="H1" value="0.0" />
+      <entry key="H2" value="0.0" />
+      <entry key="H4" value="0.0" />
+      <entry key="D1" value="0.0" />
+      <entry key="W1" value="0.0" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="0.7900413118633771" />
+      <entry key="MS500" value="0.9539595505932268" />
+      <entry key="S2" value="0.9908852418273414" />
+      <entry key="S5" value="1.0877594091422043" />
+      <entry key="S10" value="1.3017212613896834" />
+      <entry key="S30" value="1.6716652519556896" />
+      <entry key="S60" value="1.8196380921019624" />
+      <entry key="M2" value="1.905359146794243" />
+      <entry key="M5" value="1.961015815399908" />
+      <entry key="M10" value="1.9803149283153705" />
+      <entry key="M15" value="1.9868333557798052" />
+      <entry key="M30" value="1.993394950859298" />
+      <entry key="H1" value="1.996692025695012" />
+      <entry key="H2" value="1.998344648160216" />
+      <entry key="H4" value="1.999171982626174" />
+      <entry key="D1" value="1.9998619496562413" />
+      <entry key="W1" value="1.9999802773600128" />
+    </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 3
@@ -26,7 +99,8 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "main",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "git-widget-placeholder": "Merging main",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
