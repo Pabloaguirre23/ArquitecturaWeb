@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="d1e6fdaa-c5e9-4c3a-9f31-94744c3a15d9" name="Changes" comment="" />
+    <list default="true" id="d1e6fdaa-c5e9-4c3a-9f31-94744c3a15d9" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/ejemplo_dao/ejemplo_dao/src/main/java/ejemplo/dao/ProductoDAO.java" beforeDir="false" afterPath="$PROJECT_DIR$/ejemplo_dao/ejemplo_dao/src/main/java/ejemplo/dao/ProductoDAO.java" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -16,12 +18,12 @@
     &quot;assignee&quot;: &quot;CarolinaNavarrete&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/Pabloaguirre23/ArquitecturaWeb.git&quot;,
-    &quot;accountId&quot;: &quot;2114c6cd-9d7b-41d4-9342-8f5b71701304&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/Pabloaguirre23/ArquitecturaWeb.git",
+    "accountId": "3808df38-9758-4d74-a226-f52f2909abcb"
   }
-}</component>
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 6,
   &quot;fromUser&quot;: false
@@ -41,15 +43,17 @@
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "Merging main",
-    "kotlin-language-version-configured": "true"
+    "git-widget-placeholder": "main",
+    "kotlin-language-version-configured": "true",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-30f59d01ecdd-34e2839f716b-intellij.indexing.shared.core-IU-262.9437.185" />
-        <option value="bundled-js-predefined-d6986cc7102b-4abd2a77f808-JavaScript-IU-262.9437.185" />
+        <option value="bundled-jdk-9823dce3aa75-fbdcb00ec9e3-intellij.indexing.shared.core-IU-251.23774.435" />
+        <option value="bundled-js-predefined-d6986cc7102b-f27c65a3e318-JavaScript-IU-251.23774.435" />
       </set>
     </attachedChunks>
   </component>
@@ -60,6 +64,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1788205434801</updated>
+      <workItem from="1788209045448" duration="55000" />
     </task>
     <servers />
   </component>
