@@ -1,0 +1,19 @@
+----------------------------------------------------------------
+Mon Aug 31 13:50:05 GMT-03:00 2026:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.17.1.0 - (1913217): instance a816c00e-01a0-58ba-64ac-000001a06948 
+on database directory C:\Users\tiago\Downloads\ejemplo_dao\derby_dao_DB with class loader jdk.internal.loader.ClassLoaders$AppClassLoader@14dad5dc 
+Loaded from file:/C:/Users/tiago/.m2/repository/org/apache/derby/derby/10.17.1.0/derby-10.17.1.0.jar
+java.vendor=Oracle Corporation
+java.runtime.version=26.0.2.1+1-7
+user.dir=C:\Users\tiago\Downloads\ejemplo_dao
+os.name=Windows 11
+os.arch=amd64
+os.version=10.0
+derby.system.home=null
+Database Class Loader started - derby.database.classpath=''
+----------------------------------------------------------------
+Mon Aug 31 13:50:07 GMT-03:00 2026: Shutting down Derby engine
+----------------------------------------------------------------
+Mon Aug 31 13:50:07 GMT-03:00 2026:
+Shutting down instance a816c00e-01a0-58ba-64ac-000001a06948 on database directory C:\Users\tiago\Downloads\ejemplo_dao\derby_dao_DB with class loader jdk.internal.loader.ClassLoaders$AppClassLoader@14dad5dc 
+----------------------------------------------------------------
