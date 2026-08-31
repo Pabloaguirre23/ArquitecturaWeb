@@ -1,0 +1,14 @@
+<component name="libraryTable">
+  <library name="Maven: org.apache.derby:derbyshared:10.17.1.0" type="java-imported" external-system-id="Maven">
+    <properties groupId="org.apache.derby" artifactId="derbyshared" version="10.17.1.0" baseVersion="10.17.1.0" />
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/derby/derbyshared/10.17.1.0/derbyshared-10.17.1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/derby/derbyshared/10.17.1.0/derbyshared-10.17.1.0-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/org/apache/derby/derbyshared/10.17.1.0/derbyshared-10.17.1.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
