@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="AutoImportSettings">
-    <option name="autoReloadType" value="SELECTIVE" />
-  </component>
   <component name="ChangeListManager">
-    <list default="true" id="5502063d-7248-4b6e-bc85-1bbdb557cb6b" name="Changes" comment="" />
+    <list default="true" id="d1e6fdaa-c5e9-4c3a-9f31-94744c3a15d9" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -13,105 +12,56 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="NextEditCompletionFeaturesState">
-    <decayedCancelled>
-      <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.000000000080067" />
-      <entry key="S2" value="1.002991324213075" />
-      <entry key="S5" value="1.097801472717064" />
-      <entry key="S10" value="1.3127322700283166" />
-      <entry key="S30" value="1.6787724899400034" />
-      <entry key="S60" value="1.8238765016311627" />
-      <entry key="M2" value="1.907676430029536" />
-      <entry key="M5" value="1.9619941327059434" />
-      <entry key="M10" value="1.9808129957876492" />
-      <entry key="M15" value="1.9871674065175542" />
-      <entry key="M30" value="1.9935629856821127" />
-      <entry key="H1" value="1.996776296709604" />
-      <entry key="H2" value="1.9983868472238624" />
-      <entry key="H4" value="1.999193098066566" />
-      <entry key="D1" value="1.9998654711074852" />
-      <entry key="W1" value="1.9999807804786491" />
-    </decayedCancelled>
-    <decayedSelected>
-      <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="0.0" />
-      <entry key="S2" value="0.0" />
-      <entry key="S5" value="0.0" />
-      <entry key="S10" value="0.0" />
-      <entry key="S30" value="0.0" />
-      <entry key="S60" value="0.0" />
-      <entry key="M2" value="0.0" />
-      <entry key="M5" value="0.0" />
-      <entry key="M10" value="0.0" />
-      <entry key="M15" value="0.0" />
-      <entry key="M30" value="0.0" />
-      <entry key="H1" value="0.0" />
-      <entry key="H2" value="0.0" />
-      <entry key="H4" value="0.0" />
-      <entry key="D1" value="0.0" />
-      <entry key="W1" value="0.0" />
-    </decayedSelected>
-    <decayedShown>
-      <entry key="MS100" value="0.7900413118633771" />
-      <entry key="MS500" value="0.9539595505932268" />
-      <entry key="S2" value="0.9908852418273414" />
-      <entry key="S5" value="1.0877594091422043" />
-      <entry key="S10" value="1.3017212613896834" />
-      <entry key="S30" value="1.6716652519556896" />
-      <entry key="S60" value="1.8196380921019624" />
-      <entry key="M2" value="1.905359146794243" />
-      <entry key="M5" value="1.961015815399908" />
-      <entry key="M10" value="1.9803149283153705" />
-      <entry key="M15" value="1.9868333557798052" />
-      <entry key="M30" value="1.993394950859298" />
-      <entry key="H1" value="1.996692025695012" />
-      <entry key="H2" value="1.998344648160216" />
-      <entry key="H4" value="1.999171982626174" />
-      <entry key="D1" value="1.9998619496562413" />
-      <entry key="W1" value="1.9999802773600128" />
-    </decayedShown>
-  </component>
-  <component name="ProjectColorInfo">{
-  &quot;associatedIndex&quot;: 3
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;CarolinaNavarrete&quot;
+  }
 }</component>
-  <component name="ProjectId" id="3Ih70PGu2RgTAt2sqNxEvZMSc1S" />
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Pabloaguirre23/ArquitecturaWeb.git&quot;,
+    &quot;accountId&quot;: &quot;2114c6cd-9d7b-41d4-9342-8f5b71701304&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 6,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3Ih8RQesxVlXRr327BNVaJEjO0y" />
+  <component name="ProjectLevelVcsManager">
+    <OptionsSetting value="false" id="Update" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "git-widget-placeholder": "main",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-9823dce3aa75-fbdcb00ec9e3-intellij.indexing.shared.core-IU-251.23774.435" />
-        <option value="bundled-js-predefined-d6986cc7102b-f27c65a3e318-JavaScript-IU-251.23774.435" />
+        <option value="bundled-jdk-30f59d01ecdd-34e2839f716b-intellij.indexing.shared.core-IU-262.9437.185" />
+        <option value="bundled-js-predefined-d6986cc7102b-4abd2a77f808-JavaScript-IU-262.9437.185" />
       </set>
     </attachedChunks>
   </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="5502063d-7248-4b6e-bc85-1bbdb557cb6b" name="Changes" comment="" />
-      <created>1788204729066</created>
+      <changelist id="d1e6fdaa-c5e9-4c3a-9f31-94744c3a15d9" name="Changes" comment="" />
+      <created>1788205434801</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
-      <updated>1788204729066</updated>
-      <workItem from="1788204742664" duration="626000" />
-      <workItem from="1788205482189" duration="323000" />
+      <updated>1788205434801</updated>
     </task>
     <servers />
   </component>
