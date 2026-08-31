@@ -11,67 +11,25 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="main" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="NextEditCompletionFeaturesState">
-    <decayedCancelled>
-      <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.000000000080067" />
-      <entry key="S2" value="1.002991324213075" />
-      <entry key="S5" value="1.097801472717064" />
-      <entry key="S10" value="1.3127322700283166" />
-      <entry key="S30" value="1.6787724899400034" />
-      <entry key="S60" value="1.8238765016311627" />
-      <entry key="M2" value="1.907676430029536" />
-      <entry key="M5" value="1.9619941327059434" />
-      <entry key="M10" value="1.9808129957876492" />
-      <entry key="M15" value="1.9871674065175542" />
-      <entry key="M30" value="1.9935629856821127" />
-      <entry key="H1" value="1.996776296709604" />
-      <entry key="H2" value="1.9983868472238624" />
-      <entry key="H4" value="1.999193098066566" />
-      <entry key="D1" value="1.9998654711074852" />
-      <entry key="W1" value="1.9999807804786491" />
-    </decayedCancelled>
-    <decayedSelected>
-      <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="0.0" />
-      <entry key="S2" value="0.0" />
-      <entry key="S5" value="0.0" />
-      <entry key="S10" value="0.0" />
-      <entry key="S30" value="0.0" />
-      <entry key="S60" value="0.0" />
-      <entry key="M2" value="0.0" />
-      <entry key="M5" value="0.0" />
-      <entry key="M10" value="0.0" />
-      <entry key="M15" value="0.0" />
-      <entry key="M30" value="0.0" />
-      <entry key="H1" value="0.0" />
-      <entry key="H2" value="0.0" />
-      <entry key="H4" value="0.0" />
-      <entry key="D1" value="0.0" />
-      <entry key="W1" value="0.0" />
-    </decayedSelected>
-    <decayedShown>
-      <entry key="MS100" value="0.7900413118633771" />
-      <entry key="MS500" value="0.9539595505932268" />
-      <entry key="S2" value="0.9908852418273414" />
-      <entry key="S5" value="1.0877594091422043" />
-      <entry key="S10" value="1.3017212613896834" />
-      <entry key="S30" value="1.6716652519556896" />
-      <entry key="S60" value="1.8196380921019624" />
-      <entry key="M2" value="1.905359146794243" />
-      <entry key="M5" value="1.961015815399908" />
-      <entry key="M10" value="1.9803149283153705" />
-      <entry key="M15" value="1.9868333557798052" />
-      <entry key="M30" value="1.993394950859298" />
-      <entry key="H1" value="1.996692025695012" />
-      <entry key="H2" value="1.998344648160216" />
-      <entry key="H4" value="1.999171982626174" />
-      <entry key="D1" value="1.9998619496562413" />
-      <entry key="W1" value="1.9999802773600128" />
-    </decayedShown>
-  </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "Pabloaguirre23"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/Pabloaguirre23/ArquitecturaWeb.git",
+    "accountId": "3808df38-9758-4d74-a226-f52f2909abcb"
+  }
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 3
 }</component>
@@ -85,8 +43,8 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "git-widget-placeholder": "main",
+    "last_opened_file_path": "C:/Users/pablo/OneDrive/Documents/clonacion/ArquitecturaWeb",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -112,6 +70,7 @@
       <updated>1788204729066</updated>
       <workItem from="1788204742664" duration="626000" />
       <workItem from="1788205482189" duration="323000" />
+      <workItem from="1788206339276" duration="1158000" />
     </task>
     <servers />
   </component>
