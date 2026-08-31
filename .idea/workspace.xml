@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
     <list default="true" id="d1e6fdaa-c5e9-4c3a-9f31-94744c3a15d9" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/ejemplo_dao/ejemplo_dao/src/main/java/ejemplo/dao/ProductoDAO.java" beforeDir="false" afterPath="$PROJECT_DIR$/ejemplo_dao/ejemplo_dao/src/main/java/ejemplo/dao/ProductoDAO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/ArquitecturaWeb.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/ArquitecturaWeb.iml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -45,7 +48,12 @@
     "codeWithMe.voiceChat.enabledByDefault": "false",
     "git-widget-placeholder": "main",
     "kotlin-language-version-configured": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "preferences.general",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -64,7 +72,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1788205434801</updated>
-      <workItem from="1788209045448" duration="55000" />
+      <workItem from="1788209045448" duration="343000" />
     </task>
     <servers />
   </component>
