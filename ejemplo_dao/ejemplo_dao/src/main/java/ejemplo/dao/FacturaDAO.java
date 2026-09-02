@@ -1,4 +1,4 @@
-package ejemplo.dao;
+package main.java.ejemplo.dao;
 
 
 import org.ejemplo.entity.Factura;

@@ -1,5 +1,4 @@
-package ejemplo.entity;
-
+package main.java.ejemplo.entity;
 import lombok.*;
 
 @AllArgsConstructor
