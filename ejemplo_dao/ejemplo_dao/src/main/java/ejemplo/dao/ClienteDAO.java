@@ -1,4 +1,4 @@
-package main.java.ejemplo.dao;
+package ejemplo.dao;
 
 import ejemplo.entity.DetallePedido;
 

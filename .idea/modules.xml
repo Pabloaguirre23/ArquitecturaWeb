@@ -3,7 +3,6 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/ArquitecturaWeb.iml" filepath="$PROJECT_DIR$/.idea/ArquitecturaWeb.iml" />
-      <module fileurl="file://$PROJECT_DIR$/ejemplo_dao/ejemplo_dao/ejemplo_dao.iml" filepath="$PROJECT_DIR$/ejemplo_dao/ejemplo_dao/ejemplo_dao.iml" />
     </modules>
   </component>
 </project>

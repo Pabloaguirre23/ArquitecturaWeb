@@ -1,4 +1,4 @@
-package ejemplo.repository.mysql;
+package main.java.ejemplo.repository.mysql;
 
 import java.sql.Connection;
 import java.sql.Statement;

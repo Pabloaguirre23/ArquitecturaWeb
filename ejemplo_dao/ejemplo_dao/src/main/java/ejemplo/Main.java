@@ -1,4 +1,4 @@
-package ejemplo;
+package main.java.ejemplo;
 
 import ejemplo.factory.DAOFactory;
 import ejemplo.factory.DBType;

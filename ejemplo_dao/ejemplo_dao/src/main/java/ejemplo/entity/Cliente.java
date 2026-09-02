@@ -1,4 +1,4 @@
-package main.java.ejemplo.entity;
+package ejemplo.entity;
 
 import lombok.*;
 
