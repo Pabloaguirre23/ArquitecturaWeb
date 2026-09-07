@@ -1,7 +1,7 @@
 package ejemplo.repository.mysql;
 
 import ejemplo.dao.ClienteDAO;
-import ejemplo.entity.DetallePedido;
+import ejemplo.entity.Cliente;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -28,6 +28,36 @@ public class MySQLClienteDAO implements ClienteDAO {
         } catch (SQLException e) {
             throw new RuntimeException("Error creando el esquema", e);
         }
+    }
+
+    @Override
+    public int insertCliente(int idCliente, String nombre, String email) throws SQLException {
+        return 0;
+    }
+
+    @Override
+    public void updateCliente(Cliente cliente) throws SQLException {
+
+    }
+
+    @Override
+    public void deleteCliente(int idCliente) throws SQLException {
+
+    }
+
+    @Override
+    public Cliente getCliente(int idCliente) throws SQLException {
+        return null;
+    }
+
+    @Override
+    public List<Cliente> getClientes() throws SQLException {
+        return List.of();
+    }
+
+    @Override
+    public List<Cliente> getMasFacturadosOrdenados() throws SQLException {
+        return List.of();
     }
 }
 

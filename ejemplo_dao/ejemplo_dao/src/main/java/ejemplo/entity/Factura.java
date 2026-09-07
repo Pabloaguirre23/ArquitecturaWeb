@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @ToString
-public class Pedido {
+public class Factura {
     private int idFactura;
     private int idCliente;
 }

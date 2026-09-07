@@ -1,8 +1,10 @@
 package ejemplo.repository.mysql;
 
 import ejemplo.dao.ProductoDAO;
+import ejemplo.entity.Producto;
 
 import java.sql.*;
+import java.util.List;
 
 public class MySQLProductoDAO implements ProductoDAO {
 
@@ -26,5 +28,34 @@ public class MySQLProductoDAO implements ProductoDAO {
         }
     }
 
+    @Override
+    public int insertProducto(int idProducto, String nombre, int valor) throws SQLException {
+        return 0;
+    }
+
+    @Override
+    public void updateProducto(Producto idProducto) throws SQLException {
+
+    }
+
+    @Override
+    public void deleteProducto(int idProducto) throws SQLException {
+
+    }
+
+    @Override
+    public Producto getProducto(int idProducto) throws SQLException {
+        return null;
+    }
+
+    @Override
+    public List<Producto> getProductos() throws SQLException {
+        return List.of();
+    }
+
+    @Override
+    public Producto getProductoMasVendido() throws SQLException {
+        return null;
+    }
 }
 

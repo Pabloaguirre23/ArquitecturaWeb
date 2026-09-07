@@ -2,8 +2,8 @@ package ejemplo.repository.mysql;
 
 import ejemplo.dao.FacturaDAO;
 import ejemplo.dto.TopProducto;
-import ejemplo.entity.Pedido;
-import ejemplo.entity.PedidoEstado;
+import ejemplo.entity.Factura;
+
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -39,6 +39,31 @@ public class MySQLFacturaDAO implements FacturaDAO {
         } catch (SQLException e) {
             throw new RuntimeException("Error creando el esquema", e);
         }
+    }
+
+    @Override
+    public int insertFactura(int idFactura, int idCliente) throws SQLException {
+        return 0;
+    }
+
+    @Override
+    public void updateFactura(Factura idFactura) throws SQLException {
+
+    }
+
+    @Override
+    public void deleteFactura(int idFactura) throws SQLException {
+
+    }
+
+    @Override
+    public Factura getFactura(int idFactura) throws SQLException {
+        return null;
+    }
+
+    @Override
+    public List<Factura> getPFacturas() throws SQLException {
+        return List.of();
     }
 }
 

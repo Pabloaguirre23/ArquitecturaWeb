@@ -1,6 +1,7 @@
 package ejemplo.repository.mysql;
 
 import ejemplo.dao.FacturaProductoDAO;
+import ejemplo.entity.FacturaProducto;
 import ejemplo.entity.Producto;
 
 import java.sql.*;
@@ -45,4 +46,28 @@ public class MySQLFacturaProductoDAO implements FacturaProductoDAO {
         }
     }
 
+    @Override
+    public int insertFacturaProducto(int idFactura, int idProducto, int cantidad) throws SQLException {
+        return 0;
+    }
+
+    @Override
+    public void updateFacturaProducto(FacturaProducto facturaProducto) throws SQLException {
+
+    }
+
+    @Override
+    public void deleteFacturaProducto(int idFactura, int idProducto) throws SQLException {
+
+    }
+
+    @Override
+    public FacturaProducto getFacturaProducto(int idFactura, int idProducto) throws SQLException {
+        return null;
+    }
+
+    @Override
+    public List<FacturaProducto> getFacturasProductos() throws SQLException {
+        return List.of();
+    }
 }

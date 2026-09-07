@@ -1,10 +1,10 @@
 package ejemplo.dao;
 
-import ejemplo.entity.DetallePedido;
-
+import ejemplo.entity.Cliente;
+import java.sql.SQLException;
 import java.util.List;
 
-public interface ClienteDao {
+public interface ClienteDAO {
     public int insertCliente(int idCliente, String nombre, String email) throws SQLException;
     public void updateCliente(Cliente cliente) throws SQLException;
     public void deleteCliente(int idCliente) throws SQLException;
