@@ -48,7 +48,13 @@ public class MySQLFacturaProductoDAO implements FacturaProductoDAO {
 
     @Override
     public int insertFacturaProducto(int idFactura, int idProducto, int cantidad) throws SQLException {
-        return 0;
+        String sql = "INSERT INTO factura_producto (idFactura, idProducto, cantidad) VALUES (?, ?, ?)";
+        try (PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setInt(1, idFactura);
+            ps.setInt(2, idProducto);
+            ps.setInt(3, cantidad);
+            return ps.executeUpdate();
+        }
     }
 
     @Override

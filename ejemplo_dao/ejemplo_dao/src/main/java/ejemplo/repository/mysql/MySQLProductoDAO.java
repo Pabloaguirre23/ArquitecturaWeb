@@ -30,7 +30,13 @@ public class MySQLProductoDAO implements ProductoDAO {
 
     @Override
     public int insertProducto(int idProducto, String nombre, int valor) throws SQLException {
-        return 0;
+        String sql = "INSERT INTO producto (idProducto, nombre, valor) VALUES (?, ?, ?)";
+        try (PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setInt(1, idProducto);
+            ps.setString(2, nombre);
+            ps.setFloat(3, valor);
+            return ps.executeUpdate();
+        }
     }
 
     @Override
