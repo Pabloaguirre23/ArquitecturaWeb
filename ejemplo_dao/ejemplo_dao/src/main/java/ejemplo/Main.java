@@ -7,16 +7,8 @@ import java.sql.SQLException;
 
 public class Main {
 
-    public static void main(String[] args) throws SQLException {
-        CargarTabSiNoExisten CargarTabSiNoExisten = new CargarTabSiNoExisten();
-        CargarTabSiNoExisten.run();
-        //CargarDatosCSV CargarDatosCSV = new CargarDatosCSV();
-        //CargarDatosCSV.run();
+    public static void main (String[] args) {
 
-        ProductoMasRecaudado ProductoMasRecaudado = new ProductoMasRecaudado();
-        ProductoMasRecaudado.run();
-        ClientesMasFacturados ClientesMasFacturados = new ClientesMasFacturados();
-        ClientesMasFacturados.run();
     }
 
 }
