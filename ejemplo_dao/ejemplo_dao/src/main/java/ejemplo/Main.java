@@ -1,5 +1,5 @@
-package main.java.ejemplo;
-
+package ejemplo;
+// comentario para prueba de sincronizacion con git
 import ejemplo.factory.DAOFactory;
 import ejemplo.factory.DBType;
 
