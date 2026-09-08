@@ -57,7 +57,20 @@ public class MySQLClienteDAO implements ClienteDAO {
 
     @Override
     public List<Cliente> getMasFacturadosOrdenados() throws SQLException {
-        return List.of();
+        String sql = "SELECT c.idCliente, c.nombre, c.email, SUM(fp.cantidad * p.valor) AS total " +
+                "FROM cliente c JOIN factura f ON c.idCliente = f.idCliente " +
+                "JOIN factura_producto fp ON f.idFactura = fp.idFactura " +
+                "JOIN producto p ON fp.idProducto = p.idProducto " +
+                "GROUP BY c.idCliente, c.nombre, c.email " +
+                "ORDER BY total DESC";
+        List<Cliente> lista = new ArrayList<>();
+        try (PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                lista.add(new Cliente(rs.getInt("idCliente"), rs.getString("nombre"), rs.getString("email")));
+            }
+        }
+        return lista;
     }
 }
 
