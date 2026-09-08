@@ -54,7 +54,7 @@ public class MySQLProductoDAO implements ProductoDAO {
     }
 
     @Override
-    public Producto getProductoMasVendido() throws SQLException {
+    public Producto getProductoMasRecaudado() throws SQLException {
         String sql = "SELECT p.idProducto, p.nombre, p.valor, SUM(fp.cantidad * p.valor) AS recaudacion " +
                 "FROM producto p JOIN factura_producto fp ON p.idProducto = fp.idProducto " +
                 "GROUP BY p.idProducto, p.nombre, p.valor " +
