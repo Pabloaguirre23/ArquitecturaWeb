@@ -11,7 +11,7 @@ public class Producto {
         this.valor = valor;
     }
 
-    public int GetIdProducto() {
+    public int getIdProducto() {
         return idProducto;
     }
 
