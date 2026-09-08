@@ -10,7 +10,7 @@ public class Main {
         f.createClienteDAO();
         f.createFacturaDAO();
         f.createFacturaProductoDAO();
-        f.createUsuarioDAO();
+        f.createProductoDAO();
     }
 
 }

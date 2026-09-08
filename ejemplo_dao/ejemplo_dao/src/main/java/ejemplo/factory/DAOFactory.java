@@ -40,7 +40,7 @@ import ejemplo.repository.mysql.MySQLDAOFactory;
             return getInstance(type);
         }
 
-        public abstract ProductoDAO createUsuarioDAO();
+        public abstract ProductoDAO createProductoDAO();
         public abstract FacturaProductoDAO createFacturaProductoDAO();
         public abstract FacturaDAO createFacturaDAO();
         public abstract ClienteDAO createClienteDAO();

@@ -18,7 +18,7 @@ public class MySQLDAOFactory extends DAOFactory {
     }
 
     @Override
-    public ProductoDAO createUsuarioDAO() {
+    public ProductoDAO createProductoDAO() {
         // Devuelve la implementación concreta MySQL de UsuarioDAO
         return new MySQLProductoDAO(getConnection());
     }
