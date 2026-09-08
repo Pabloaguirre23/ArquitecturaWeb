@@ -77,7 +77,7 @@ public class MySQLClienteDAO implements ClienteDAO {
         try (PreparedStatement ps = cn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                lista.add(new Cliente(rs.getInt("idCliente"), rs.getString("nombre"), rs.getString("email")));
+                lista.add(new Cliente(rs.getInt("idCliente"), rs.getString("nombreC"), rs.getString("email")));
             }
         }
         return lista;
