@@ -64,7 +64,18 @@ public class EstudianteRepository {
     // TODO integrante B: SELECT e FROM Estudiante e WHERE e.libretaUniversitaria = :lu
     //   + setParameter + getResultStream().findFirst().orElse(null).
     public Estudiante findByLibreta(int lu) {
-        throw new UnsupportedOperationException("TODO integrante B");
+        return em.createQuery("SELECT e FROM Estudiante e WHERE e.libretaUniversitaria = :lu", Estudiante.class)
+                .setParameter("lu", lu)
+                .getResultStream()
+                .findFirst()
+
+                .orElse(null);
+    }
+
+    public List<Estudiante> findByGenero(String genero) {
+        return em.createQuery("SELECT e FROM Estudiante e WHERE e.genero = :genero ORDER BY e.apellido ASC, e.nombre ASC", Estudiante.class)
+                .setParameter("genero", genero)
+                .getResultList();
     }
 
     // e) estudiantes por género
