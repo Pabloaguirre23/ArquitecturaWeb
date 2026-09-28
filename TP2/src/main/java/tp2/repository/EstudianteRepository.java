@@ -38,7 +38,20 @@ public class EstudianteRepository {
     //   crear el EstudianteCarrera, persistirlo y agregarlo a ambos lados
     //   (estudiante.getCarreras().add(...) y carrera.getInscriptos().add(...)).
     public EstudianteCarrera matricular(Estudiante estudiante, Carrera carrera, int inscripcion, Integer graduacion, int antiguedad) {
-        throw new UnsupportedOperationException("TODO integrante A");
+        try {
+            em.getTransaction().begin();
+            Integer max = em.createQuery("SELECT COALESCE(MAX(ec.id), 0) FROM EstudianteCarrera ec", Integer.class)
+                    .getSingleResult();
+            EstudianteCarrera ec = new EstudianteCarrera(max + 1, estudiante, carrera, inscripcion, graduacion, antiguedad);
+            em.persist(ec);
+            estudiante.getCarreras().add(ec);
+            carrera.getInscriptos().add(ec);
+            em.getTransaction().commit();
+            return ec;
+        } catch (RuntimeException ex) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw ex;
+        }
     }
 
     // c) todos los estudiantes, ordenados por apellido y nombre
