@@ -68,7 +68,7 @@ public class EstudianteRepository {
                 .setParameter("lu", lu)
                 .getResultStream()
                 .findFirst()
-                
+
                 .orElse(null);
     }
 

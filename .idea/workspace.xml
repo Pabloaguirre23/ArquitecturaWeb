@@ -4,13 +4,21 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d1e6fdaa-c5e9-4c3a-9f31-94744c3a15d9" name="Changes" comment="" />
+    <list default="true" id="d1e6fdaa-c5e9-4c3a-9f31-94744c3a15d9" name="Changes" comment="agregar consultas por libreta universitaria y genero">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/TP2/src/main/java/tp2/repository/EstudianteRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/TP2/src/main/java/tp2/repository/EstudianteRepository.java" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="main" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
@@ -22,7 +30,7 @@
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
     &quot;url&quot;: &quot;https://github.com/Pabloaguirre23/ArquitecturaWeb.git&quot;,
-    &quot;accountId&quot;: &quot;3808df38-9758-4d74-a226-f52f2909abcb&quot;
+    &quot;accountId&quot;: &quot;2114c6cd-9d7b-41d4-9342-8f5b71701304&quot;
   }
 }</component>
   <component name="ProjectColorInfo">{
@@ -88,6 +96,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="subo archivo FacturaProductoDAO" />
-    <option name="LAST_COMMIT_MESSAGE" value="subo archivo FacturaProductoDAO" />
+    <MESSAGE value="agregue metodo getMasFacturadosOrdenados" />
+    <MESSAGE value="agregar consultas por libreta universitaria y genero" />
+    <option name="LAST_COMMIT_MESSAGE" value="agregar consultas por libreta universitaria y genero" />
   </component>
 </project>
