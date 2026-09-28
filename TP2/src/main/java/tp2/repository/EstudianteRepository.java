@@ -67,6 +67,7 @@ public class EstudianteRepository {
         return em.createQuery("SELECT e FROM Estudiante e WHERE e.libretaUniversitaria = :lu", Estudiante.class)
                 .setParameter("lu", lu)
                 .getResultStream()
+
                 .findFirst()
                 .orElse(null);
     }
