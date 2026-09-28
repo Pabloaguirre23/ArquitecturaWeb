@@ -76,8 +76,14 @@ public class EstudianteRepository {
     // f) carreras con inscriptos, ordenadas por cantidad desc — DTO, no Object[]
     // TODO integrante C: SELECT NEW tp2.dto.CarreraInscriptosDTO(c.nombre, COUNT(ec))
     //   FROM Carrera c JOIN c.inscriptos ec GROUP BY c.id, c.nombre ORDER BY COUNT(ec) DESC
+
     public List<CarreraInscriptosDTO> findCarrerasConInscriptosOrdenadas() {
-        throw new UnsupportedOperationException("TODO integrante C");
+        return em.createQuery(
+                        "SELECT NEW tp2.dto.CarreraInscriptosDTO(c.nombre, COUNT(ec)) " +
+                                "FROM Carrera c JOIN c.inscriptos ec " +
+                                "GROUP BY c.id, c.nombre " +
+                                "ORDER BY COUNT(ec) DESC", CarreraInscriptosDTO.class)
+                .getResultList();
     }
 
     // g) estudiantes de una carrera filtrados por ciudad
@@ -86,6 +92,10 @@ public class EstudianteRepository {
     public List<Estudiante> findEstudiantesPorCarreraYCiudad(int idCarrera, String ciudad) {
         throw new UnsupportedOperationException("TODO integrante C");
     }
+
+
+
+
 
     // Helper usado por el cargador CSV
     public Estudiante findByDni(int dni) {
