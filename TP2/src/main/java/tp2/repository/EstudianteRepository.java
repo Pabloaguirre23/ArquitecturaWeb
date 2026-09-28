@@ -100,11 +100,17 @@ public class EstudianteRepository {
     // g) estudiantes de una carrera filtrados por ciudad
     // TODO integrante C: SELECT e FROM Estudiante e JOIN e.carreras ec
     //   WHERE ec.carrera.id = :idCarrera AND e.ciudad = :ciudad ORDER BY e.apellido, e.nombre
+
+
     public List<Estudiante> findEstudiantesPorCarreraYCiudad(int idCarrera, String ciudad) {
-        throw new UnsupportedOperationException("TODO integrante C");
+        return em.createQuery(
+                        "SELECT e FROM Estudiante e JOIN e.carreras ec " +
+                                "WHERE ec.carrera.id = :idCarrera AND e.ciudad = :ciudad " +
+                                "ORDER BY e.apellido ASC, e.nombre ASC", Estudiante.class)
+                .setParameter("idCarrera", idCarrera)
+                .setParameter("ciudad", ciudad)
+                .getResultList();
     }
-
-
 
 
 
