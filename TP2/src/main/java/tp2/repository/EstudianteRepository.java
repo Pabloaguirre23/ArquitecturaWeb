@@ -72,17 +72,17 @@ public class EstudianteRepository {
                 .orElse(null);
     }
 
+
+    // e) estudiantes por género
+    // TODO integrante B: SELECT e FROM Estudiante e WHERE e.genero = :genero ORDER BY e.apellido, e.nombre
     public List<Estudiante> findByGenero(String genero) {
         return em.createQuery("SELECT e FROM Estudiante e WHERE e.genero = :genero ORDER BY e.apellido ASC, e.nombre ASC", Estudiante.class)
                 .setParameter("genero", genero)
                 .getResultList();
     }
 
-    // e) estudiantes por género
-    // TODO integrante B: SELECT e FROM Estudiante e WHERE e.genero = :genero ORDER BY e.apellido, e.nombre
-    public List<Estudiante> findByGenero(String genero) {
-        throw new UnsupportedOperationException("TODO integrante B");
-    }
+
+
 
     // f) carreras con inscriptos, ordenadas por cantidad desc — DTO, no Object[]
     // TODO integrante C: SELECT NEW tp2.dto.CarreraInscriptosDTO(c.nombre, COUNT(ec))
