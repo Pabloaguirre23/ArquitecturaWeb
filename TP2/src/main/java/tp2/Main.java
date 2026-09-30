@@ -5,7 +5,6 @@ import tp2.entity.Carrera;
 import tp2.entity.Estudiante;
 import tp2.repository.CarreraRepository;
 import tp2.repository.EstudianteRepository;
-import tp2.util.CargadorCSV;
 import tp2.util.JPAUtil;
 
 import java.nio.file.Path;
