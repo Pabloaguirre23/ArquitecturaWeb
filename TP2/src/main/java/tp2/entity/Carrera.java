@@ -20,12 +20,18 @@ public class Carrera {
     @Column(nullable = false)
     private String nombre;
 
+    @Column(nullable = false)
     private int duracion;
 
-    @OneToMany(mappedBy = "carrera", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "carrera", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<EstudianteCarrera> inscriptos = new ArrayList<>();
 
+    public Carrera() {
+        this.inscripciones = new ArrayList<>();
+    }
+
     public Carrera(int id, String nombre, int duracion) {
+        this();
         this.id = id;
         this.nombre = nombre;
         this.duracion = duracion;
@@ -34,5 +40,4 @@ public class Carrera {
     @Override
     public String toString() {
         return "Carrera{id=" + id + ", nombre='" + nombre + "'}";
-    }
 }
