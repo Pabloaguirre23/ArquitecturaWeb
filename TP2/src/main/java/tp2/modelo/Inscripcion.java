@@ -1,4 +1,4 @@
-package modelo;
+package tp2.modelo;
 
 import jakarta.persistence.*;
 

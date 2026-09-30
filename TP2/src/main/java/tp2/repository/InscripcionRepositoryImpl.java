@@ -1,11 +1,11 @@
-package repository;
+package tp2.repository;
 
 import com.opencsv.CSVReader;
 import jakarta.persistence.EntityManager;
-import modelo.Estudiante;
-import modelo.Carrera;
-import modelo.Inscripcion;
-import factory.JPAUtil;
+import tp2.modelo.Estudiante;
+import tp2.modelo.Carrera;
+import tp2.modelo.Inscripcion;
+import tp2.factory.JPAUtil;
 import java.time.Year;
 
 import java.io.FileReader;

@@ -1,4 +1,4 @@
-package factory;
+package tp2.factory;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;

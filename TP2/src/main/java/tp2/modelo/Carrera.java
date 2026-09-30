@@ -1,4 +1,4 @@
-package modelo;
+package tp2.modelo;
 
 import jakarta.persistence.*;
 import java.util.ArrayList;
@@ -17,7 +17,7 @@ public class Carrera {
     private int duracion;
 
     @OneToMany(mappedBy = "carrera", fetch = FetchType.LAZY)
-    private List<Inscripcion> inscripciones;
+    private List<tp2.modelo.Inscripcion> inscripciones;
 
     public Carrera() {
         this.inscripciones = new ArrayList<>();
@@ -34,7 +34,7 @@ public class Carrera {
     public void setNombre(String nombre) { this.nombre = nombre; }
     public int getDuracion() { return duracion; }
     public void setDuracion(int duracion) { this.duracion = duracion; }
-    public List<Inscripcion> getInscripciones() { return inscripciones; }
+    public List<tp2.modelo.Inscripcion> getInscripciones() { return inscripciones; }
 
     @Override
     public String toString() {

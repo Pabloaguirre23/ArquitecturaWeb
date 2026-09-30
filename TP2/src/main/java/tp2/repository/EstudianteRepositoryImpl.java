@@ -1,12 +1,12 @@
-package repository;
+package tp2.repository;
 
 import com.opencsv.CSVReader;
-import dto.EstudianteDTO;
+import tp2.dto.EstudianteDTO;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.TypedQuery;
-import modelo.Estudiante;
-import factory.JPAUtil;
+import tp2.modelo.Estudiante;
+import tp2.factory.JPAUtil;
 
 import java.io.FileReader;
 import java.util.List;
@@ -73,7 +73,7 @@ public class EstudianteRepositoryImpl implements EstudianteRepository {
         EntityManager em = JPAUtil.getEntityManager();
         try {
             boolean ordValido = false;
-            String jpql = "SELECT new dto.EstudianteDTO(e.numeroDocumento, e.nombre, e.apellido, e.edad, e.genero, e.ciudadResidencia, e.numeroLibreta) " +
+            String jpql = "SELECT new tp2.dto.EstudianteDTO(e.numeroDocumento, e.nombre, e.apellido, e.edad, e.genero, e.ciudadResidencia, e.numeroLibreta) " +
                     "FROM Estudiante e ";
 
             switch (atributo) {
@@ -124,7 +124,7 @@ public class EstudianteRepositoryImpl implements EstudianteRepository {
         EntityManager em = JPAUtil.getEntityManager();
         try {
             return em.createQuery(
-                            "SELECT new dto.EstudianteDTO(e.numeroDocumento, e.nombre, e.apellido, e.edad, e.genero, e.ciudadResidencia, e.numeroLibreta) " +
+                            "SELECT new tp2.dto.EstudianteDTO(e.numeroDocumento, e.nombre, e.apellido, e.edad, e.genero, e.ciudadResidencia, e.numeroLibreta) " +
                                     "FROM Estudiante e WHERE e.numeroLibreta = :LU", EstudianteDTO.class)
                     .setParameter("LU", numeroLibreta)
                     .getSingleResult();
@@ -138,7 +138,7 @@ public class EstudianteRepositoryImpl implements EstudianteRepository {
     public List<EstudianteDTO> getEstudiantesByGenero(String g) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
-            String jpql = "SELECT new dto.EstudianteDTO(e.numeroDocumento, e.nombre, e.apellido, e.edad, e.genero, e.ciudadResidencia, e.numeroLibreta) " +
+            String jpql = "SELECT new tp2.dto.EstudianteDTO(e.numeroDocumento, e.nombre, e.apellido, e.edad, e.genero, e.ciudadResidencia, e.numeroLibreta) " +
                     "FROM Estudiante e";
 
             TypedQuery<EstudianteDTO> query;

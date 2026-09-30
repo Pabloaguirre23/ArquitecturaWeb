@@ -1,9 +1,9 @@
-package modelo;
+package tp2.modelo;
 
 import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
-import modelo.Inscripcion;
+import tp2.modelo.Inscripcion;
 
 @Entity
 public class Estudiante {
