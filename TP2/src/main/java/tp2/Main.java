@@ -28,12 +28,12 @@ public class Main {
 
             System.out.println("=== c) todos ordenados (base, ya funciona) ===");
             estudiantes.findAllOrdenados().stream().limit(10).forEach(System.out::println);
-
-            // Descomentar a medida que cada integrante implementa su TODO en su rama:
-            // --- Integrante A: matricular() ---
-            // --- Integrante B: findByLibreta(34978), findByGenero("Male") ---
-            // --- Integrante C: findCarrerasConInscriptosOrdenadas(), findEstudiantesPorCarreraYCiudad(1, "Tandil") ---
-            // --- Integrante D: carreras.reporteCarrerasPorAnio() ---
+            matricular();
+            findByLibreta(34978);
+            findByGenero("Male");
+            findCarrerasConInscriptosOrdenadas();
+            findEstudiantesPorCarreraYCiudad(1, "Tandil");
+            carreras.reporteCarrerasPorAnio();
         } finally {
             if (em.isOpen()) em.close();
             JPAUtil.close();
