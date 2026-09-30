@@ -10,7 +10,7 @@ import java.time.Year;
 
 import java.io.FileReader;
 
-public class EstudianteCarreraImpl implements EstudianteCarrera {
+public class InscripcionRepositoryImpl implements InscripcionRepository {
 
     public void insertarInscripcionCSV(String rutaArchivo) {
         EntityManager em = JPAUtil.getEntityManager();
