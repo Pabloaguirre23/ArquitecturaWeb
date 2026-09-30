@@ -14,11 +14,18 @@ import java.util.List;
 public class Estudiante {
 
     @Id
-    @Column(name = "dni")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+
+    @Column(name = "dni", nullable = false, unique = true)
     private int dni;
 
+    @Column(nullable = false)
     private String nombre;
+
+    @Column(nullable = false)
     private String apellido;
+
     private int edad;
     private String genero;
     private String ciudad;
@@ -26,7 +33,7 @@ public class Estudiante {
     @Column(name = "lu", unique = true, nullable = false)
     private int libretaUniversitaria;
 
-    @OneToMany(mappedBy = "estudiante", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "estudiante", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<EstudianteCarrera> carreras = new ArrayList<>();
 
     public Estudiante(int dni, String nombre, String apellido, int edad, String genero, String ciudad, int libretaUniversitaria) {
