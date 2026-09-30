@@ -66,4 +66,23 @@ public class CarreraRepositoryImpl implements CarreraRepository {
         }
     }
 
+    @Override
+    public List getReporteCarreras() {
+        EntityManager em = JPAUtil.getEntityManager();
+        try {
+            String jpql = "SELECT new tp2.dto.ReporteCarreraDTO(" +
+                    "c.nombre, " +
+                    "i.inscripcion, " +
+                    "COUNT(i), " +
+                    "SUM(CASE WHEN i.graduacion > 0 THEN 1 ELSE 0 END)) " +
+                    "FROM Inscripcion i JOIN i.carrera c " +
+                    "GROUP BY c.nombre, i.inscripcion " +
+                    "ORDER BY c.nombre ASC, i.inscripcion ASC";
+
+            return em.createQuery(jpql, ReporteCarreraDTO.class).getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
 }
