@@ -6,6 +6,7 @@ import tp2.modelo.Carrera;
 import tp2.factory.JPAUtil;
 
 import java.io.FileReader;
+import java.util.List;
 
 public class CarreraRepositoryImpl implements CarreraRepository {
 
@@ -36,4 +37,16 @@ public class CarreraRepositoryImpl implements CarreraRepository {
             em.close();
         }
     }
+
+    @Override
+    public List getCarrerasConEstudiantesInscriptos() {
+        EntityManager em = JPAUtil.getEntityManager();
+        try {
+            String jpql = "SELECT c FROM Carrera c JOIN c.inscripciones i GROUP BY c HAVING COUNT(i) > 0 ORDER BY COUNT(i) DESC";
+            return em.createQuery(jpql, Carrera.class).getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
 }
