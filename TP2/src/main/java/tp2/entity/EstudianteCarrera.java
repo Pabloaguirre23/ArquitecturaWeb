@@ -11,10 +11,11 @@ import lombok.Setter;
 public class EstudianteCarrera {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "dni_estudiante")
+    @JoinColumn(name = "id_estudiante")
     private Estudiante estudiante;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -22,22 +23,19 @@ public class EstudianteCarrera {
     private Carrera carrera;
 
     private int inscripcion;
-
-    /** Año de graduación. 0 o null = aún no graduado (el CSV usa 0). */
-    private Integer graduacion;
-
+    private int graduacion;
     private int antiguedad;
 
-    public EstudianteCarrera(int id, Estudiante estudiante, Carrera carrera, int inscripcion, Integer graduacion, int antiguedad) {
+    public EstudianteCarrera(int id, Estudiante estudiante, Carrera carrera, int inscripcion, int graduacion, int antiguedad) {
         this.id = id;
         this.estudiante = estudiante;
         this.carrera = carrera;
         this.inscripcion = inscripcion;
-        this.graduacion = (graduacion != null && graduacion == 0) ? null : graduacion;
+        this.graduacion = graduacion;
         this.antiguedad = antiguedad;
     }
 
     public boolean isGraduado() {
-        return graduacion != null && graduacion != 0;
+        return graduacion != 0;
     }
 }
