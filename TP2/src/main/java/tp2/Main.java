@@ -1,6 +1,8 @@
 package tp2;
 
 import jakarta.persistence.EntityManager;
+import tp2.entity.Carrera;
+import tp2.entity.Estudiante;
 import tp2.repository.CarreraRepository;
 import tp2.repository.EstudianteRepository;
 import tp2.util.CargadorCSV;
@@ -26,17 +28,32 @@ public class Main {
             EstudianteRepository estudiantes = new EstudianteRepository(em);
             CarreraRepository carreras = new CarreraRepository(em);
 
-            System.out.println("=== c) todos ordenados (base, ya funciona) ===");
+            System.out.println("=== c) todos ordenados ===");
             estudiantes.findAllOrdenados().stream().limit(10).forEach(System.out::println);
-            matricular();
-            findByLibreta(34978);
-            findByGenero("Male");
-            findCarrerasConInscriptosOrdenadas();
-            findEstudiantesPorCarreraYCiudad(1, "Tandil");
-            carreras.reporteCarrerasPorAnio();
+
+            run("b) matricular", () -> {
+                Estudiante e = estudiantes.findByDni(71779527);
+                Carrera c = carreras.findById(1);
+                System.out.println(estudiantes.matricular(e, c, 2024, null, 1));
+            });
+            run("d) por LU 34978", () -> System.out.println(estudiantes.findByLibreta(34978)));
+            run("e) genero Male (tope 5)", () -> estudiantes.findByGenero("Male").stream().limit(5).forEach(System.out::println));
+            run("f) carreras con inscriptos", () -> estudiantes.findCarrerasConInscriptosOrdenadas().forEach(System.out::println));
+            run("g) carrera 1 en Tandil", () -> estudiantes.findEstudiantesPorCarreraYCiudad(1, "Tandil").forEach(System.out::println));
+            run("3) reporte por anio", () -> carreras.reporteCarrerasPorAnio().forEach(System.out::println));
         } finally {
             if (em.isOpen()) em.close();
             JPAUtil.close();
+        }
+    }
+
+    /** Ejecuta una consulta; si el método sigue TODO, lo informa y sigue con la próxima. */
+    private static void run(String titulo, Runnable consulta) {
+        System.out.println("=== " + titulo + " ===");
+        try {
+            consulta.run();
+        } catch (UnsupportedOperationException ex) {
+            System.out.println("(pendiente: " + ex.getMessage() + ")");
         }
     }
 }
