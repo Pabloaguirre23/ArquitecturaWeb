@@ -50,12 +50,13 @@ public class CarreraRepositoryImpl implements CarreraRepository {
         }
     }
 
+
     @Override
     public List getEstudiantesPorCarreraYCiudad(int carreraId, String ciudad) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
             String jpql = "SELECT i.estudiante FROM Inscripcion i " +
-                    "WHERE i.carrera.id = :carreraId AND i.estudiante.ciudad = :ciudad";
+                    "WHERE i.carrera.id = :carreraId AND i.estudiante.ciudadResidencia = :ciudad";
 
             return em.createQuery(jpql, Estudiante.class)
                     .setParameter("carreraId", carreraId)
