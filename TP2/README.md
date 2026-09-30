@@ -71,3 +71,70 @@ Reglas: 1 PR por tarea, commits chicos con prefijo `feat(tp2):`, `fix(tp2):`, y 
 
 `estudianteCarrera.csv` referencia `id_carrera` inexistentes (ej. 15, 11, 9) y usa `graduacion=0` = no graduado.
 `CargadorCSV` los saltea con `[WARN]` y mapea 0 -> null. No borrar ese manejo.
+
+
+# TP2 Integrador — Punto 1: diagrama de objetos y DER
+
+
+
+## Diagrama de objetos (modelo de dominio)
+
+```mermaid
+classDiagram
+    class Estudiante {
+        +int dni
+        +String nombre
+        +String apellido
+        +int edad
+        +String genero
+        +String ciudad
+        +int libretaUniversitaria
+    }
+    class Carrera {
+        +int id
+        +String nombre
+        +int duracion
+    }
+    class EstudianteCarrera {
+        +int id
+        +int inscripcion
+        +Integer graduacion
+        +int antiguedad
+    }
+    Estudiante "1" --> "*" EstudianteCarrera : cursa
+    Carrera "1" --> "*" EstudianteCarrera : tiene inscriptos
+```
+
+Un estudiante cursa N carreras y una carrera tiene N inscriptos (N—N
+resuelta con la entidad intermedia `EstudianteCarrera`, que guarda
+`inscripcion`, `graduacion` (null = no graduado) y `antiguedad`).
+
+## DER (tablas y claves)
+
+```mermaid
+erDiagram
+    ESTUDIANTE {
+        int dni PK
+        string nombre
+        string apellido
+        int edad
+        string genero
+        string ciudad
+        int lu UK
+    }
+    CARRERA {
+        int id_carrera PK
+        string nombre
+        int duracion
+    }
+    ESTUDIANTE_CARRERA {
+        int id PK
+        int dni_estudiante FK
+        int id_carrera FK
+        int inscripcion
+        int graduacion
+        int antiguedad
+    }
+    ESTUDIANTE ||--o{ ESTUDIANTE_CARRERA : "dni = dni_estudiante"
+    CARRERA ||--o{ ESTUDIANTE_CARRERA : "id_carrera = id_carrera"
+```
