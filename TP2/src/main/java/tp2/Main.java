@@ -32,7 +32,7 @@ public class Main {
         run("d) por LU 34978", () -> System.out.println(estudiantes.getEstudianteByLU(34978)));
         run("e) por genero Male", () -> System.out.println("cantidad: " + estudiantes.getEstudiantesByGenero("Male").size()));
         run("f) carreras con inscriptos", () -> carreras.getCarrerasConEstudiantesInscriptos().forEach(System.out::println));
-        run("g) carrera 1, ciudad Tandil", () -> carreras.getEstudiantesPorCarreraYCiudad(1, "Tandil").forEach(System.out::println));
+        run("g) carrera 1, ciudad Paltamo", () -> carreras.getEstudiantesPorCarreraYCiudad(1, "Paltamo").forEach(System.out::println));
         run("b) matricular primer estudiante en carrera 1", () -> {
             int dni = estudiantes.todosLosEstudiantesOrdenados("apellido", "ASC").get(0).getDni();
             System.out.println(inscripciones.matricular(dni, 1));
