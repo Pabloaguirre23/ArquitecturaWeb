@@ -78,7 +78,7 @@ public class Inscripcion {
 
     @Override
     public String toString() {
-        return "Inscripcion [id=" + id + ", estudiante=" + (estudiante != null ? estudiante.getId() : null)
+        return "Inscripcion [id=" + id + ", estudiante=" + (estudiante != null ? estudiante.getNumeroDocumento() : null)
                 + ", carrera=" + (carrera != null ? carrera.getId() : null)
                 + ", inscripcion=" + inscripcion + ", graduacion=" + graduacion
                 + ", antiguedad=" + antiguedad + "]";

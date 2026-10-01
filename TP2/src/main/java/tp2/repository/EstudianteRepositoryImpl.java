@@ -78,7 +78,7 @@ public class EstudianteRepositoryImpl implements EstudianteRepository {
 
             switch (atributo) {
                 case "id":
-                    jpql += "ORDER BY e.id ";
+                    jpql += "ORDER BY e.numeroDocumento ";
                     ordValido = true;
                     break;
                 case "DNI":
@@ -138,19 +138,12 @@ public class EstudianteRepositoryImpl implements EstudianteRepository {
     public List<EstudianteDTO> getEstudiantesByGenero(String g) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
-            String jpql = "SELECT new tp2.dto.EstudianteDTO(e.numeroDocumento, e.nombre, e.apellido, e.edad, e.genero, e.ciudadResidencia, e.numeroLibreta) " +
-                    "FROM Estudiante e";
-
-            TypedQuery<EstudianteDTO> query;
-
-            if ("masculino".equals(g) || "femenino".equals(g)) {
-                query = em.createQuery(jpql + " WHERE e.genero = :genero", EstudianteDTO.class)
-                        .setParameter("genero", g);
-            } else {
-                query = em.createQuery(jpql, EstudianteDTO.class);
-            }
-
-            return query.getResultList();
+            // Filtro exacto por el valor recibido (el CSV trae Male/Female/Masculino/...).
+            return em.createQuery(
+                            "SELECT new tp2.dto.EstudianteDTO(e.numeroDocumento, e.nombre, e.apellido, e.edad, e.genero, e.ciudadResidencia, e.numeroLibreta) " +
+                            "FROM Estudiante e WHERE e.genero = :genero", EstudianteDTO.class)
+                    .setParameter("genero", g)
+                    .getResultList();
         } finally {
             em.close();
         }
