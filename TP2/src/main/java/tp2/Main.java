@@ -24,10 +24,15 @@ public class Main {
         CarreraRepository carreras = new CarreraRepositoryImpl();
         InscripcionRepository inscripciones = new InscripcionRepositoryImpl();
 
-        run("carga carreras CSV", () -> carreras.insertarCarrerasCSV(recursos.resolve("carreras.csv").toString()));
-        run("carga estudiantes CSV", () -> estudiantes.insertarEstudiantesCSV(recursos.resolve("estudiantes.csv").toString()));
-        run("carga inscripciones CSV", () -> inscripciones.insertarInscripcionCSV(recursos.resolve("estudianteCarrera.csv").toString()));
-
+        // Carga inicial solo si la base está vacía (evita duplicar en cada corrida).
+        boolean baseVacia = estudiantes.todosLosEstudiantesOrdenados("apellido", "ASC").isEmpty();
+        if (baseVacia) {
+            run("carga carreras CSV", () -> carreras.insertarCarrerasCSV(recursos.resolve("carreras.csv").toString()));
+            run("carga estudiantes CSV", () -> estudiantes.insertarEstudiantesCSV(recursos.resolve("estudiantes.csv").toString()));
+            run("carga inscripciones CSV", () -> inscripciones.insertarInscripcionCSV(recursos.resolve("estudianteCarrera.csv").toString()));
+        } else {
+            System.out.println("=== carga CSV salteada (base con datos) ===");
+        }
         run("c) todos ordenados por apellido", () -> estudiantes.todosLosEstudiantesOrdenados("apellido", "ASC").forEach(System.out::println));
         run("d) por LU 34978", () -> System.out.println(estudiantes.getEstudianteByLU(34978)));
         run("e) por genero Male", () -> System.out.println("cantidad: " + estudiantes.getEstudiantesByGenero("Male").size()));
