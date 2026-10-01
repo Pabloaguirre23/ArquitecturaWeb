@@ -9,9 +9,6 @@ import tp2.modelo.Inscripcion;
 public class Estudiante {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
-
     @Column(name = "DNI", nullable = false, unique = true)
     private int numeroDocumento;
 
@@ -38,10 +35,9 @@ public class Estudiante {
         this.inscripciones = new ArrayList<>();
     }
 
-    public Estudiante(int id, int numeroDocumento, String nombre, String apellido, int edad, String genero,
+    public Estudiante(int numeroDocumento, String nombre, String apellido, int edad, String genero,
                       String ciudadResidencia, int numeroLibreta) {
         this();
-        this.id = id;
         this.nombre = nombre;
         this.apellido = apellido;
         this.edad = edad;
@@ -51,7 +47,6 @@ public class Estudiante {
         this.numeroLibreta = numeroLibreta;
     }
 
-    public int getId() { return id; }
     public String getNombre() { return nombre; }
     public void setNombre(String nombre) { this.nombre = nombre; }
     public String getApellido() { return apellido; }
@@ -70,6 +65,6 @@ public class Estudiante {
 
     @Override
     public String toString() {
-        return "Estudiante [id=" + id + ", nombres=" + nombre + ", apellido=" + apellido + "]";
+        return "Estudiante [dni=" + numeroDocumento + ", nombres=" + nombre + ", apellido=" + apellido + "]";
     }
 }
