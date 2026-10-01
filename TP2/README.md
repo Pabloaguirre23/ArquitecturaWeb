@@ -138,3 +138,20 @@ erDiagram
     ESTUDIANTE ||--o{ ESTUDIANTE_CARRERA : "dni = dni_estudiante"
     CARRERA ||--o{ ESTUDIANTE_CARRERA : "id_carrera = id_carrera"
 ```
+
+## LAZY vs EAGER (punto 2d de la consigna)
+
+Configuración real del proyecto:
+
+- `@OneToMany(fetch = LAZY)` en `Estudiante.inscripciones` y `Carrera.inscripciones`
+  (`modelo/Estudiante.java`, `modelo/Carrera.java`): al listar estudiantes o
+  carreras NO se cargan sus inscripciones; solo se traen con un SELECT
+  adicional si se navega la colección (verificable con `hibernate.show_sql`).
+- `@ManyToOne` sin `fetch` en `Inscripcion` (`modelo/Inscripcion.java`): por
+  defecto JPA es **EAGER**, o sea que al cargar una inscripción se trae
+  automáticamente su estudiante y su carrera (en los logs se ve el JOIN).
+
+Conclusión: LAZY evita cargar el grafo completo en listados grandes (puntos c,
+e, f); EAGER conviene solo cuando siempre se navega la asociación (puntos g y
+reporte, donde de todos modos hacemos JOIN explícito en JPQL). Por eso las
+colecciones quedan LAZY y los `@ManyToOne` en su default EAGER.
