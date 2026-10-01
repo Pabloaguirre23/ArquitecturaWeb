@@ -1,58 +1,49 @@
 package tp2;
 
-import jakarta.persistence.EntityManager;
-import tp2.entity.Carrera;
-import tp2.entity.Estudiante;
 import tp2.repository.CarreraRepository;
+import tp2.repository.CarreraRepositoryImpl;
 import tp2.repository.EstudianteRepository;
-import tp2.util.JPAUtil;
+import tp2.repository.EstudianteRepositoryImpl;
+import tp2.repository.InscripcionRepository;
+import tp2.repository.InscripcionRepositoryImpl;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class Main {
-    public static void main(String[] args) throws Exception {
-        String pu = args.length > 0 ? args[0] : "derbyPU";
-        Path base = args.length > 1 ? Paths.get(args[1]) : Paths.get("TP2");
+    public static void main(String[] args) {
+        Path base = Paths.get("TP2/src/main/resources");
         if (!base.resolve("estudiantes.csv").toFile().exists()
-                && Paths.get("estudiantes.csv").toFile().exists()) {
-            base = Paths.get(".");
+                && Paths.get("src/main/resources/estudiantes.csv").toFile().exists()) {
+            base = Paths.get("src/main/resources");
         }
+        final Path recursos = base;
 
-        EntityManager em = JPAUtil.getEntityManager(pu);
-        try {
-            CargadorCSV.cargarTodo(em, base);
-            System.out.println("Carga OK desde " + base.toAbsolutePath());
+        // Apertura/cierre del EM administrado por cada repository (estilo del equipo).
+        EstudianteRepository estudiantes = new EstudianteRepositoryImpl();
+        CarreraRepository carreras = new CarreraRepositoryImpl();
+        InscripcionRepository inscripciones = new InscripcionRepositoryImpl();
 
-            EstudianteRepository estudiantes = new EstudianteRepository(em);
-            CarreraRepository carreras = new CarreraRepository(em);
+        run("carga carreras CSV", () -> carreras.insertarCarrerasCSV(recursos.resolve("carreras.csv").toString()));
+        run("carga estudiantes CSV", () -> estudiantes.insertarEstudiantesCSV(recursos.resolve("estudiantes.csv").toString()));
+        run("carga inscripciones CSV", () -> inscripciones.insertarInscripcionCSV(recursos.resolve("estudianteCarrera.csv").toString()));
 
-            System.out.println("=== c) todos ordenados ===");
-            estudiantes.findAllOrdenados().stream().limit(10).forEach(System.out::println);
-
-            run("b) matricular", () -> {
-                Estudiante e = estudiantes.findByDni(71779527);
-                Carrera c = carreras.findById(1);
-                System.out.println(estudiantes.matricular(e, c, 2024, null, 1));
-            });
-            run("d) por LU 34978", () -> System.out.println(estudiantes.findByLibreta(34978)));
-            run("e) genero Male (tope 5)", () -> estudiantes.findByGenero("Male").stream().limit(5).forEach(System.out::println));
-            run("f) carreras con inscriptos", () -> estudiantes.findCarrerasConInscriptosOrdenadas().forEach(System.out::println));
-            run("g) carrera 1 en Tandil", () -> estudiantes.findEstudiantesPorCarreraYCiudad(1, "Tandil").forEach(System.out::println));
-            run("3) reporte por anio", () -> carreras.reporteCarrerasPorAnio().forEach(System.out::println));
-        } finally {
-            if (em.isOpen()) em.close();
-            JPAUtil.close();
-        }
+        run("c) todos ordenados por apellido", () -> estudiantes.todosLosEstudiantesOrdenados("apellido", "ASC").forEach(System.out::println));
+        run("d) por LU 34978", () -> System.out.println(estudiantes.getEstudianteByLU(34978)));
+        run("e) por genero", () -> System.out.println("cantidad: " + estudiantes.getEstudiantesByGenero("femenino").size()));
+        run("f) carreras con inscriptos", () -> carreras.getCarrerasConEstudiantesInscriptos().forEach(System.out::println));
+        run("g) carrera 1, ciudad Tandil", () -> carreras.getEstudiantesPorCarreraYCiudad(1, "Tandil").forEach(System.out::println));
+        run("b) matricular estudiante 1 en carrera 1", () -> System.out.println(inscripciones.matricular(1, 1)));
+        run("3) reporte por anio", () -> carreras.getReporteCarreras().forEach(System.out::println));
     }
 
-    /** Ejecuta una consulta; si el método sigue TODO, lo informa y sigue con la próxima. */
-    private static void run(String titulo, Runnable consulta) {
+    /** Ejecuta un paso; si falla, lo informa y sigue con el próximo. */
+    private static void run(String titulo, Runnable paso) {
         System.out.println("=== " + titulo + " ===");
         try {
-            consulta.run();
-        } catch (UnsupportedOperationException ex) {
-            System.out.println("(pendiente: " + ex.getMessage() + ")");
+            paso.run();
+        } catch (RuntimeException ex) {
+            System.out.println("(falla: " + ex.getMessage() + ")");
         }
     }
 }

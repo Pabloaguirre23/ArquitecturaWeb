@@ -2,6 +2,7 @@ package tp2.repository;
 
 import com.opencsv.CSVReader;
 import jakarta.persistence.EntityManager;
+import tp2.dto.ReporteCarreraDTO;
 import tp2.modelo.Carrera;
 import tp2.factory.JPAUtil;
 import tp2.modelo.Estudiante;
@@ -40,7 +41,7 @@ public class CarreraRepositoryImpl implements CarreraRepository {
     }
 
     @Override
-    public List getCarrerasConEstudiantesInscriptos() {
+    public List<Carrera> getCarrerasConEstudiantesInscriptos() {
         EntityManager em = JPAUtil.getEntityManager();
         try {
             String jpql = "SELECT c FROM Carrera c JOIN c.inscripciones i GROUP BY c HAVING COUNT(i) > 0 ORDER BY COUNT(i) DESC";
@@ -52,7 +53,7 @@ public class CarreraRepositoryImpl implements CarreraRepository {
 
 
     @Override
-    public List getEstudiantesPorCarreraYCiudad(int carreraId, String ciudad) {
+    public List<Estudiante> getEstudiantesPorCarreraYCiudad(int carreraId, String ciudad) {
         EntityManager em = JPAUtil.getEntityManager();
         try {
             String jpql = "SELECT i.estudiante FROM Inscripcion i " +
@@ -68,7 +69,7 @@ public class CarreraRepositoryImpl implements CarreraRepository {
     }
 
     @Override
-    public List getReporteCarreras() {
+    public List<ReporteCarreraDTO> getReporteCarreras() {
         EntityManager em = JPAUtil.getEntityManager();
         try {
             String jpql = "SELECT new tp2.dto.ReporteCarreraDTO(" +
