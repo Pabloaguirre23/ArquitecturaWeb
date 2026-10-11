@@ -8,6 +8,7 @@ target/
 .idea/compiler.xml
 .idea/libraries/
 .idea/shelf/
+TP3/.idea/
 *.iws
 *.iml
 *.ipr
