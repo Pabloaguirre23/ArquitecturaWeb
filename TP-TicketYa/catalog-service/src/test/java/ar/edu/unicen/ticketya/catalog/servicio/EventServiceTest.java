@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -44,6 +46,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
 @ExtendWith(MockitoExtension.class)
 class EventServiceTest {
@@ -89,6 +93,20 @@ class EventServiceTest {
                     assertThat(ex.getCode()).isEqualTo("VALIDATION_ERROR");
                 });
         verify(eventoRepository, never()).save(any());
+    }
+
+    @Test
+    void noSePuedePublicarUnEventoConFechaPasada() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID(), "Vencido",
+                OffsetDateTime.parse("2026-10-01T21:00:00-03:00"), EstadoEvento.BORRADOR);
+        when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
+
+        assertThatThrownBy(() -> eventService.publicar(evento.getId(), evento.getOrganizadorId()))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.getStatus().value()).isEqualTo(400);
+                    assertThat(ex.getCode()).isEqualTo("VALIDATION_ERROR");
+                });
+        verify(inventoryClient, never()).publicarInventario(any());
     }
 
     @Test
@@ -207,7 +225,7 @@ class EventServiceTest {
     }
 
     @Test
-    void cancelarEventoPublicadoAvisaAOrdersYQuedaCancelado() {
+    void cancelarEventoPublicadoAvisaAOrdersEInventoryYQuedaCancelado() {
         Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
         evento.setEstado(EstadoEvento.PUBLICADO);
         when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
@@ -217,6 +235,24 @@ class EventServiceTest {
 
         assertThat(response.estado()).isEqualTo(EstadoEvento.CANCELADO);
         assertThat(response.cancelacionPendiente()).isFalse();
+        verify(ordersClient).cancelarEvento(evento.getId());
+        verify(inventoryClient).actualizarEstado(evento.getId(), "CANCELADO");
+    }
+
+    @Test
+    void siInventoryFallaLaCancelacionQuedaPendiente() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        evento.setEstado(EstadoEvento.PUBLICADO);
+        when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+        doThrow(new RuntimeException("inventory caído"))
+                .when(inventoryClient).actualizarEstado(evento.getId(), "CANCELADO");
+
+        CancelacionResponse response = eventService.cancelar(evento.getId());
+
+        assertThat(response.estado()).isEqualTo(EstadoEvento.CANCELADO);
+        assertThat(response.cancelacionPendiente()).isTrue();
+        assertThat(evento.isCancelacionPendiente()).isTrue();
         verify(ordersClient).cancelarEvento(evento.getId());
     }
 
@@ -236,6 +272,20 @@ class EventServiceTest {
     }
 
     @Test
+    void cancelarUnEventoEnBorradorNoAvisaAInventory() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CancelacionResponse response = eventService.cancelar(evento.getId());
+
+        assertThat(response.estado()).isEqualTo(EstadoEvento.CANCELADO);
+        assertThat(response.cancelacionPendiente()).isFalse();
+        verify(ordersClient).cancelarEvento(evento.getId());
+        verify(inventoryClient, never()).actualizarEstado(any(), any());
+    }
+
+    @Test
     void noSePuedeCancelarUnEventoFinalizado() {
         Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
         evento.setEstado(EstadoEvento.FINALIZADO);
@@ -247,6 +297,7 @@ class EventServiceTest {
                     assertThat(ex.getCode()).isEqualTo("EVENT_NOT_CANCELLABLE");
                 });
         verify(ordersClient, never()).cancelarEvento(any());
+        verify(inventoryClient, never()).actualizarEstado(any(), any());
     }
 
     @Test
@@ -289,7 +340,41 @@ class EventServiceTest {
         assertThat(finalizados).isEqualTo(2);
         assertThat(publicado.getEstado()).isEqualTo(EstadoEvento.FINALIZADO);
         assertThat(agotado.getEstado()).isEqualTo(EstadoEvento.FINALIZADO);
+        verify(inventoryClient).actualizarEstado(publicado.getId(), "FINALIZADO");
+        verify(inventoryClient).actualizarEstado(agotado.getId(), "FINALIZADO");
         verify(eventoRepository).saveAll(List.of(publicado, agotado));
+    }
+
+    @Test
+    void siInventoryFallaElEventoNoSeFinalizaYSeReintenta() {
+        Evento publicado = evento(UUID.randomUUID(), UUID.randomUUID(), "Publicado",
+                OffsetDateTime.parse("2026-11-01T21:00:00-03:00"), EstadoEvento.PUBLICADO);
+        when(eventoRepository.findByEstadoInAndFechaBefore(any(), any(OffsetDateTime.class)))
+                .thenReturn(List.of(publicado));
+        doThrow(new RuntimeException("inventory caído"))
+                .when(inventoryClient).actualizarEstado(publicado.getId(), "FINALIZADO");
+
+        int finalizados = eventService.finalizarEventosVencidos();
+
+        assertThat(finalizados).isZero();
+        assertThat(publicado.getEstado()).isEqualTo(EstadoEvento.PUBLICADO);
+        verify(eventoRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void siInventoryResponde409ElEventoSeFinalizaIgual() {
+        Evento publicado = evento(UUID.randomUUID(), UUID.randomUUID(), "Publicado",
+                OffsetDateTime.parse("2026-11-01T21:00:00-03:00"), EstadoEvento.PUBLICADO);
+        when(eventoRepository.findByEstadoInAndFechaBefore(any(), any(OffsetDateTime.class)))
+                .thenReturn(List.of(publicado));
+        doThrow(new HttpClientErrorException(HttpStatus.CONFLICT))
+                .when(inventoryClient).actualizarEstado(publicado.getId(), "FINALIZADO");
+
+        int finalizados = eventService.finalizarEventosVencidos();
+
+        assertThat(finalizados).isEqualTo(1);
+        assertThat(publicado.getEstado()).isEqualTo(EstadoEvento.FINALIZADO);
+        verify(eventoRepository).saveAll(List.of(publicado));
     }
 
     @Test
@@ -305,6 +390,41 @@ class EventServiceTest {
         assertThat(reintentadas).isEqualTo(1);
         assertThat(evento.isCancelacionPendiente()).isFalse();
         verify(ordersClient).cancelarEvento(evento.getId());
+        verify(inventoryClient).actualizarEstado(evento.getId(), "CANCELADO");
+    }
+
+    @Test
+    void elReintentoConInventory404CierraElAviso() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        evento.setEstado(EstadoEvento.CANCELADO);
+        evento.setCancelacionPendiente(true);
+        when(eventoRepository.findByCancelacionPendienteTrue()).thenReturn(List.of(evento));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+        doThrow(new HttpClientErrorException(HttpStatus.NOT_FOUND))
+                .when(inventoryClient).actualizarEstado(evento.getId(), "CANCELADO");
+
+        int reintentadas = eventService.reintentarCancelacionesPendientes();
+
+        assertThat(reintentadas).isEqualTo(1);
+        assertThat(evento.isCancelacionPendiente()).isFalse();
+        verify(ordersClient).cancelarEvento(evento.getId());
+    }
+
+    @Test
+    void siInventorySigueFallandoElReintentoMantieneElFlag() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        evento.setEstado(EstadoEvento.CANCELADO);
+        evento.setCancelacionPendiente(true);
+        when(eventoRepository.findByCancelacionPendienteTrue()).thenReturn(List.of(evento));
+        doThrow(new RuntimeException("inventory caído"))
+                .when(inventoryClient).actualizarEstado(evento.getId(), "CANCELADO");
+
+        int reintentadas = eventService.reintentarCancelacionesPendientes();
+
+        assertThat(reintentadas).isZero();
+        assertThat(evento.isCancelacionPendiente()).isTrue();
+        verify(ordersClient).cancelarEvento(evento.getId());
+        verify(eventoRepository, never()).save(any());
     }
 
     @Test
@@ -315,7 +435,7 @@ class EventServiceTest {
                 OffsetDateTime.parse("2027-03-14T21:00:00-03:00"), EstadoEvento.PUBLICADO);
         Lugar lugar = lugar(lugarId, "Estadio", "Tandil");
         when(eventoRepository.buscar(any(), eq(List.of(TipoEvento.FESTIVAL)), eq(true), eq(organizadorId),
-                eq("%los piojos%"), eq("tandil"), any(), any())).thenReturn(List.of(evento));
+                eq(true), eq("%los piojos%"), eq("tandil"), any(), any())).thenReturn(List.of(evento));
         when(lugarRepository.findAllById(any())).thenReturn(List.of(lugar));
         when(precioRepository.findByEventoIdIn(any())).thenReturn(List.of(
                 new EventoSectorPrecio(evento.getId(), UUID.randomUUID(), new BigDecimal("25000")),
@@ -343,7 +463,7 @@ class EventServiceTest {
                 OffsetDateTime.parse("2027-02-01T21:00:00-03:00"), EstadoEvento.PUBLICADO);
         Evento medio = evento(organizadorId, lugarId, "Medio",
                 OffsetDateTime.parse("2027-03-01T21:00:00-03:00"), EstadoEvento.AGOTADO);
-        when(eventoRepository.buscar(any(), any(), anyBoolean(), any(), any(), any(), any(), any()))
+        when(eventoRepository.buscar(any(), any(), anyBoolean(), any(), anyBoolean(), any(), any(), any(), any()))
                 .thenReturn(List.of(barato, caro, medio));
         when(lugarRepository.findAllById(any())).thenReturn(List.of(lugar(lugarId, "Estadio", "Tandil")));
         when(precioRepository.findByEventoIdIn(any())).thenReturn(List.of(
@@ -368,7 +488,7 @@ class EventServiceTest {
                 OffsetDateTime.parse("2027-05-01T21:00:00-03:00"), EstadoEvento.PUBLICADO);
         Evento temprano = evento(organizadorId, lugarId, "Temprano",
                 OffsetDateTime.parse("2027-01-01T21:00:00-03:00"), EstadoEvento.PUBLICADO);
-        when(eventoRepository.buscar(any(), any(), anyBoolean(), any(), any(), any(), any(), any()))
+        when(eventoRepository.buscar(any(), any(), anyBoolean(), any(), anyBoolean(), any(), any(), any(), any()))
                 .thenReturn(List.of(tarde, temprano));
         when(lugarRepository.findAllById(any())).thenReturn(List.of(lugar(lugarId, "Estadio", "Tandil")));
         when(precioRepository.findByEventoIdIn(any())).thenReturn(List.of());
@@ -390,7 +510,7 @@ class EventServiceTest {
                 OffsetDateTime.parse("2027-02-01T21:00:00-03:00"), EstadoEvento.PUBLICADO);
         Evento agotadoCercano = evento(organizadorId, lugarId, "Agotado cercano",
                 OffsetDateTime.parse("2027-01-01T21:00:00-03:00"), EstadoEvento.AGOTADO);
-        when(eventoRepository.buscar(any(), any(), anyBoolean(), any(), any(), any(), any(), any()))
+        when(eventoRepository.buscar(any(), any(), anyBoolean(), any(), anyBoolean(), any(), any(), any(), any()))
                 .thenReturn(List.of(publicadoLejano, agotadoCercano, publicadoCercano));
         when(lugarRepository.findAllById(any())).thenReturn(List.of(lugar(lugarId, "Estadio", "Tandil")));
         when(precioRepository.findByEventoIdIn(any())).thenReturn(List.of());
@@ -403,8 +523,30 @@ class EventServiceTest {
     }
 
     @Test
+    void buscarSinParticipanteNoAplicaElFiltroDeParticipante() {
+        when(eventoRepository.buscar(any(), any(), anyBoolean(), any(), eq(false), isNull(),
+                any(), any(), any())).thenReturn(List.of());
+
+        eventService.buscar(null, null, null, null, null, null, "FECHA_ASC", 0, 20);
+
+        verify(eventoRepository).buscar(any(), any(), anyBoolean(), any(), eq(false), isNull(),
+                any(), any(), any());
+    }
+
+    @Test
+    void buscarEscapaComodinesEnParticipanteYCiudad() {
+        when(eventoRepository.buscar(any(), any(), anyBoolean(), any(), eq(true),
+                eq("%\\%%"), eq("\\_"), any(), any())).thenReturn(List.of());
+
+        eventService.buscar(null, null, "%", "_", null, null, "FECHA_ASC", 0, 20);
+
+        verify(eventoRepository).buscar(any(), any(), anyBoolean(), any(), eq(true),
+                eq("%\\%%"), eq("\\_"), any(), any());
+    }
+
+    @Test
     void buscarSinResultadosDevuelveListaVacia() {
-        when(eventoRepository.buscar(any(), any(), anyBoolean(), any(), any(), any(), any(), any()))
+        when(eventoRepository.buscar(any(), any(), anyBoolean(), any(), anyBoolean(), any(), any(), any(), any()))
                 .thenReturn(List.of());
 
         PageResponse<EventoBusquedaResponse> pagina = eventService.buscar(
