@@ -87,8 +87,9 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 | `TipoSector` | `NUMERADO`, `NO_NUMERADO` |
 | `EstadoReserva` | `VIGENTE`, `CONFIRMADA`, `LIBERADA`, `VENCIDA` |
 | `EstadoOrden` | `PENDIENTE_PAGO`, `PAGADA`, `RECHAZADA`, `ERROR_PAGO`, `REINTEGRO_PENDIENTE` |
-| `EstadoEntrada` | `VALIDA`, `UTILIZADA`, `DEVUELTA`, `EN_REINTEGRO` |
+| `EstadoEntrada` | `VALIDA`, `UTILIZADA`, `DEVUELTA`, `EN_REINTEGRO`, `EN_DEVOLUCION` |
 | `EstadoDevolucion` | `PENDIENTE`, `PROCESANDO`, `APROBADA`, `RECHAZADA` |
+| `EstadoPago` | `PENDIENTE`, `APROBADO`, `RECHAZADO`, `REINTEGRADO`, `REINTEGRO_PENDIENTE` |
 | `MedioPago` | `TARJETA`, `EFECTIVO`, `TRANSFERENCIA` |
 | Token de la pasarela mock | `APROBADO`, `RECHAZADO`, `LENTO` |
 
@@ -189,7 +190,7 @@ Sector no numerado:
 }
 ```
 
-Errores: `400 VALIDATION_ERROR` (capacidad ≤ 0, sector numerado sin filas), `403`, `404 VENUE_NOT_FOUND`.
+Errores: `400 VALIDATION_ERROR` (capacidad ≤ 0, sector numerado sin filas, capacidad > 20000, filas > 100 o asientosPorFila > 200), `403`, `404 VENUE_NOT_FOUND`, `409 SECTOR_ALREADY_EXISTS` (ya existe un sector con ese nombre en el lugar).
 
 ### 3.5 Listar sectores — `GET /api/catalog/venues/{venueId}/sectors` (público)
 
@@ -261,9 +262,11 @@ Sin cuerpo. **200**
 }
 ```
 
+Antes de marcar el evento, catalog frena la venta en inventory con `PATCH /internal/events/{eventoId}/state`; si inventory no responde, la cancelación no se persiste.
+
 `cancelacionPendiente: true` si catalog ya marcó el evento pero orders no respondió; un scheduler reintenta el aviso.
 
-Errores: `404 EVENT_NOT_FOUND`, `409 EVENT_NOT_CANCELLABLE` (ya cancelado o finalizado).
+Errores: `404 EVENT_NOT_FOUND`, `409 EVENT_NOT_CANCELLABLE` (ya cancelado o finalizado), `502 INVENTORY_UNAVAILABLE` (inventory no frenó la venta; el evento no se cancela).
 
 ### 3.10 Buscar eventos — `GET /api/catalog/events` (público)
 
@@ -280,7 +283,7 @@ Query params (todos opcionales y combinables):
 | `orden` | `FECHA_ASC`, `FECHA_DESC`, `PRECIO_ASC`, `PRECIO_DESC`, `RELEVANCIA` | Default `FECHA_ASC` |
 | `page`, `size` | entero | Paginación |
 
-Solo devuelve eventos en `PUBLICADO` o `AGOTADO`.
+Solo devuelve eventos en `PUBLICADO` o `AGOTADO`. Los caracteres `%`, `_` y `\` se tratan como literales (no como comodines de `LIKE`).
 
 **200**
 
@@ -353,6 +356,18 @@ Llamado por inventory cuando la disponibilidad llega a 0 o vuelve a ser positiva
 ## 4. inventory-service
 
 OpenAPI: [`../openapi/inventory-openapi.json`](../openapi/inventory-openapi.json). Swagger UI en `http://localhost:8082/swagger-ui.html`.
+
+### 4.0 Interno — estado del evento
+
+`PATCH /internal/events/{eventoId}/state`
+
+Lo llama catalog cuando cancela o finaliza un evento.
+
+```json
+{ "estado": "CANCELADO" }
+```
+
+Estados aceptados: `CANCELADO`, `FINALIZADO`. **204**, también si ya estaba en ese estado. `404 EVENT_NOT_FOUND`. `400 VALIDATION_ERROR` si el estado no es uno de esos dos. `409 EVENT_NOT_EDITABLE` si el evento ya está en el otro estado terminal.
 
 ### 4.1 Disponibilidad — `GET /api/inventory/events/{eventoId}/availability` (público)
 
@@ -452,7 +467,7 @@ Reglas:
 }
 ```
 
-Errores: `400 VALIDATION_ERROR`, `404 EVENT_NOT_FOUND`/`SECTOR_NOT_FOUND`, `409 SEAT_NOT_AVAILABLE`, `409 INSUFFICIENT_AVAILABILITY`, `409 EVENT_NOT_ON_SALE` (cancelado/finalizado), `422 CLIENT_LIMIT_EXCEEDED`.
+Errores: `400 VALIDATION_ERROR`, `400 SECTOR_MISMATCH` (el asiento no pertenece al sector del ítem), `404 EVENT_NOT_FOUND`/`SECTOR_NOT_FOUND`, `409 SEAT_NOT_AVAILABLE`, `409 INSUFFICIENT_AVAILABILITY`, `409 EVENT_NOT_ON_SALE` (cancelado), `409 EVENT_FINISHED` (la fecha del evento ya pasó), `422 CLIENT_LIMIT_EXCEEDED`.
 
 ### 4.4 Consultar reserva — `GET /api/inventory/reservations/{reservaId}` (dueño)
 
@@ -497,6 +512,16 @@ Errores: `400 VALIDATION_ERROR`, `404 EVENT_NOT_FOUND`/`SECTOR_NOT_FOUND`, `409 
 
 Idempotente por `eventoId` + `version`: reintentar no duplica filas ni reinicia disponibilidad ya vendida.
 
+### 4.6.1 Interno — cambiar estado del evento
+
+`PATCH /internal/events/{eventoId}/state`
+
+```json
+{ "estado": "CANCELADO" }
+```
+
+**204 No Content**. Catalog lo llama antes de cancelar (`CANCELADO`) o finalizar (`FINALIZADO`) para que inventory deje de vender. Idempotente.
+
 ### 4.7 Interno — consultar reserva para orders
 
 `GET /internal/reservations/{reservaId}` → **200** `ReservationResponse`; `404 RESERVATION_NOT_FOUND`.
@@ -540,6 +565,7 @@ Errores: `409 RESERVATION_NOT_CONFIRMABLE`, `410 RESERVATION_EXPIRED`. Idempoten
 ```json
 {
   "eventoId": "1f2e...",
+  "clienteId": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
   "referencia": "f1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c",
   "items": [
     { "sectorId": "9a1b...", "asientoId": "a1b2...", "cantidad": 1 }
@@ -552,6 +578,8 @@ Errores: `409 RESERVATION_NOT_CONFIRMABLE`, `410 RESERVATION_EXPIRED`. Idempoten
 no reponga dos veces la disponibilidad de una zona no numerada.
 
 Header opcional `Idempotency-Key`. Si orders reintenta la misma devolución, manda la misma clave: la segunda llamada no vuelve a sumar lugares. Sin la clave, un asiento igual no se libera dos veces (solo pasa de `VENDIDO` a `LIBRE` una vez); la zona sí necesita la clave para no reponerse dos veces.
+
+`clienteId` lo manda orders con el dueño de la entrada. En una zona, además de sumar `disponibles`, inventory resta esa cantidad de `cliente_evento.entradas_vendidas` (`GREATEST(0, …)`). Si el campo no viene, la zona se repone igual y el cupo del cliente no cambia. Un asiento vendido sigue liberando el cupo con el cliente de su reserva, aunque `clienteId` falte.
 
 ## 5. orders-service
 
@@ -651,19 +679,21 @@ Errores: `400 VALIDATION_ERROR`, `403 NOT_RESERVATION_OWNER`, `404 RESERVATION_N
 }
 ```
 
-Errores: `403 NOT_TICKET_OWNER`, `404 TICKET_NOT_FOUND`, `409 TICKET_NOT_VALID` (utilizada/devuelta/en reintegro), `409 RETURN_ALREADY_EXISTS`, `422 RETURN_WINDOW_CLOSED` (faltan 72 h o menos).
+Errores: `403 NOT_TICKET_OWNER`, `404 TICKET_NOT_FOUND`, `409 TICKET_NOT_VALID` (utilizada/devuelta/en reintegro/en devolución), `409 RETURN_ALREADY_EXISTS`, `422 RETURN_WINDOW_CLOSED` (faltan 72 h o menos).
 
 ### 5.7 Aprobar devolución — `POST /api/orders/returns/{devolucionId}/approve` (ADMIN)
 
-Sin cuerpo. **200** `ReturnResponse` con `estado: "APROBADA"`. Libera el lugar en inventory, invalida la entrada y solicita el reintegro.
+Sin cuerpo. **200** `ReturnResponse` con `estado: "APROBADA"`. Marca la entrada `EN_DEVOLUCION`, solicita el reintegro y libera el lugar en inventory.
 
-Errores: `404 RETURN_NOT_FOUND`, `409 RETURN_ALREADY_RESOLVED`, `502 INVENTORY_UNAVAILABLE` (queda `PROCESANDO` y se reintenta).
+Si falla la pasarela o inventory, responde `502` (`PAYMENT_GATEWAY_ERROR` o `INVENTORY_UNAVAILABLE`), la devolución queda `PROCESANDO` y la entrada `EN_DEVOLUCION`; los schedulers de reintento la terminan.
+
+Errores: `404 RETURN_NOT_FOUND`, `409 RETURN_ALREADY_RESOLVED`, `502 PAYMENT_GATEWAY_ERROR`/`INVENTORY_UNAVAILABLE` (queda `PROCESANDO` y se reintenta).
 
 ### 5.8 Rechazar devolución — `POST /api/orders/returns/{devolucionId}/reject` (ADMIN)
 
 Sin cuerpo. **200** `ReturnResponse` con `estado: "RECHAZADA"`; la entrada sigue `VALIDA`.
 
-Errores: `404 RETURN_NOT_FOUND`, `409 RETURN_ALREADY_RESOLVED`.
+Errores: `404 RETURN_NOT_FOUND`, `409 RETURN_ALREADY_RESOLVED`, `409 RETURN_IN_PROGRESS` (la devolución está `PROCESANDO` y no se puede rechazar).
 
 ### 5.9 Interno — cancelar evento
 
