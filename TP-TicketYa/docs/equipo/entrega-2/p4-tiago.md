@@ -49,7 +49,7 @@ notification. Coordinás con cada dueño el logging, el Dockerfile y los headers
 | 8 | 9.4 | Loki + Promtail + Grafana, datasource y retención | Consulta real por correlación |
 | 9 | 9.5 | Dockerfile multi-stage por servicio, no root y healthcheck | `docker build` de los siete |
 | 10 | 9.6 | `docker-compose.yml` integral | `up --build`, healthy y smoke |
-| 11 | 9.7 | CI: siete builds, compose, integración y OpenAPI | Workflow verde en un PR |
+| 11 | 9.7 | CI en la raíz del repo del curso (paths `TP-TicketYa/**`): siete builds, compose, integración y OpenAPI | Workflow verde en un PR |
 | 12 | 2.8 | Matriz endpoint × rol y carpeta Postman de seguridad | Evidencia 401/403/200 por fila |
 | 13 | 10.8 | Clone limpio, compose, smoke, tag `entrega-2` | Tag sobre el commit entregado |
 

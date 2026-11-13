@@ -82,7 +82,7 @@
 - [ ] 9.4 (P4) Agregar Loki, Promtail y Grafana al compose con datasource provisionado, retención de 7 días y consulta por `X-Correlation-Id`; verificar una búsqueda real por correlación en Grafana.
 - [ ] 9.5 (P4) Crear un Dockerfile multi-stage por servicio, con usuario no root, healthcheck y variables de entorno; verificar `docker build` de los siete servicios y el arranque individual.
 - [ ] 9.6 (P4) Crear `docker-compose.yml` integral con gateway, siete servicios, cinco bases, Redis, MongoDB, RabbitMQ y observabilidad, con redes, volúmenes, healthchecks y `depends_on`; verificar `docker compose config`, `up --build` y el smoke test.
-- [ ] 9.7 (P4) Actualizar el CI para construir y testear los siete servicios, validar `docker compose config`, correr la suite de integración con Docker y verificar OpenAPI; verificar el workflow verde en un PR de prueba.
+- [ ] 9.7 (P4) Crear/actualizar el CI en la raíz del repo del curso (`.github/workflows/`, con `paths: TP-TicketYa/**`; GitHub no ejecuta el workflow que vive dentro de `TP-TicketYa/.github/`) para construir y testear los siete servicios, validar `docker compose config`, correr la suite de integración con Docker y verificar OpenAPI; verificar el workflow verde en un PR de prueba.
 
 ## 10. Integración, carga, documentación y cierre
 
