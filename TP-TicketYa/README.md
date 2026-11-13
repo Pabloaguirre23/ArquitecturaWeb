@@ -88,6 +88,23 @@ curl http://localhost:8080/actuator/health
 
 OpenAPI crudo: `http://localhost:<puerto>/v3/api-docs`.
 
+### 5. Interfaz web (opcional, en preparación)
+
+La UI del cliente vive en [`web/`](web/) y es un extra opcional de la Entrega 2. Por defecto
+arranca en modo demo, sin backend:
+
+```bash
+cd web
+npm install
+npm run dev
+# http://localhost:5173
+# Demo: cliente@ticketya.test / demo
+```
+
+Para consumir el gateway real, copiar `web/.env.example` a `web/.env`, poner
+`VITE_USE_MOCKS=false` y levantar el gateway en `8080`. El detalle está en
+[`web/README.md`](web/README.md).
+
 ## Variables de entorno
 
 Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
@@ -135,6 +152,7 @@ Sin headers, el gateway responde 401 en formato RFC 7807. El contrato completo e
 | `inventory-service/` | Reservas y anti doble venta |
 | `orders-service/` | Compra, pago mock, QR, devoluciones |
 | `api-gateway/` | Punto de entrada único |
+| `web/` | Interfaz web opcional del cliente (React + Vite) |
 | `openspec/` | Especificaciones (propuesta → specs → diseño → tareas) |
 | `docs/` | Contrato, plan, checklist, arquitectura y briefs del equipo |
 | `docker-compose.dev.yml` | PostgreSQL 16 por servicio |
