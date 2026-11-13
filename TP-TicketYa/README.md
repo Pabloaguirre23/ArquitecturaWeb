@@ -13,14 +13,15 @@ Repositorio del curso: <https://github.com/Pabloaguirre23/ArquitecturaWeb> (este
 | `catalog-service` | 8081 | `catalog_db` (5433) | Lugares, sectores, eventos, precios, publicación y búsqueda |
 | `inventory-service` | 8082 | `inventory_db` (5434) | Disponibilidad, reservas temporales y no doble venta |
 | `orders-service` | 8083 | `orders_db` (5435) | Órdenes, pago mock, entradas/QR, devoluciones y cancelación |
+| `recommendation-service` | 8084 | MongoDB `recommendation_db` (27017) | Preferencias, historial y recomendaciones (Entrega 2, en construcción) |
 
-Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**`; el cliente siempre entra por el gateway.
+Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**`; el cliente siempre entra por el gateway. Los servicios de la Entrega 2 (`queue-service`, `notification-service`) se agregan en las próximas tareas.
 
 ## Requisitos
 
 - **Java 21** (Temurin recomendado)
 - **Maven 3.9+**
-- **Docker Desktop** (para PostgreSQL 16)
+- **Docker Desktop** (para PostgreSQL 16 y MongoDB 7)
 - Git
 
 Verificar:
@@ -134,6 +135,7 @@ Sin headers, el gateway responde 401 en formato RFC 7807. El contrato completo e
 | `catalog-service/` | Eventos, lugares, sectores, búsqueda |
 | `inventory-service/` | Reservas y anti doble venta |
 | `orders-service/` | Compra, pago mock, QR, devoluciones |
+| `recommendation-service/` | Preferencias, historial y recomendaciones (Entrega 2) |
 | `api-gateway/` | Punto de entrada único |
 | `openspec/` | Especificaciones (propuesta → specs → diseño → tareas) |
 | `docs/` | Contrato, plan, checklist, arquitectura y briefs del equipo |
@@ -158,8 +160,12 @@ Las pruebas de integración de catalog, concurrencia de inventory e idempotencia
 - [Cómo trabajamos](CONTRIBUTING.md)
 - [Plan día por día — Entrega 1](docs/plan-entrega-1.md)
 - [Checklist verificable de la Entrega 1](docs/checklist-entrega-1.md)
+- [Plan día por día — Entrega 2](docs/plan-entrega-2.md)
+- [Checklist verificable de la Entrega 2](docs/checklist-entrega-2.md)
+- [Briefs de la Entrega 2](docs/equipo/entrega-2/README.md)
 - [Índice de documentación](docs/README.md)
 - [Cambio OpenSpec de la Entrega 1](openspec/changes/entrega-1-core/)
+- [Cambio OpenSpec de la Entrega 2](openspec/changes/entrega-2-completo/)
 
 Reglas:
 
@@ -183,6 +189,10 @@ Entrega 1: núcleo implementado (publicación, búsqueda, compra con reserva y Q
 venta, devoluciones y cancelación). El estado verificable y las observaciones abiertas están
 en [`docs/checklist-entrega-1.md`](docs/checklist-entrega-1.md); la estrategia y la evidencia
 de pruebas, en [`docs/pruebas.md`](docs/pruebas.md).
+
+Entrega 2: planificación completa en [`openspec/changes/entrega-2-completo/`](openspec/changes/entrega-2-completo/)
+(propuesta, 15 specs, diseño y 64 tareas) y cronograma en [`docs/plan-entrega-2.md`](docs/plan-entrega-2.md).
+La implementación arranca el 13/11/2026 y la entrega está prevista para el 22/11/2026.
 
 Entrega: <https://github.com/Pabloaguirre23/ArquitecturaWeb/tree/main/TP-TicketYa>
 

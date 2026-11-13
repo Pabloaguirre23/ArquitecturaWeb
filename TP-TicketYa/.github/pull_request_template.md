@@ -5,7 +5,7 @@
 ## Tarea OpenSpec
 
 - Tarea: `X.Y`
-- [ ] `openspec validate entrega-1-core` pasa.
+- [ ] `openspec validate entrega-2-completo` pasa.
 
 ## Checklist
 
@@ -14,7 +14,7 @@
 - [ ] Si toqué el modelo de datos, actualicé `docs/modelo-datos.md`.
 - [ ] Si toqué un flujo, actualicé el diagrama de secuencia.
 - [ ] Actualicé el README del servicio y `docs/README.md` si corresponde.
-- [ ] Marqué la tarea en `openspec/changes/entrega-1-core/tasks.md`.
+- [ ] Marqué la tarea en `openspec/changes/entrega-2-completo/tasks.md`.
 - [ ] No incluí secretos, `.env`, `target/` ni archivos generados.
 
 ## Evidencia
