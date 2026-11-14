@@ -185,12 +185,17 @@ export function CheckoutPage() {
             )}
 
             {error && (
-              <p className="form-error" role="alert">
+              <p id="checkout-error" className="form-error" role="alert">
                 {error}
               </p>
             )}
 
-            <button className="btn btn-primary" type="submit" disabled={loading}>
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={loading}
+              aria-describedby={error ? 'checkout-error' : undefined}
+            >
               {loading ? 'Procesando pago…' : `Pagar ${formatCurrency(reservation.total)}`}
             </button>
 
@@ -201,7 +206,7 @@ export function CheckoutPage() {
           </form>
         </section>
 
-        <aside className="card summary">
+        <aside className="card summary" aria-label="Resumen de la compra">
           <h2>Detalle</h2>
           <div className="summary-row">
             <span>Reserva</span>

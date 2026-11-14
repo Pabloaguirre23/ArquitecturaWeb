@@ -31,7 +31,7 @@
 
 - [x] 5.1 Ejecutar `npm run build`, `npm run lint` y `npm run test`; verificar todo verde.
 - [ ] 5.2 Probar el flujo completo con el backend levantado: login → búsqueda → detalle → reserva → pago → entradas; guardar evidencia.
-- [ ] 5.3 Revisar responsive y teclado en las pantallas principales; verificar que no haya desbordes horizontales.
+- [x] 5.3 Revisar responsive y teclado en las pantallas principales; verificar que no haya desbordes horizontales. _Hecho: skip link, foco visible, `aria-*` en asientos/errores y auditoría a 375/1280 px; evidencia en `docs/evidencia/entrega-2-ui-accesibilidad.txt`._
 
 ## Workflow follow-up
 

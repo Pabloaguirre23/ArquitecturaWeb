@@ -49,6 +49,8 @@ export function LoginPage() {
               type="email"
               autoComplete="email"
               value={email}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? 'login-error' : undefined}
               onChange={(event) => setEmail(event.target.value)}
               required
             />
@@ -61,6 +63,8 @@ export function LoginPage() {
               type="password"
               autoComplete="current-password"
               value={password}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? 'login-error' : undefined}
               onChange={(event) => setPassword(event.target.value)}
               required
             />
@@ -73,7 +77,7 @@ export function LoginPage() {
           )}
 
           {error && (
-            <p className="form-error" role="alert">
+            <p id="login-error" className="form-error" role="alert">
               {error}
             </p>
           )}

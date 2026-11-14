@@ -68,7 +68,7 @@ npm install
 npm run dev       # http://localhost:5173
 npm run build     # TypeScript + build de producción en dist/
 npm run lint      # oxlint
-npm run test      # Vitest (cliente HTTP)
+npm run test      # Vitest (cliente HTTP, layout y mapa de asientos)
 ```
 
 ## Docker
@@ -81,6 +81,22 @@ docker run --rm -p 3000:80 ticketya/web:local
 
 El `nginx.conf` espera un host `api-gateway` en la red del compose. Cuando la UI se apruebe, se
 agrega el servicio `web` al `docker-compose.yml` integral y el enlace en el README raíz.
+
+## Accesibilidad y responsive
+
+- **Skip link:** primer elemento de la página; con Tab se enfoca “Saltar al contenido” y Enter
+  lleva el foco a `<main id="main-content">`.
+- **Foco visible:** `:focus-visible` con contorno de 3 px en enlaces, botones, inputs y selects;
+  el mapa de asientos conserva `aria-pressed` y etiquetas por fila/asiento.
+- **Formularios:** los errores de login y checkout usan `role="alert"` y se asocian con
+  `aria-describedby`/`aria-invalid`; los campos tienen `label` explícito.
+- **Movimiento reducido:** `prefers-reduced-motion` desactiva transiciones y scroll suave.
+- **Sin desborde horizontal:** verificado a 375 px y 1280 px. El mapa de asientos es la única
+  zona con scroll horizontal interno (`overflow-x: auto`), no la página.
+
+La verificación de teclado y responsive se registra en
+[`docs/evidencia/entrega-2-ui-accesibilidad.txt`](../docs/evidencia/entrega-2-ui-accesibilidad.txt).
+La prueba contra el backend real (5.2) sigue bloqueada hasta que el gateway tenga JWT (tarea 2.1).
 
 ## Estructura
 

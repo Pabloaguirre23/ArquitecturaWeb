@@ -25,13 +25,13 @@ export function SeatGrid({
   return (
     <div className="seat-map" role="group" aria-label="Mapa de asientos">
       <div className="seat-legend">
-        <span><i className="legend-dot free" /> Libre</span>
-        <span><i className="legend-dot selected" /> Elegido</span>
-        <span><i className="legend-dot taken" /> Ocupado</span>
+        <span><i className="legend-dot free" aria-hidden="true" /> Libre</span>
+        <span><i className="legend-dot selected" aria-hidden="true" /> Elegido</span>
+        <span><i className="legend-dot taken" aria-hidden="true" /> Ocupado</span>
       </div>
       {rows.map(([fila, rowSeats]) => (
         <div className="seat-row" key={fila}>
-          <span className="seat-row-label">{fila}</span>
+          <span className="seat-row-label" aria-hidden="true">{fila}</span>
           {rowSeats.map((seat) => {
             const isSelected = selected.has(seat.asientoId)
             const disabled = seat.estado !== 'LIBRE' || (!isSelected && selected.size >= maxSelectable)

@@ -8,6 +8,10 @@ export function Layout() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Saltar al contenido
+      </a>
+
       <header className="site-header">
         <div className="container header-inner">
           <Link className="brand" to="/">
@@ -45,7 +49,7 @@ export function Layout() {
 
       {USE_MOCKS && <DemoBanner />}
 
-      <main className="container main-content">
+      <main id="main-content" className="container main-content" tabIndex={-1}>
         <Outlet />
       </main>
 

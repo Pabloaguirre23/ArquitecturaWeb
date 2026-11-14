@@ -80,7 +80,8 @@ export function SearchPage() {
 
   function goToPage(page: number) {
     setQuery((current) => ({ ...current, page }))
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' })
   }
 
   const totalLabel =
@@ -100,7 +101,7 @@ export function SearchPage() {
       </section>
 
       <section className="search-panel" aria-label="Buscador de eventos">
-        <form className="filters" onSubmit={handleSubmit}>
+        <form className="filters" role="search" onSubmit={handleSubmit}>
           <div className="field field-wide">
             <label htmlFor="q">Artista, evento o lugar</label>
             <input
@@ -178,7 +179,7 @@ export function SearchPage() {
 
       <div className="results-head">
         <h2>Eventos</h2>
-        <span className="muted">{totalLabel}</span>
+        <span className="muted" aria-live="polite">{totalLabel}</span>
       </div>
 
       {loading && <Loading label="Buscando eventos…" />}

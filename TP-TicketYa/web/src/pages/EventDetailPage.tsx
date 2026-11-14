@@ -220,6 +220,7 @@ export function EventDetailPage() {
                 key={sector.sectorId}
                 className={`sector ${sector.sectorId === selectedSector?.sectorId ? 'selected' : ''}`}
                 type="button"
+                aria-pressed={sector.sectorId === selectedSector?.sectorId}
                 onClick={() => selectSector(sector)}
                 disabled={sector.disponibles <= 0}
               >
@@ -239,7 +240,7 @@ export function EventDetailPage() {
           </div>
 
           {selectedSector?.tipo === 'NUMERADO' && (
-            <div className="seat-picker">
+            <div className="seat-picker" aria-busy={seatsLoading}>
               {seatsLoading ? (
                 <Loading label="Cargando asientos…" />
               ) : seats.length === 0 ? (
@@ -264,12 +265,13 @@ export function EventDetailPage() {
                 min={1}
                 max={maxQuantity}
                 value={quantity}
+                aria-describedby="quantity-hint"
                 onChange={(event) => {
                   const next = Number(event.target.value)
                   setQuantity(Number.isFinite(next) ? Math.min(Math.max(next, 1), maxQuantity) : 1)
                 }}
               />
-              <span className="muted">Máximo {maxQuantity} por compra.</span>
+              <span id="quantity-hint" className="muted">Máximo {maxQuantity} por compra.</span>
             </div>
           )}
         </section>
