@@ -13,7 +13,7 @@ Repositorio del curso: <https://github.com/Pabloaguirre23/ArquitecturaWeb> (este
 | `catalog-service` | 8081 | `catalog_db` (5433) | Lugares, sectores, eventos, precios, publicación y búsqueda |
 | `inventory-service` | 8082 | `inventory_db` (5434) | Disponibilidad, reservas temporales y no doble venta |
 | `orders-service` | 8083 | `orders_db` (5435) | Órdenes, pago mock, entradas/QR, devoluciones y cancelación |
-| `recommendation-service` | 8084 | MongoDB `recommendation_db` (27017) | Preferencias, historial y recomendaciones (Entrega 2, en construcción) |
+| `recommendation-service` | 8084 | `recommendation_db` (27017, MongoDB) | Preferencias, historial y recomendaciones |
 
 Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**`; el cliente siempre entra por el gateway. Los servicios de la Entrega 2 (`queue-service`, `notification-service`) se agregan en las próximas tareas.
 
@@ -47,7 +47,7 @@ docker compose -f docker-compose.dev.yml up -d
 docker compose -f docker-compose.dev.yml ps
 ```
 
-Las tres bases deben quedar `healthy`. Flyway aplica las migraciones al levantar cada servicio.
+Las tres bases PostgreSQL y MongoDB deben quedar `healthy`. Flyway aplica las migraciones al levantar cada servicio; MongoDB crea sus índices al arrancar `recommendation-service`.
 
 Para reiniciar sin datos:
 
@@ -58,12 +58,13 @@ docker compose -f docker-compose.dev.yml up -d
 
 ### 2. Servicios
 
-En tres terminales distintas:
+En cuatro terminales distintas:
 
 ```bash
 cd catalog-service && mvn spring-boot:run
 cd inventory-service && mvn spring-boot:run
 cd orders-service && mvn spring-boot:run
+cd recommendation-service && mvn spring-boot:run
 ```
 
 Verificar:
@@ -72,6 +73,7 @@ Verificar:
 curl http://localhost:8081/actuator/health
 curl http://localhost:8082/actuator/health
 curl http://localhost:8083/actuator/health
+curl http://localhost:8084/actuator/health
 ```
 
 ### 3. Gateway
@@ -86,6 +88,7 @@ curl http://localhost:8080/actuator/health
 - Catalog: <http://localhost:8081/swagger-ui.html>
 - Inventory: <http://localhost:8082/swagger-ui.html>
 - Orders: <http://localhost:8083/swagger-ui.html>
+- Recommendation: <http://localhost:8084/swagger-ui.html>
 
 OpenAPI crudo: `http://localhost:<puerto>/v3/api-docs`.
 
@@ -95,10 +98,13 @@ Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
 
 | Variable | Default | Uso |
 |---|---|---|
-| `SERVER_PORT` | 8081/8082/8083/8080 | Puerto del servicio |
+| `SERVER_PORT` | 8080/8081/8082/8083/8084 | Puerto del servicio |
 | `DB_URL` | `jdbc:postgresql://localhost:<5433/5434/5435>/<db>` | Conexión JDBC |
 | `DB_USER` | `ticketya` | Usuario de la base |
 | `DB_PASSWORD` | `ticketya` | Password de la base |
+| `MONGO_URI` | `mongodb://localhost:27017/recommendation_db` | Conexión MongoDB de recommendation |
+| `INTERNAL_TOKEN` | `ticketya-internal-dev` | Token de los endpoints `/internal/**` |
+| `RECOMMENDATION_SEED_ENABLED` | `true` | Seed de preferencias e historial |
 | `CATALOG_URL` | `http://localhost:8081` | Gateway → catalog |
 | `INVENTORY_URL` | `http://localhost:8082` | Gateway → inventory |
 | `ORDERS_URL` | `http://localhost:8083` | Gateway → orders |
@@ -135,11 +141,11 @@ Sin headers, el gateway responde 401 en formato RFC 7807. El contrato completo e
 | `catalog-service/` | Eventos, lugares, sectores, búsqueda |
 | `inventory-service/` | Reservas y anti doble venta |
 | `orders-service/` | Compra, pago mock, QR, devoluciones |
-| `recommendation-service/` | Preferencias, historial y recomendaciones (Entrega 2) |
+| `recommendation-service/` | Preferencias, historial y recomendaciones (MongoDB) |
 | `api-gateway/` | Punto de entrada único |
 | `openspec/` | Especificaciones (propuesta → specs → diseño → tareas) |
 | `docs/` | Contrato, plan, checklist, arquitectura y briefs del equipo |
-| `docker-compose.dev.yml` | PostgreSQL 16 por servicio |
+| `docker-compose.dev.yml` | PostgreSQL 16 por servicio y MongoDB 7 |
 
 ## Tests
 

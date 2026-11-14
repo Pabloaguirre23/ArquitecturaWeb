@@ -16,13 +16,13 @@ implementación arranca el Día 1.
 |---|---|---|
 | Change OpenSpec | Planificado y validado | `openspec validate entrega-2-completo --strict` |
 | Criterios US-25 a US-38 | Completos y trazados | `docs/features-y-user-stories.md` (tarea 1.2) |
-| Esqueleto recommendation-service | Build, test y health OK | `recommendation-service/` (tarea 1.7) |
+| Esqueleto recommendation-service | Build, tests, health y Docker OK | `recommendation-service/` (tareas 1.7, 7.1, 7.2) |
 | Acceso al repo del curso | 5 colaboradores con push; branch protection pendiente | Tarea 1.1 |
 | Contrato v2 y matriz de roles | Pendiente | `docs/api-contract.md` |
 | JWT y autorización | Pendiente | Tareas 2.1–2.8 |
 | Fila virtual | Pendiente | Tareas 4.1–4.4, 5.1 |
 | Control de acceso QR | Pendiente | Tarea 6.4 |
-| Preferencias y recomendaciones | Pendiente | Tareas 7.1–7.5 |
+| Preferencias y recomendaciones | En curso (7.1–7.2) | `recommendation-service` + tests Mongo |
 | Notificaciones | Pendiente | Tareas 8.1–8.4 |
 | Reportes | Pendiente | Tarea 6.5 |
 | Consistencia, saga y outbox | Pendiente | Tareas 6.2, 6.3, 3.2 |
@@ -49,7 +49,7 @@ implementación arranca el Día 1.
 - [ ] **Microservicios Spring Boot independientes:** siete servicios y el gateway, cada uno con su `pom.xml`, build y ejecución separada. → 9.5, 9.6
 - [ ] **Punto de entrada único:** todo el tráfico externo entra por el gateway; las bases y brokers no están publicados. → 9.6
 - [ ] **Comunicación asíncrona justificada:** RabbitMQ para notificaciones, historial de recomendaciones y eventos de catálogo; documentación de por qué. → 1.5, 6.3, 8.2
-- [ ] **Base NoSQL:** MongoDB para preferencias e historial, con justificación y consultas. → 7.1
+- [x] **Base NoSQL:** MongoDB para preferencias e historial, con justificación y consultas. → 7.1. Evidencia: [`recommendation-service/README.md`](../recommendation-service/README.md#modelo-mongodb), índices verificados en `RecommendationMongoIntegrationTest` y [`evidencia/entrega-2-dia-2.txt`](evidencia/entrega-2-dia-2.txt).
 - [ ] **Consistencia entre servicios y compensaciones:** saga de compra, outbox, idempotencia y política de consistencia documentada. → 6.2, 6.3, 3.2
 - [ ] **Resiliencia:** timeouts, reintentos, circuit breaker y fallback en pasarela, inventory, catalog, queue y notification. → 5.3, 6.6, 2.3
 - [ ] **Cache:** datos cacheados, TTL, invalidación y datos que no se cachean (disponibilidad, asientos, reservas). → 3.3, 3.4
@@ -90,7 +90,7 @@ implementación arranca el Día 1.
 - [ ] **Fila virtual** con Redis, posición, tandas y token. → 4.1–4.4
 - [ ] **Token de fila** exigido por inventory en eventos de alta demanda. → 5.1
 - [ ] **Control de acceso QR** con uso único y concurrencia. → 6.4
-- [ ] **Preferencias y recomendaciones** con MongoDB, historial y co-compra. → 7.1–7.5
+- [ ] **Preferencias y recomendaciones** con MongoDB, historial y co-compra. → 7.1–7.5 _(7.1–7.2 hechos el Día 2; 7.3–7.5 pendientes)_
 - [ ] **Notificaciones** asíncronas con reintentos, DLQ y consulta propia. → 8.1–8.4
 - [ ] **Reportes** por evento y sector con autorización. → 6.5
 - [ ] **Saga, outbox y compensaciones** en la compra. → 6.2, 6.3

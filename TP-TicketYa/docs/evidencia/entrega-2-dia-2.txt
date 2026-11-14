@@ -1,0 +1,105 @@
+Día 2 — 14/11/2026 — recommendation-service (P5)
+Tareas: 1.7 (esqueleto), 7.1 (MongoDB, índices y seed), 7.2 (preferencias)
+
+1) Build y tests
+$ cd recommendation-service
+$ export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+$ mvn -B -ntp test
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0 -- RecommendationMongoIntegrationTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0 -- OpenApiExportTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0 -- PreferenceControllerTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0 -- InternalPreferenceControllerTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0 -- PreferenceServiceTest
+[INFO] Tests run: 23, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+
+2) Compose de desarrollo
+$ docker compose -f docker-compose.dev.yml config
+(exit 0, configuración válida)
+$ docker compose -f docker-compose.dev.yml up -d recommendation-mongo
+Container ticketya-recommendation-mongo  Started
+$ docker inspect --format='{{.State.Health.Status}}' ticketya-recommendation-mongo
+healthy
+
+3) Health del servicio contra MongoDB real
+$ curl http://localhost:8084/actuator/health
+{"status":"UP","components":{"diskSpace":{"status":"UP"},"mongo":{"status":"UP","details":{"maxWireVersion":21}},"ping":{"status":"UP"},"ssl":{"status":"UP"}}}
+
+4) Preferencias (7.2)
+
+GET con el cliente del seed:
+$ curl -s http://localhost:8084/api/recommendations/preferences \
+    -H "X-User-Id: 33333333-3333-4333-8333-333333333333" -H "X-User-Role: CLIENT"
+{"clienteId":"33333333-3333-4333-8333-333333333333","tipos":["FESTIVAL","RECITAL"],"artistas":["Los Piojos","Callejeros"],"ciudad":"Tandil","actualizadoEn":"2026-11-14T12:00:00Z"}
+
+PUT con tipos duplicados (normaliza y actualiza sin duplicar):
+$ curl -s -X PUT http://localhost:8084/api/recommendations/preferences \
+    -H "X-User-Id: 33333333-3333-4333-8333-333333333333" -H "X-User-Role: CLIENT" \
+    -H "Content-Type: application/json" \
+    -d '{"tipos":["RECITAL","FESTIVAL","RECITAL"],"artistas":["Los Piojos"],"ciudad":"Tandil"}'
+{"clienteId":"33333333-3333-4333-8333-333333333333","tipos":["RECITAL","FESTIVAL"],"artistas":["Los Piojos"],"ciudad":"Tandil","actualizadoEn":"2026-11-14T12:50:40.647870Z"}
+
+PUT con tipo inexistente -> 400 INVALID_EVENT_TYPE:
+{"type":"https://ticketya.local/errors/invalid-event-type","title":"Bad Request","status":400,"detail":"El tipo de evento OPERA no es conocido","instance":"/api/recommendations/preferences","code":"INVALID_EVENT_TYPE","errors":[{"message":"valores admitidos: [RECITAL, TEATRO, DEPORTE, CONFERENCIA, FESTIVAL, OTRO]","field":"tipos[0]"}]}
+
+PUT con clienteId ajeno -> 403 NOT_PREFERENCE_OWNER:
+{"type":"https://ticketya.local/errors/not-preference-owner","title":"Forbidden","status":403,"detail":"Las preferencias pertenecen a otro cliente","instance":"/api/recommendations/preferences","code":"NOT_PREFERENCE_OWNER","errors":[]}
+
+GET con rol ORGANIZER -> 403 FORBIDDEN:
+{"type":"https://ticketya.local/errors/forbidden","title":"Forbidden","status":403,"detail":"El rol ORGANIZER no puede ejecutar esta operación","instance":"/api/recommendations/preferences","code":"FORBIDDEN","errors":[]}
+
+GET sin identidad -> 401 UNAUTHORIZED (cubierto en PreferenceControllerTest).
+
+5) Endpoint interno (contrato para notification-service)
+$ curl http://localhost:8084/internal/preferences/33333333-3333-4333-8333-333333333333
+{"type":"https://ticketya.local/errors/unauthorized","title":"Unauthorized","status":401,"detail":"Falta o es inválido el encabezado X-Internal-Token","code":"UNAUTHORIZED","errors":[]}
+
+$ curl http://localhost:8084/internal/preferences/33333333-3333-4333-8333-333333333333 \
+    -H "X-Internal-Token: ticketya-internal-dev"
+{"clienteId":"33333333-3333-4333-8333-333333333333","tipos":["RECITAL","FESTIVAL"],"artistas":["Los Piojos"],"ciudad":"Tandil","actualizadoEn":"2026-11-14T12:50:40.647Z"}
+
+6) Colecciones, índices y seed (7.1)
+$ docker exec ticketya-recommendation-mongo mongosh --quiet --eval '...'
+COLECCIONES: eventos_vistos, preferencias, historial_compras
+PREFERENCIAS: 3
+HISTORIAL: 5
+EVENTOS_VISTOS: 3
+
+preferencias:
+{"name":"uk_preferencias_cliente","key":{"clienteId":1},"unique":true}
+{"name":"idx_preferencias_ciudad","key":{"ciudad":1},"unique":false}
+
+historial_compras:
+{"name":"uk_historial_evento_cliente_evento","key":{"eventId":1,"clienteId":1,"eventoId":1},"unique":true}
+{"name":"idx_historial_cliente_fecha","key":{"clienteId":1,"fechaEvento":1},"unique":false}
+{"name":"idx_historial_evento_cliente","key":{"eventoId":1,"clienteId":1},"unique":false}
+
+eventos_vistos:
+{"name":"idx_eventos_vistos_ciudad_tipo","key":{"ciudad":1,"tipo":1},"unique":false}
+{"name":"idx_eventos_vistos_fecha","key":{"fechaEvento":1},"unique":false}
+
+Agregación de control: ningún clienteId tiene más de un documento en preferencias.
+
+7) OpenAPI
+$ python3 -c "import json;d=json.load(open('openapi/recommendation-openapi.json'));print(d['openapi']);print(list(d['paths']))"
+3.1.0
+['/api/recommendations/preferences', '/internal/preferences/{clienteId}']
+Security schemes: bearerAuth, X-User-Id, X-User-Role, X-Internal-Token.
+
+8) Imagen Docker del servicio
+$ docker build --progress=plain -t ticketya/recommendation-service:dev recommendation-service
+#17 naming to docker.io/ticketya/recommendation-service:dev done
+$ docker run -d --name ticketya-recommendation-smoke -p 18084:8084 \
+    -e MONGO_URI='mongodb://host.docker.internal:27017/recommendation_db' \
+    ticketya/recommendation-service:dev
+$ docker inspect --format='{{.State.Health.Status}}' ticketya-recommendation-smoke
+healthy
+$ curl http://localhost:18084/actuator/health
+{"status":"UP","components":{...,"mongo":{"status":"UP","details":{"maxWireVersion":21}},...}}
+
+9) OpenSpec
+$ openspec validate entrega-2-completo --strict
+Change 'entrega-2-completo' is valid
+
+Pendiente para los días siguientes: 7.3 (consumidor de orden.pagada), 7.4 (recomendaciones y co-compra),
+7.5 (similares), 2.7 (adaptación final a JWT), ruta del gateway y Postman.
