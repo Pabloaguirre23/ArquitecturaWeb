@@ -3,11 +3,14 @@
 ## Reparto
 | Persona | Nombre | Rol | Servicio / foco | Ítems del enunciado |
 |---|---|---|---|---|
-| P1 | Iván | Catalog | `catalog-service` | 1, 2, 3, 9 |
-| P2 | Pablo | Inventory | `inventory-service` | 4, 5 |
-| P3 | Caro | Orders | `orders-service` | 4, 7 |
-| P4 | Tiago | Gateway + infraestructura | `api-gateway`, Docker, CI, diagramas | transversal |
-| P5 | Franco | Calidad e integración | Datos de prueba, Postman, E2E, evidencia, índice y checklist | transversal |
+| P1 | Iván | Catalog + Notification | `catalog-service`, `notification-service` | 1, 2, 3, 9, 11 |
+| P2 | Pablo | Inventory + Queue | `inventory-service`, `queue-service` | 4, 5, 6 |
+| P3 | Caro | Orders | `orders-service` | 4, 7, 8, 12 |
+| P4 | Tiago | Gateway + infraestructura | `api-gateway`, Docker, CI, observabilidad | transversal |
+| P5 | Franco | Recommendation + calidad e integración | `recommendation-service`, pruebas, documentación y cierre | 10, transversal |
+
+La planificación de la Entrega 2 está en [`docs/plan-entrega-2.md`](docs/plan-entrega-2.md) y
+los briefs por integrante en [`docs/equipo/entrega-2/`](docs/equipo/entrega-2/README.md).
 
 Un solo dueño por carpeta de microservicio. P5 no edita código de un servicio sin acordarlo con su dueño; su foco es la verificación y la documentación.
 

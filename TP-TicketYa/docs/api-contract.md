@@ -1,11 +1,11 @@
-# Contrato REST v1 — TicketYa Entrega 1
+# Contrato REST — TicketYa (Entrega 1 + avance Entrega 2)
 
 Este documento es la **vista humana** del contrato. La fuente machine-readable es el OpenAPI de cada servicio (`/v3/api-docs` y Swagger UI en `/swagger-ui.html`). Los dos se actualizan en el mismo PR.
 
-- **Estado:** congelado el Día 0 (2/11/2026). Cualquier cambio se discute en el PR, se actualiza este documento, el OpenAPI y el spec.
+- **Estado:** congelado el Día 0 (2/11/2026) para la Entrega 1. La Entrega 2 agrega endpoints por tarea y el contrato v2 se congela en la tarea 1.3.
 - **Entrada única:** `http://localhost:8080` (api-gateway). Los servicios no se consumen directo desde el cliente.
-- **Prefijos:** `/api/catalog/**`, `/api/inventory/**`, `/api/orders/**`.
-- **Internos:** `/internal/**`, solo entre servicios, nunca expuestos por el gateway.
+- **Prefijos:** `/api/catalog/**`, `/api/inventory/**`, `/api/orders/**`, `/api/recommendations/**` y, en la Entrega 2, `/api/auth/**`, `/api/queue/**`, `/api/notifications/**` y `/api/orders/access|reports/**`.
+- **Internos:** `/internal/**`, solo entre servicios, nunca expuestos por el gateway. Exigen `X-Internal-Token`.
 
 ## 1. Convenciones
 
@@ -14,9 +14,10 @@ Este documento es la **vista humana** del contrato. La fuente machine-readable e
 | Encabezado | Formato | Cuándo |
 |---|---|---|
 | `X-User-Id` | UUID | Obligatorio en endpoints protegidos; lo exige el gateway |
-| `X-User-Role` | `CLIENT`, `ORGANIZER` o `ADMIN` | Obligatorio en endpoints protegidos |
+| `X-User-Role` | `CLIENT`, `ORGANIZER`, `ADMIN` o `ACCESS_STAFF` | Obligatorio en endpoints protegidos |
 | `X-Correlation-Id` | UUID o texto corto | Opcional; el gateway lo genera y propaga |
 | `Idempotency-Key` | 8 a 100 caracteres | Obligatorio en `POST /api/orders` |
+| `X-Internal-Token` | Token compartido | Obligatorio en `/internal/**`; el gateway lo borra del tráfico externo |
 
 - Header ausente o `X-User-Id` que no sea UUID → **401**.
 - Rol no habilitado para la ruta → **403**.
@@ -121,8 +122,11 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 | POST | `/api/orders/tickets/{entradaId}/returns` | dueño | 201 | orders |
 | POST | `/api/orders/returns/{devolucionId}/approve` | ADMIN | 200 | orders |
 | POST | `/api/orders/returns/{devolucionId}/reject` | ADMIN | 200 | orders |
+| GET | `/api/recommendations/preferences` | CLIENT | 200 | recommendation |
+| PUT | `/api/recommendations/preferences` | CLIENT | 200 | recommendation |
 
 “Autenticado” significa `CLIENT`, `ORGANIZER` o `ADMIN`; el dueño del recurso se valida dentro del servicio.
+Los endpoints `/internal/**` no se listan porque no se exponen por el gateway.
 
 ## 3. catalog-service
 
@@ -705,7 +709,74 @@ Errores: `404 RETURN_NOT_FOUND`, `409 RETURN_ALREADY_RESOLVED`, `409 RETURN_IN_P
 
 Marca las entradas vendidas como `EN_REINTEGRO` y solicita el refund. Idempotente: repetir devuelve las mismas entradas ya afectadas sin duplicar reintegros.
 
-## 6. Flujo de compra de punta a punta
+## 6. recommendation-service
+
+Base MongoDB `recommendation_db`. Las preferencias son del cliente autenticado: `GET` y `PUT` solo aceptan rol `CLIENT` y leen/escriben el `clienteId` derivado de `X-User-Id`. El servicio no acepta que el body imponga otro cliente.
+
+> Mientras P4 no agregue `/api/recommendations/**` al gateway, los ejemplos de esta sección se prueban directo contra `http://localhost:8084`. El contrato final sigue siendo por el gateway.
+
+### 6.1 Consultar preferencias — `GET /api/recommendations/preferences` (CLIENT)
+
+Sin parámetros. Si el cliente nunca registró preferencias responde `200` con la forma vacía documentada.
+
+```json
+{
+  "clienteId": "33333333-3333-4333-8333-333333333333",
+  "tipos": ["FESTIVAL", "RECITAL"],
+  "artistas": ["Los Piojos", "Callejeros"],
+  "ciudad": "Tandil",
+  "actualizadoEn": "2026-11-14T12:00:00Z"
+}
+```
+
+```json
+{
+  "clienteId": "33333333-3333-4333-8333-333333333333",
+  "tipos": [],
+  "artistas": [],
+  "ciudad": null,
+  "actualizadoEn": null
+}
+```
+
+### 6.2 Guardar preferencias — `PUT /api/recommendations/preferences` (CLIENT)
+
+Upsert idempotente: el primer `PUT` crea el documento y los siguientes lo actualizan sin duplicarlo.
+
+```json
+{
+  "tipos": ["RECITAL", "FESTIVAL"],
+  "artistas": ["Los Piojos"],
+  "ciudad": "Tandil"
+}
+```
+
+Reglas:
+
+- `tipos[]` admite `RECITAL`, `TEATRO`, `DEPORTE`, `CONFERENCIA`, `FESTIVAL` y `OTRO`. Un valor desconocido responde `400 INVALID_EVENT_TYPE` con `errors[].field = tipos[i]`.
+- `ciudad` es obligatoria (`400 VALIDATION_ERROR` si falta o queda vacía).
+- Se recortan espacios y se eliminan duplicados sin distinguir mayúsculas.
+- Un `clienteId` en el body distinto del autenticado responde `403 NOT_PREFERENCE_OWNER`.
+- Respuesta `200` con el documento guardado y `actualizadoEn`.
+
+```bash
+curl -X PUT http://localhost:8080/api/recommendations/preferences \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: 33333333-3333-4333-8333-333333333333" \
+  -H "X-User-Role: CLIENT" \
+  -d '{"tipos":["RECITAL"],"artistas":["Los Piojos"],"ciudad":"Tandil"}'
+```
+
+### 6.3 Interno — `GET /internal/preferences/{clienteId}` (X-Internal-Token)
+
+Lo consume notification-service para decidir si avisa por artista favorito. Responde `200` con las preferencias del cliente o la forma vacía, y `401 UNAUTHORIZED` sin token o con token inválido. No se expone por el gateway.
+
+```bash
+curl http://localhost:8084/internal/preferences/33333333-3333-4333-8333-333333333333 \
+  -H "X-Internal-Token: ticketya-internal-dev"
+```
+
+## 7. Flujo de compra de punta a punta
 
 ```bash
 GATEWAY=http://localhost:8080
@@ -742,7 +813,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
   -d '{"motivo":"No puedo asistir"}'
 ```
 
-## 7. Catálogo de errores
+## 8. Catálogo de errores
 
 | HTTP | `code` | Cuándo |
 |---|---|---|
@@ -751,6 +822,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 400 | `INVALID_DATE_RANGE` | `fechaDesde` posterior a `fechaHasta` |
 | 400 | `INVALID_SORT` | `orden` no soportado |
 | 400 | `INVALID_PRICE` | Precio negativo |
+| 400 | `INVALID_EVENT_TYPE` | Tipo de evento desconocido en las preferencias |
 | 400 | `SECTOR_NOT_FROM_VENUE` | Sector ajeno al lugar del evento |
 | 400 | `SECTOR_NOT_FROM_EVENT` | Sector ajeno al evento consultado |
 | 401 | `UNAUTHORIZED` | Headers ausentes, UUID inválido o rol desconocido |
@@ -759,6 +831,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 403 | `NOT_RESERVATION_OWNER` | La reserva es de otro cliente |
 | 403 | `ORDER_NOT_OWNER` | La orden es de otro cliente |
 | 403 | `NOT_TICKET_OWNER` | La entrada es de otro cliente |
+| 403 | `NOT_PREFERENCE_OWNER` | Las preferencias son de otro cliente |
 | 404 | `VENUE_NOT_FOUND` | Lugar inexistente |
 | 404 | `SECTOR_NOT_FOUND` | Sector inexistente |
 | 404 | `EVENT_NOT_FOUND` | Evento inexistente o no visible |
@@ -789,7 +862,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 503 | `INVENTORY_UNAVAILABLE` | No se pudo obtener disponibilidad en el detalle |
 | 500 | `INTERNAL_ERROR` | Error inesperado; no expone stacktrace |
 
-## 8. Reglas de cambio
+## 9. Reglas de cambio
 
 1. Un endpoint nuevo o un cambio de payload empieza por el spec de OpenSpec y este documento.
 2. El PR actualiza el OpenAPI y el README del servicio en el mismo commit.
