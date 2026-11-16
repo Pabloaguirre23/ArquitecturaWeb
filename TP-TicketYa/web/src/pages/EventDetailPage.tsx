@@ -20,6 +20,19 @@ import { errorMessage } from '../utils/errors'
 import { formatCurrency, formatDate } from '../utils/format'
 import { saveReservation } from '../utils/reservationStorage'
 
+/**
+ * Deja escribir cantidades intermedias (por ejemplo, borrar el 1 y poner 2)
+ * sin que el input controlado vuelva a 1 en cada tecla. El clamp final se
+ * aplica al salir del campo o al continuar.
+ */
+function clampQuantity(value: string, max: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return 1
+  }
+  return Math.min(Math.max(Math.trunc(parsed), 1), Math.max(max, 1))
+}
+
 export function EventDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -31,7 +44,7 @@ export function EventDetailPage() {
   const [seats, setSeats] = useState<Seat[]>([])
   const [seatsLoading, setSeatsLoading] = useState(false)
   const [selectedSeats, setSelectedSeats] = useState<Set<string>>(new Set())
-  const [quantity, setQuantity] = useState(1)
+  const [quantityInput, setQuantityInput] = useState('1')
   const [reserving, setReserving] = useState(false)
   const [reserveError, setReserveError] = useState<string | null>(null)
   const [similar, setSimilar] = useState<SimilarEventItem[]>([])
@@ -97,6 +110,20 @@ export function EventDetailPage() {
     [event, sectorId],
   )
 
+  const maxQuantity =
+    selectedSector && event
+      ? Math.min(selectedSector.disponibles, event.limitePorCliente)
+      : 1
+  const rawQuantity = quantityInput.trim() === '' ? Number.NaN : Number(quantityInput)
+  const quantity = Number.isFinite(rawQuantity)
+    ? Math.min(Math.max(Math.trunc(rawQuantity), 0), maxQuantity)
+    : 0
+  const invalidQuantity =
+    quantityInput.trim() === '' ||
+    !Number.isFinite(rawQuantity) ||
+    Math.trunc(rawQuantity) < 1 ||
+    Math.trunc(rawQuantity) > maxQuantity
+
   useEffect(() => {
     if (!event || !selectedSector || selectedSector.tipo !== 'NUMERADO') {
       setSeats([])
@@ -107,7 +134,7 @@ export function EventDetailPage() {
     let cancelled = false
     setSeatsLoading(true)
     setSelectedSeats(new Set())
-    setQuantity(1)
+    setQuantityInput('1')
 
     getSeats(event.id, selectedSector.sectorId)
       .then((result) => {
@@ -137,7 +164,7 @@ export function EventDetailPage() {
     }
     setSectorId(sector.sectorId)
     setSelectedSeats(new Set())
-    setQuantity(1)
+    setQuantityInput('1')
     setReserveError(null)
   }
 
@@ -168,10 +195,13 @@ export function EventDetailPage() {
 
   const canContinue =
     Boolean(selectedSector) &&
-    (selectedSector?.tipo === 'NUMERADO' ? selectedSeats.size > 0 : quantity > 0)
+    (selectedSector?.tipo === 'NUMERADO' ? selectedSeats.size > 0 : quantity >= 1)
 
   async function handleContinue() {
     if (!event || !selectedSector) {
+      return
+    }
+    if (selectedSector.tipo === 'NO_NUMERADO' && quantity < 1) {
       return
     }
 
@@ -213,10 +243,6 @@ export function EventDetailPage() {
       />
     )
   }
-
-  const maxQuantity = selectedSector
-    ? Math.min(selectedSector.disponibles, event.limitePorCliente)
-    : 1
 
   return (
     <div className="page-gap">
@@ -300,12 +326,13 @@ export function EventDetailPage() {
                 type="number"
                 min={1}
                 max={maxQuantity}
-                value={quantity}
+                step={1}
+                inputMode="numeric"
+                value={quantityInput}
+                aria-invalid={invalidQuantity}
                 aria-describedby="quantity-hint"
-                onChange={(event) => {
-                  const next = Number(event.target.value)
-                  setQuantity(Number.isFinite(next) ? Math.min(Math.max(next, 1), maxQuantity) : 1)
-                }}
+                onChange={(event) => setQuantityInput(event.target.value)}
+                onBlur={() => setQuantityInput(String(clampQuantity(quantityInput, maxQuantity)))}
               />
               <span id="quantity-hint" className="muted">Máximo {maxQuantity} por compra.</span>
             </div>
