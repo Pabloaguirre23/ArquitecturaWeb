@@ -1,0 +1,29 @@
+server:
+  port: ${SERVER_PORT:8086}
+
+spring:
+  application:
+    name: queue-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: ${REDIS_TIMEOUT:2s}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+queue:
+  token:
+    secret: ${QUEUE_TOKEN_SECRET:ticketya-queue-dev}
+    ttl: ${QUEUE_TOKEN_TTL:5m}
