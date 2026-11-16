@@ -4,7 +4,7 @@ Fila virtual de TicketYa. Redis es el almacén primario.
 
 - **Puerto:** 8086
 - **Redis:** 7, puerto 6379, AOF activado
-- **Estado:** ingreso, posición, tandas y token de compra (tareas 4.1 y 4.2). El cierre de la fila es la 4.3.
+- **Estado:** ingreso, posición, tandas, token y cierre (tareas 4.1 a 4.3).
 
 ## Alcance actual
 
@@ -15,6 +15,8 @@ Spring Boot 3.5, Java 21, Web, Validation, Actuator, springdoc y Spring Data Red
 - `POST /api/queue/events/{eventoId}/join` ingresa al cliente. El primer ingreso responde 201. Repetirlo responde 200 y conserva la posición (`ZADD NX`). Sin fila responde 409 `QUEUE_NOT_OPEN`.
 - `GET /api/queue/events/{eventoId}/position` devuelve posición (`ZRANK + 1`), personas adelante, estado `EN_ESPERA` y una estimación. Si una tanda ya lo habilitó, el estado es `HABILITADO` y la respuesta incluye el token. Quien no ingresó, o cuyo token venció, recibe 404.
 - Un scheduler revisa las filas abiertas. Cuando pasa `intervaloSegundos` desde la tanda anterior, habilita a los primeros `batchSize` clientes (FIFO) y les firma un JWT con `eventId`, `sub`, `jti`, `exp` y `type=QUEUE`. La misma persona no sale dos veces: sale del sorted set en la misma operación Lua. Los tokens vencidos se borran en ese mismo ciclo.
+- `POST /internal/events/{eventoId}/close` cierra la fila con motivo `CANCELADO`, `FINALIZADO` o `AGOTADO`. No entran clientes nuevos y no se emiten tokens. Quien ya estaba consulta `CERRADA`, sin token. Redis guarda el estado con AOF (`appendonly yes` en el compose). Si Redis pierde los datos, el ingreso responde 409 `QUEUE_NOT_OPEN` y no se emiten tokens.
+- Un JWT que el cliente ya recibió sigue siendo válido hasta su `exp` (5 minutos por defecto). Inventory lo valida en local, sin llamar a queue. La reserva de un evento cancelado, finalizado o agotado se rechaza por el estado del evento en la tarea 5.1.
 - La estimación es `(adelante / batchSize + 1) * intervaloSegundos`: quien está en la próxima tanda espera un intervalo.
 - Claves Redis: `queue:{eventoId}:waiting` (sorted set), `queue:{eventoId}:state` (hash) y `queue:{eventoId}:seq`.
 - Swagger UI: <http://localhost:8086/swagger-ui.html> — OpenAPI: <http://localhost:8086/v3/api-docs>
@@ -54,7 +56,7 @@ La respuesta debe incluir `"status":"UP"` y el componente `redis` en `UP`.
 
 ### Tests
 
-`QueueServiceApplicationTests` verifica el health con Redis. `FilaRedisTest` cubre el primer ingreso, el reingreso sin duplicar, la posición y el 409 de un evento sin fila. Se omiten si Docker no está corriendo.
+`QueueServiceApplicationTests` verifica el health con Redis. `FilaRedisTest` cubre el ingreso y la posición. `TandaTokenTest` cubre las tandas y el vencimiento del token. `CierreFilaTest` cubre el cierre, la tanda que ya no sale y el reinicio de Redis con AOF. Se omiten si Docker no está corriendo.
 
 ```bash
 curl -X POST http://localhost:8086/internal/events/11111111-1111-4111-8111-111111111111 \
@@ -63,4 +65,9 @@ curl -X POST http://localhost:8086/internal/events/11111111-1111-4111-8111-11111
 curl -X POST http://localhost:8086/api/queue/events/11111111-1111-4111-8111-111111111111/join \
   -H "X-User-Id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" \
   -H "X-User-Role: CLIENT"
+
+curl -X POST http://localhost:8086/internal/events/11111111-1111-4111-8111-111111111111/close \
+  -H "X-Internal-Token: ticketya-internal-dev" \
+  -H "Content-Type: application/json" \
+  -d "{\"motivo\":\"AGOTADO\"}"
 ```

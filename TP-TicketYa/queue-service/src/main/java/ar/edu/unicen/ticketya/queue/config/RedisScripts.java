@@ -24,6 +24,11 @@ public class RedisScripts {
         return script("redis/habilitar.lua");
     }
 
+    @Bean(name = "cerrarScript")
+    DefaultRedisScript<List> cerrarScript() {
+        return script("redis/cerrar.lua");
+    }
+
     @Bean(name = "limpiarScript")
     DefaultRedisScript<Long> limpiarScript() {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
