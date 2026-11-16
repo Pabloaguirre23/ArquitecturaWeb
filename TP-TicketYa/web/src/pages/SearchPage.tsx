@@ -113,7 +113,7 @@ export function SearchPage() {
             />
           </div>
 
-          <div className="field">
+          <div className="field field-tipo">
             <label htmlFor="tipo">Tipo</label>
             <select
               id="tipo"
@@ -129,7 +129,7 @@ export function SearchPage() {
             </select>
           </div>
 
-          <div className="field">
+          <div className="field field-ciudad">
             <label htmlFor="ciudad">Ciudad</label>
             <input
               id="ciudad"
@@ -139,7 +139,7 @@ export function SearchPage() {
             />
           </div>
 
-          <div className="field">
+          <div className="field field-desde">
             <label htmlFor="fechaDesde">Desde</label>
             <input
               id="fechaDesde"
@@ -149,7 +149,7 @@ export function SearchPage() {
             />
           </div>
 
-          <div className="field">
+          <div className="field field-hasta">
             <label htmlFor="fechaHasta">Hasta</label>
             <input
               id="fechaHasta"
@@ -159,7 +159,7 @@ export function SearchPage() {
             />
           </div>
 
-          <div className="field">
+          <div className="field field-orden">
             <label htmlFor="sort">Orden</label>
             <select
               id="sort"
@@ -173,7 +173,7 @@ export function SearchPage() {
             </select>
           </div>
 
-          <button className="btn btn-primary" type="submit">
+          <button className="btn btn-primary filter-submit" type="submit">
             Buscar
           </button>
         </form>

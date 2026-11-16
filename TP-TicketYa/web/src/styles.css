@@ -243,13 +243,46 @@ p {
 
 .filters {
   display: grid;
-  grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(118px, 1fr)) minmax(118px, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-areas:
+    "q q tipo ciudad"
+    "desde hasta orden buscar";
+  gap: 12px;
   align-items: end;
+}
+
+.field-wide {
+  grid-area: q;
+}
+
+.field-tipo {
+  grid-area: tipo;
+}
+
+.field-ciudad {
+  grid-area: ciudad;
+}
+
+.field-desde {
+  grid-area: desde;
+}
+
+.field-hasta {
+  grid-area: hasta;
+}
+
+.field-orden {
+  grid-area: orden;
+}
+
+.filter-submit {
+  grid-area: buscar;
+  align-self: end;
 }
 
 .field {
   display: grid;
+  min-width: 0;
   gap: 6px;
 }
 
@@ -923,10 +956,11 @@ select:focus-visible {
 @media (max-width: 980px) {
   .filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .field-wide {
-    grid-column: 1 / -1;
+    grid-template-areas:
+      "q q"
+      "tipo ciudad"
+      "desde hasta"
+      "orden buscar";
   }
 
   .detail-grid {
@@ -960,6 +994,14 @@ select:focus-visible {
 
   .filters {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "q"
+      "tipo"
+      "ciudad"
+      "desde"
+      "hasta"
+      "orden"
+      "buscar";
   }
 
   .preferences-form {
