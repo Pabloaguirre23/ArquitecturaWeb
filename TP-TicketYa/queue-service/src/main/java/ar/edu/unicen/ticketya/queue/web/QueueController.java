@@ -55,7 +55,11 @@ public class QueueController {
 
     @GetMapping("/events/{eventoId}/position")
     @Operation(summary = "Consultar la posición propia",
-            description = "Devuelve posición (ZRANK + 1), personas adelante, estado EN_ESPERA y estimación. 404 si nunca ingresó.")
+            description = """
+                    En espera: posición (ZRANK + 1), personas adelante y estimación. \
+                    Habilitado por una tanda: estado HABILITADO y el token de compra. \
+                    404 si nunca ingresó o si el token ya venció.
+                    """)
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Posición actual"),
             @ApiResponse(responseCode = "401", description = "Falta la identidad"),

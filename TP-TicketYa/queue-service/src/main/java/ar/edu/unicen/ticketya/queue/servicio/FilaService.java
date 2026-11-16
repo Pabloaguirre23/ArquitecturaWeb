@@ -5,38 +5,55 @@ import ar.edu.unicen.ticketya.queue.web.ApiException;
 import ar.edu.unicen.ticketya.queue.web.dto.FilaEstadoResponse;
 import ar.edu.unicen.ticketya.queue.web.dto.PosicionResponse;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 /**
- * Modelo Redis de la fila: sorted set de espera y hash de estado.
- * El ingreso usa ZADD NX para no pisar la posición de quien ya está.
+ * Modelo Redis de la fila: sorted set de espera, hash de estado y hash de habilitados.
+ * El ingreso usa ZADD NX. La tanda saca los primeros N en una sola ejecución de Lua.
  */
 @Service
 public class FilaService {
 
     static final String EN_ESPERA = "EN_ESPERA";
+    static final String HABILITADO = "HABILITADO";
     static final String ABIERTA = "ABIERTA";
+    static final String OPEN_KEY = "queue:open";
+
+    private static final Logger log = LoggerFactory.getLogger(FilaService.class);
 
     private final StringRedisTemplate redis;
     private final DefaultRedisScript<List> ingresarScript;
     private final DefaultRedisScript<List> abrirScript;
+    private final DefaultRedisScript<List> habilitarScript;
+    private final DefaultRedisScript<Long> limpiarScript;
     private final QueueProperties properties;
+    private final QueueTokenService tokens;
     private final Clock clock;
 
     public FilaService(StringRedisTemplate redis,
                        @Qualifier("ingresarScript") DefaultRedisScript<List> ingresarScript,
                        @Qualifier("abrirScript") DefaultRedisScript<List> abrirScript,
+                       @Qualifier("habilitarScript") DefaultRedisScript<List> habilitarScript,
+                       @Qualifier("limpiarScript") DefaultRedisScript<Long> limpiarScript,
                        QueueProperties properties,
+                       QueueTokenService tokens,
                        Clock clock) {
         this.redis = redis;
         this.ingresarScript = ingresarScript;
         this.abrirScript = abrirScript;
+        this.habilitarScript = habilitarScript;
+        this.limpiarScript = limpiarScript;
         this.properties = properties;
+        this.tokens = tokens;
         this.clock = clock;
     }
 
@@ -45,9 +62,11 @@ public class FilaService {
         int intervalo = intervaloSegundos == null ? properties.intervaloSegundos() : intervaloSegundos;
         List<?> resultado = redis.execute(
                 abrirScript,
-                List.of(estadoKey(eventoId)),
+                List.of(estadoKey(eventoId), OPEN_KEY),
                 Integer.toString(batch),
-                Integer.toString(intervalo));
+                Integer.toString(intervalo),
+                Long.toString(clock.millis()),
+                eventoId.toString());
         boolean creada = codigo(resultado, 0) == 1;
         return new Apertura(creada, new FilaEstadoResponse(
                 eventoId,
@@ -59,7 +78,7 @@ public class FilaService {
     public Ingreso ingresar(UUID eventoId, UUID userId) {
         List<?> resultado = redis.execute(
                 ingresarScript,
-                List.of(esperaKey(eventoId), estadoKey(eventoId), secuenciaKey(eventoId)),
+                List.of(esperaKey(eventoId), estadoKey(eventoId), secuenciaKey(eventoId), admitidosKey(eventoId)),
                 userId.toString(),
                 Long.toString(clock.millis()));
         int codigo = codigo(resultado, 0);
@@ -69,13 +88,20 @@ public class FilaService {
         if (codigo == 1) {
             throw ApiException.conflict("QUEUE_CLOSED", "La fila de este evento no admite ingresos");
         }
+        if (codigo == 4) {
+            return new Ingreso(false, consultar(eventoId, userId));
+        }
         int rank = numero(resultado, 1);
         int batch = numero(resultado, 2);
         int intervalo = numero(resultado, 3);
-        return new Ingreso(codigo == 3, posicion(eventoId, rank, batch, intervalo));
+        return new Ingreso(codigo == 3, enEspera(eventoId, rank, batch, intervalo));
     }
 
     public PosicionResponse consultar(UUID eventoId, UUID userId) {
+        PosicionResponse habilitado = habilitadoSiVigente(eventoId, userId);
+        if (habilitado != null) {
+            return habilitado;
+        }
         Long rank = redis.opsForZSet().rank(esperaKey(eventoId), userId.toString());
         if (rank == null) {
             throw ApiException.notFound("NOT_IN_QUEUE", "El cliente no ingresó a la fila de este evento");
@@ -84,13 +110,67 @@ public class FilaService {
         Object intervalo = redis.opsForHash().get(estadoKey(eventoId), "intervaloSegundos");
         int batchSize = batch == null ? properties.batchSize() : Integer.parseInt(batch.toString());
         int intervaloSegundos = intervalo == null ? properties.intervaloSegundos() : Integer.parseInt(intervalo.toString());
-        return posicion(eventoId, rank.intValue(), batchSize, intervaloSegundos);
+        return enEspera(eventoId, rank.intValue(), batchSize, intervaloSegundos);
     }
 
-    private PosicionResponse posicion(UUID eventoId, int rank, int batchSize, int intervaloSegundos) {
+    /**
+     * Limpia tokens vencidos y habilita la próxima tanda de cada fila abierta
+     * si ya pasó su intervalo. La extracción del sorted set es atómica.
+     */
+    public void procesarTandas(Instant ahora) {
+        Set<String> abiertas = redis.opsForSet().members(OPEN_KEY);
+        if (abiertas == null || abiertas.isEmpty()) {
+            return;
+        }
+        for (String evento : abiertas) {
+            UUID eventoId = UUID.fromString(evento);
+            redis.execute(limpiarScript, List.of(admitidosKey(eventoId)), Long.toString(ahora.toEpochMilli()));
+            habilitar(eventoId, ahora);
+        }
+    }
+
+    private void habilitar(UUID eventoId, Instant ahora) {
+        List<?> resultado = redis.execute(
+                habilitarScript,
+                List.of(esperaKey(eventoId), estadoKey(eventoId), admitidosKey(eventoId)),
+                Long.toString(ahora.toEpochMilli()));
+        if (resultado == null || resultado.isEmpty() || numero(resultado, 0) != 3) {
+            return;
+        }
+        Instant expira = ahora.plus(properties.token().ttl());
+        for (int i = 1; i < resultado.size(); i++) {
+            UUID userId = UUID.fromString(resultado.get(i).toString());
+            UUID jti = UUID.randomUUID();
+            String jwt = tokens.emitir(eventoId, userId, jti, expira);
+            redis.opsForHash().put(
+                    admitidosKey(eventoId),
+                    userId.toString(),
+                    jti + "|" + expira.toEpochMilli() + "|" + jwt);
+        }
+        log.info("Tanda de {}: {} clientes habilitados", eventoId, resultado.size() - 1);
+    }
+
+    private PosicionResponse habilitadoSiVigente(UUID eventoId, UUID userId) {
+        Object valor = redis.opsForHash().get(admitidosKey(eventoId), userId.toString());
+        if (valor == null || "PENDIENTE".equals(valor.toString())) {
+            return null;
+        }
+        String[] partes = valor.toString().split("\\|", 3);
+        if (partes.length < 3) {
+            return null;
+        }
+        long expira = Long.parseLong(partes[1]);
+        if (expira <= clock.millis()) {
+            redis.opsForHash().delete(admitidosKey(eventoId), userId.toString());
+            return null;
+        }
+        return new PosicionResponse(eventoId, 0, 0, HABILITADO, 0, partes[2]);
+    }
+
+    private PosicionResponse enEspera(UUID eventoId, int rank, int batchSize, int intervaloSegundos) {
         int tandasPorDelante = rank / batchSize;
         int estimacion = (tandasPorDelante + 1) * intervaloSegundos;
-        return new PosicionResponse(eventoId, rank + 1, rank, EN_ESPERA, estimacion);
+        return new PosicionResponse(eventoId, rank + 1, rank, EN_ESPERA, estimacion, null);
     }
 
     static String esperaKey(UUID eventoId) {
@@ -103,6 +183,10 @@ public class FilaService {
 
     static String secuenciaKey(UUID eventoId) {
         return "queue:" + eventoId + ":seq";
+    }
+
+    static String admitidosKey(UUID eventoId) {
+        return "queue:" + eventoId + ":admitted";
     }
 
     private static int codigo(List<?> resultado, int indice) {

@@ -27,6 +27,8 @@ queue:
   batch-size: ${QUEUE_BATCH_SIZE:50}
   intervalo-segundos: ${QUEUE_INTERVAL_SECONDS:30}
   internal-token: ${INTERNAL_TOKEN:ticketya-internal-dev}
+  scheduler-ms: ${QUEUE_SCHEDULER_MS:5000}
+  scheduler-enabled: ${QUEUE_SCHEDULER_ENABLED:true}
   token:
-    secret: ${QUEUE_TOKEN_SECRET:ticketya-queue-dev}
+    secret: ${QUEUE_TOKEN_SECRET:ticketya-queue-dev-secret-key-32b}
     ttl: ${QUEUE_TOKEN_TTL:5m}

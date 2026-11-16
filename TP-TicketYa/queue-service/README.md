@@ -4,7 +4,7 @@ Fila virtual de TicketYa. Redis es el almacén primario.
 
 - **Puerto:** 8086
 - **Redis:** 7, puerto 6379, AOF activado
-- **Estado:** modelo Redis de la fila (tarea 4.1). Las tandas y el token llegan en 4.2.
+- **Estado:** ingreso, posición, tandas y token de compra (tareas 4.1 y 4.2). El cierre de la fila es la 4.3.
 
 ## Alcance actual
 
@@ -13,7 +13,8 @@ Spring Boot 3.5, Java 21, Web, Validation, Actuator, springdoc y Spring Data Red
 - `GET /actuator/health` reporta Redis (`redis`).
 - `POST /internal/events/{eventoId}` abre la fila. Lo llama catalog al publicar un evento de alta demanda. Exige `X-Internal-Token`. Repetirlo no pisa el tamaño de tanda.
 - `POST /api/queue/events/{eventoId}/join` ingresa al cliente. El primer ingreso responde 201. Repetirlo responde 200 y conserva la posición (`ZADD NX`). Sin fila responde 409 `QUEUE_NOT_OPEN`.
-- `GET /api/queue/events/{eventoId}/position` devuelve posición (`ZRANK + 1`), personas adelante, estado `EN_ESPERA` y una estimación. Quien no ingresó recibe 404.
+- `GET /api/queue/events/{eventoId}/position` devuelve posición (`ZRANK + 1`), personas adelante, estado `EN_ESPERA` y una estimación. Si una tanda ya lo habilitó, el estado es `HABILITADO` y la respuesta incluye el token. Quien no ingresó, o cuyo token venció, recibe 404.
+- Un scheduler revisa las filas abiertas. Cuando pasa `intervaloSegundos` desde la tanda anterior, habilita a los primeros `batchSize` clientes (FIFO) y les firma un JWT con `eventId`, `sub`, `jti`, `exp` y `type=QUEUE`. La misma persona no sale dos veces: sale del sorted set en la misma operación Lua. Los tokens vencidos se borran en ese mismo ciclo.
 - La estimación es `(adelante / batchSize + 1) * intervaloSegundos`: quien está en la próxima tanda espera un intervalo.
 - Claves Redis: `queue:{eventoId}:waiting` (sorted set), `queue:{eventoId}:state` (hash) y `queue:{eventoId}:seq`.
 - Swagger UI: <http://localhost:8086/swagger-ui.html> — OpenAPI: <http://localhost:8086/v3/api-docs>
@@ -29,8 +30,10 @@ Spring Boot 3.5, Java 21, Web, Validation, Actuator, springdoc y Spring Data Red
 | `QUEUE_BATCH_SIZE` | `50` | Clientes por tanda, usado para la estimación |
 | `QUEUE_INTERVAL_SECONDS` | `30` | Segundos entre tandas, usado para la estimación |
 | `INTERNAL_TOKEN` | `ticketya-internal-dev` | Token de `POST /internal/events/{eventoId}` |
-| `QUEUE_TOKEN_SECRET` | `ticketya-queue-dev` | Firma del token de fila. Solo para desarrollo |
+| `QUEUE_TOKEN_SECRET` | `ticketya-queue-dev-secret-key-32b` | Firma HS256 del token de fila. Mínimo 32 bytes |
 | `QUEUE_TOKEN_TTL` | `5m` | Vida del token de fila |
+| `QUEUE_SCHEDULER_MS` | `5000` | Cada cuánto el scheduler revisa las filas abiertas |
+| `QUEUE_SCHEDULER_ENABLED` | `true` | Apagar el scheduler en tests |
 
 ## Ejecutar y probar
 
