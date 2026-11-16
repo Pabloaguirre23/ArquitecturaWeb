@@ -17,6 +17,7 @@ Servicio de disponibilidad, reservas temporales y no doble venta de TicketYa.
 | GET | `/api/inventory/events/{eventoId}/seats?sectorId=` | público | Mapa de asientos |
 | POST | `/api/inventory/reservations` | autenticado | Reserva atómica de asientos numerados y zonas |
 | GET | `/api/inventory/reservations/{reservaId}` | dueño | Consulta de una reserva |
+| DELETE | `/api/inventory/reservations/{reservaId}` | dueño | Cancela una reserva vigente y libera los lugares. Repetir responde 204 |
 | GET | `/internal/reservations/{reservaId}` | interno | Reserva para orders, con nombre/fecha del evento |
 | POST | `/internal/reservations/{reservaId}/confirm` | interno | Confirma la venta. Repetir una confirmada devuelve 200 |
 | POST | `/internal/reservations/{reservaId}/release` | interno | Libera la reserva si el pago se rechazó. Idempotente, 204 |
@@ -35,6 +36,7 @@ Límite por cliente, vencimiento, confirmación/liberación y devolución corres
 - La reserva vence a los 10 minutos (`expires_at`). Un scheduler cada 30 segundos pasa a `VENCIDA` las reservas `VIGENTE` con `expires_at` cumplido y libera sus lugares. Los asientos se sueltan con `UPDATE ... WHERE estado = 'RESERVADO' AND reserva_id = ?`, así dos instancias no liberan dos veces. Consultar una reserva vencida también la libera y responde `estado: VENCIDA`. Pagar una vencida responde `410 RESERVATION_EXPIRED` (lo valida la confirmación de la tarea 3.6).
 - Confirmar: `UPDATE reserva SET estado = 'CONFIRMADA' WHERE id = ? AND estado = 'VIGENTE' AND expires_at > now()`. Los asientos pasan de `RESERVADO` a `VENDIDO` y se suma `cliente_evento.entradas_vendidas`. Si ya estaba `CONFIRMADA`, se devuelve la misma reserva. Si venció, se liberan los lugares y se responde `410 RESERVATION_EXPIRED`.
 - Liberar: la reserva `VIGENTE` pasa a `LIBERADA` y se reponen asientos y zona. Repetir la llamada responde 204 sin tocar la disponibilidad otra vez.
+- Cancelar: `DELETE /api/inventory/reservations/{id}` lo pide el dueño. La reserva `VIGENTE` pasa a `CANCELADA` y se reponen asientos y zona en el mismo update condicional, así repetir responde 204 sin liberar dos veces. Otro cliente recibe 403. Una confirmada recibe 409 y la venta no cambia. Una vencida recibe 410.
 - Devolver: un asiento `VENDIDO` vuelve a `LIBRE` y resta 1 en `cliente_evento`. Una zona suma la cantidad a `disponibles` y, si el body trae `clienteId`, resta esa cantidad del cupo. Sin `clienteId` la zona se repone pero el límite no se libera. Con el header `Idempotency-Key`, repetir el mismo cuerpo no repone dos veces.
 - Concurrencia: `ConcurrenciaPostgresTest` verifica que un asiento y el último lugar de una zona se reservan una sola vez.
 - Si después de reservar, confirmar, liberar, vencer o devolver no queda ningún lugar libre, el evento pasa a `AGOTADO` y se avisa a catalog con `PATCH /internal/events/{id}/availability` y `{"agotado":true}`. Al volver a haber lugar, pasa a `PUBLICADO` y avisa con `false`. El aviso sale después del commit, con un reintento. Si catalog no responde, la operación local queda hecha.

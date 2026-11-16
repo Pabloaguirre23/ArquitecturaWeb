@@ -38,6 +38,30 @@ public class ReservaService {
 
     private static final int MINUTOS_VIGENCIA = 10;
 
+    private static final String CANCELAR = """
+            UPDATE reserva
+               SET estado = 'CANCELADA', updated_at = now()
+             WHERE id = ? AND cliente_id = ? AND estado = 'VIGENTE' AND expires_at > ?
+            """;
+
+    private static final String LIBERAR_ASIENTOS = """
+            UPDATE asiento_inventario
+               SET estado = 'LIBRE', reserva_id = NULL, expires_at = NULL
+             WHERE reserva_id = ? AND estado = 'RESERVADO'
+            """;
+
+    private static final String REPONER_ZONA = """
+            UPDATE sector_inventario s
+               SET disponibles = LEAST(s.capacidad, s.disponibles + t.cantidad)
+              FROM (
+                    SELECT sector_id, SUM(cantidad)::int AS cantidad
+                      FROM reserva_item
+                     WHERE reserva_id = ? AND asiento_id IS NULL
+                     GROUP BY sector_id
+                   ) t
+             WHERE s.evento_id = ? AND s.sector_id = t.sector_id
+            """;
+
     private final EventoInventarioRepository eventoRepository;
     private final SectorInventarioRepository sectorRepository;
     private final AsientoInventarioRepository asientoRepository;
@@ -193,6 +217,39 @@ public class ReservaService {
         disponibilidadSincronizador.sincronizar(evento.getEventoId());
 
         return toResponse(reserva, evento, sectores, reservaItems);
+    }
+
+    /**
+     * El dueño cancela una reserva vigente. El update condicional gana una sola vez:
+     * repetir la cancelación no libera los lugares otra vez.
+     */
+    @Transactional
+    public void cancelar(UUID reservaId, UUID clienteId) {
+        Reserva reserva = buscarReserva(reservaId);
+        if (!reserva.getClienteId().equals(clienteId)) {
+            throw ApiException.forbidden("NOT_RESERVATION_OWNER", "La reserva pertenece a otro cliente");
+        }
+        OffsetDateTime ahora = OffsetDateTime.now(clock);
+        int canceladas = jdbcTemplate.update(CANCELAR, reservaId, clienteId, ahora);
+        if (canceladas == 1) {
+            jdbcTemplate.update(LIBERAR_ASIENTOS, reservaId);
+            jdbcTemplate.update(REPONER_ZONA, reservaId, reserva.getEventoId());
+            disponibilidadSincronizador.sincronizar(reserva.getEventoId());
+            return;
+        }
+        if (reserva.getEstado() == EstadoReserva.CANCELADA) {
+            return;
+        }
+        if (reserva.getEstado() == EstadoReserva.VENCIDA
+                || (reserva.getEstado() == EstadoReserva.VIGENTE && !reserva.getExpiresAt().isAfter(ahora))) {
+            vencimientoService.liberarSiVencio(reservaId);
+            throw ApiException.gone("RESERVATION_EXPIRED", "La reserva está vencida y no se puede cancelar");
+        }
+        if (reserva.getEstado() == EstadoReserva.CONFIRMADA) {
+            throw ApiException.conflict("RESERVATION_NOT_CANCELLABLE",
+                    "La reserva ya está confirmada: hay que devolverla");
+        }
+        throw ApiException.conflict("RESERVATION_NOT_CANCELLABLE", "La reserva no se puede cancelar");
     }
 
     @Transactional
