@@ -10,6 +10,7 @@ import type {
   Sector,
   SimilarEventItem,
 } from '../api/types'
+import { useAuth } from '../auth/useAuth'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
@@ -22,6 +23,7 @@ import { saveReservation } from '../utils/reservationStorage'
 export function EventDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [event, setEvent] = useState<EventDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -66,7 +68,8 @@ export function EventDetailPage() {
   }, [id])
 
   useEffect(() => {
-    if (!id) {
+    if (!id || user?.role !== 'CLIENT') {
+      setSimilar([])
       return
     }
     let cancelled = false
@@ -87,7 +90,7 @@ export function EventDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, user?.role])
 
   const selectedSector = useMemo(
     () => event?.sectores.find((sector) => sector.sectorId === sectorId) ?? null,
