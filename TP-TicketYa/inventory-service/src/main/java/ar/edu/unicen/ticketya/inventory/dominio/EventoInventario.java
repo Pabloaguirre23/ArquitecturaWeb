@@ -30,6 +30,9 @@ public class EventoInventario {
     @Column(name = "limite_por_cliente", nullable = false)
     private Integer limitePorCliente;
 
+    @Column(name = "alta_demanda", nullable = false)
+    private boolean altaDemanda;
+
     @Column(nullable = false)
     private Long version = 1L;
 
@@ -74,6 +77,14 @@ public class EventoInventario {
 
     public void setLimitePorCliente(Integer limitePorCliente) {
         this.limitePorCliente = limitePorCliente;
+    }
+
+    public boolean isAltaDemanda() {
+        return altaDemanda;
+    }
+
+    public void setAltaDemanda(boolean altaDemanda) {
+        this.altaDemanda = altaDemanda;
     }
 
     public Long getVersion() {

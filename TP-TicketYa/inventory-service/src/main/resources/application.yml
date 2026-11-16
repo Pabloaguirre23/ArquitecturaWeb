@@ -38,6 +38,10 @@ management:
 catalog:
   url: ${CATALOG_URL:http://localhost:8081}
 
+queue:
+  token:
+    secret: ${QUEUE_TOKEN_SECRET:ticketya-queue-dev-secret-key-32b}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

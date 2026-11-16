@@ -149,9 +149,13 @@ public class InventoryController {
             @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
                     description = "CLIENT, ORGANIZER o ADMIN.",
                     schema = @Schema(type = "string"), example = "CLIENT")
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @Parameter(name = "X-Queue-Token", in = ParameterIn.HEADER,
+                    description = "JWT de fila. Obligatorio si el evento es de alta demanda.",
+                    schema = @Schema(type = "string"))
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
-        ReservationResponse response = reservaService.reservar(request, identity.userId());
+        ReservationResponse response = reservaService.reservar(request, identity.userId(), queueToken);
         return ResponseEntity.created(URI.create("/api/inventory/reservations/" + response.id())).body(response);
     }
 

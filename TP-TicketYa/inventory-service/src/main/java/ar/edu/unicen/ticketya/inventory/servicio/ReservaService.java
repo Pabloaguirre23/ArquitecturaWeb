@@ -47,6 +47,7 @@ public class ReservaService {
     private final LimitePorCliente limitePorCliente;
     private final VencimientoService vencimientoService;
     private final DisponibilidadSincronizador disponibilidadSincronizador;
+    private final FilaTokenService filaTokenService;
     private final Clock clock;
 
     public ReservaService(EventoInventarioRepository eventoRepository,
@@ -58,6 +59,7 @@ public class ReservaService {
                           LimitePorCliente limitePorCliente,
                           VencimientoService vencimientoService,
                           DisponibilidadSincronizador disponibilidadSincronizador,
+                          FilaTokenService filaTokenService,
                           Clock clock) {
         this.eventoRepository = eventoRepository;
         this.sectorRepository = sectorRepository;
@@ -68,11 +70,17 @@ public class ReservaService {
         this.limitePorCliente = limitePorCliente;
         this.vencimientoService = vencimientoService;
         this.disponibilidadSincronizador = disponibilidadSincronizador;
+        this.filaTokenService = filaTokenService;
         this.clock = clock;
     }
 
     @Transactional
     public ReservationResponse reservar(ReservaRequest request, UUID clienteId) {
+        return reservar(request, clienteId, null);
+    }
+
+    @Transactional
+    public ReservationResponse reservar(ReservaRequest request, UUID clienteId, String queueToken) {
         EventoInventario evento = eventoRepository.findById(request.eventoId())
                 .orElseThrow(() -> ApiException.notFound("EVENT_NOT_FOUND",
                         "No existe el evento " + request.eventoId()));
@@ -82,6 +90,10 @@ public class ReservaService {
         }
         if (evento.getFecha() != null && evento.getFecha().isBefore(OffsetDateTime.now(clock))) {
             throw ApiException.conflict("EVENT_FINISHED", "El evento ya finalizó");
+        }
+        UUID queueJti = null;
+        if (evento.isAltaDemanda()) {
+            queueJti = filaTokenService.validar(queueToken, evento.getEventoId(), clienteId).jti();
         }
 
         Map<UUID, SectorInventario> sectores = new LinkedHashMap<>();
@@ -129,6 +141,8 @@ public class ReservaService {
         reserva.setClienteId(clienteId);
         reserva.setEstado(EstadoReserva.VIGENTE);
         reserva.setExpiresAt(expiresAt);
+        reserva.setQueueJti(queueJti);
+        reserva.setOrigen(queueJti == null ? "DIRECTA" : "FILA");
         reserva = reservaRepository.save(reserva);
 
         if (!asientosPedidos.isEmpty()) {

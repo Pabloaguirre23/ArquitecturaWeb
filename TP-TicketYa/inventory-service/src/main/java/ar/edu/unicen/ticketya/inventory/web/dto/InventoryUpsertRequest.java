@@ -15,6 +15,7 @@ public record InventoryUpsertRequest(
         @NotBlank String nombre,
         @NotNull OffsetDateTime fecha,
         @Min(1) int limitePorCliente,
+        Boolean altaDemanda,
         @Min(1) long version,
         @NotEmpty List<@Valid SectorRequest> sectores) {
 

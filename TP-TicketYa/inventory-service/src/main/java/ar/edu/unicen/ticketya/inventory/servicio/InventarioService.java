@@ -56,6 +56,9 @@ public class InventarioService {
         evento.setNombre(request.nombre());
         evento.setFecha(request.fecha());
         evento.setLimitePorCliente(request.limitePorCliente());
+        if (request.altaDemanda() != null) {
+            evento.setAltaDemanda(request.altaDemanda());
+        }
         evento.setVersion(request.version());
         evento.setUpdatedAt(OffsetDateTime.now());
         eventoRepository.saveAndFlush(evento);
