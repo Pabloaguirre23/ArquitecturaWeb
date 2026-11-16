@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import ar.edu.unicen.ticketya.recommendation.config.OpenApiConfig;
 import ar.edu.unicen.ticketya.recommendation.servicio.PreferenceService;
 import ar.edu.unicen.ticketya.recommendation.servicio.RecommendationService;
+import ar.edu.unicen.ticketya.recommendation.servicio.SimilarEventsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
@@ -45,6 +46,8 @@ class OpenApiExportTest {
     private PreferenceService preferenceService;
     @MockitoBean
     private RecommendationService recommendationService;
+    @MockitoBean
+    private SimilarEventsService similarEventsService;
 
     @Test
     void exportaElOpenApiDeRecommendation() throws Exception {
@@ -55,13 +58,15 @@ class OpenApiExportTest {
                 .getContentAsString(StandardCharsets.UTF_8);
 
         JsonNode documento = new ObjectMapper().readTree(json);
-        assertThat(documento.at("/paths").size()).isEqualTo(3);
+        assertThat(documento.at("/paths").size()).isEqualTo(4);
         assertThat(documento.at("/components/schemas/ProblemDetail").isMissingNode()).isFalse();
         assertThat(documento.at("/components/securitySchemes/bearerAuth").isMissingNode()).isFalse();
         assertThat(documento.at("/components/securitySchemes/X-User-Id").isMissingNode()).isFalse();
         assertThat(documento.at("/components/securitySchemes/X-User-Role").isMissingNode()).isFalse();
         assertThat(documento.at("/components/securitySchemes/X-Internal-Token").isMissingNode()).isFalse();
         assertThat(documento.at("/paths/~1api~1recommendations/get").isMissingNode()).isFalse();
+        assertThat(documento.at("/paths/~1api~1recommendations~1events~1{eventId}~1similar/get")
+                .isMissingNode()).isFalse();
         assertThat(documento.at("/paths/~1api~1recommendations~1preferences/put").isMissingNode()).isFalse();
         assertThat(documento.at("/paths/~1internal~1preferences~1{clienteId}/get").isMissingNode())
                 .isFalse();
