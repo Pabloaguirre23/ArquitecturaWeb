@@ -111,6 +111,26 @@ class CierreFilaTest {
     }
 
     @Test
+    void reabrirUnaFilaCerradaNoLaDevuelveAlScheduler() {
+        UUID evento = UUID.randomUUID();
+        abrir(evento);
+        cerrar(evento, "AGOTADO");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Internal-Token", "ticketya-internal-dev");
+        ResponseEntity<Estado> respuesta = rest.exchange(
+                "/internal/events/" + evento,
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Estado.class);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(respuesta.getBody()).isNotNull();
+        assertThat(respuesta.getBody().estado()).isEqualTo("CERRADA");
+        assertThat(redis.opsForSet().isMember(FilaService.OPEN_KEY, evento.toString())).isFalse();
+    }
+
+    @Test
     void sinFilaElCierreResponde404YUnMotivoInvalido400() {
         ResponseEntity<String> ausente = rest.exchange(
                 "/internal/events/" + UUID.randomUUID() + "/close",

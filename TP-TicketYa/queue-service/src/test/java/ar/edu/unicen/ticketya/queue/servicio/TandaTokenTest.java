@@ -134,6 +134,40 @@ class TandaTokenTest {
         assertThat(respuesta.getBody()).contains("NOT_IN_QUEUE");
     }
 
+    @Test
+    void unPendienteSinTokenSeFirmaAlConsultarYNoCambia() {
+        UUID evento = UUID.randomUUID();
+        abrir(evento);
+        dejarPendiente(evento, CLIENTE_A);
+
+        Posicion primera = consultar(evento, CLIENTE_A);
+        assertThat(primera.estado()).isEqualTo("HABILITADO");
+        assertThat(primera.token()).isNotBlank();
+        assertThat(redis.opsForHash().get(FilaService.admitidosKey(evento), CLIENTE_A))
+                .isNotEqualTo(FilaService.PENDIENTE);
+        assertThat(consultar(evento, CLIENTE_A).token()).isEqualTo(primera.token());
+    }
+
+    @Test
+    void elSchedulerFirmaUnPendienteQueQuedoSinToken() {
+        UUID evento = UUID.randomUUID();
+        abrir(evento);
+        dejarPendiente(evento, CLIENTE_A);
+
+        filaService.procesarTandas(clock.instant());
+
+        Object valor = redis.opsForHash().get(FilaService.admitidosKey(evento), CLIENTE_A);
+        assertThat(valor).isNotEqualTo(FilaService.PENDIENTE);
+        assertThat(valor.toString().split("\\|")).hasSize(3);
+        assertThat(consultar(evento, CLIENTE_A).estado()).isEqualTo("HABILITADO");
+    }
+
+    private void dejarPendiente(UUID evento, String cliente) {
+        ingresar(evento, cliente);
+        redis.opsForZSet().remove(FilaService.esperaKey(evento), cliente);
+        redis.opsForHash().put(FilaService.admitidosKey(evento), cliente, FilaService.PENDIENTE);
+    }
+
     private void abrir(UUID evento) {
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Internal-Token", "ticketya-internal-dev");
