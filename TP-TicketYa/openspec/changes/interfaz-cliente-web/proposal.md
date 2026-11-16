@@ -8,7 +8,8 @@ Es un extra opcional: no reemplaza ningún requisito de la Entrega 2 y solo se e
 
 - Nuevo proyecto `web/` con React + Vite + TypeScript.
 - Login contra `POST /api/auth/login` y manejo del JWT en memoria/`sessionStorage`.
-- Pantallas de búsqueda, detalle de evento con sectores y asientos, checkout, mis entradas y reporte básico para organizador.
+- Pantallas de búsqueda, detalle de evento con sectores y asientos, checkout, mis entradas y 404.
+- Pantalla “Para vos” con preferencias (tipos, artistas y ciudad), recomendaciones explicables y bloque de eventos similares en el detalle.
 - Cliente HTTP centralizado contra el gateway, con manejo de errores RFC 7807 y renovación/expiración de sesión.
 - Proxy de desarrollo de Vite hacia `http://localhost:8080` y configuración de Nginx para el contenedor.
 - Dockerfile y documentación de ejecución; sin cambios de contrato en el backend.

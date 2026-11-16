@@ -88,10 +88,11 @@ curl http://localhost:8080/actuator/health
 
 OpenAPI crudo: `http://localhost:<puerto>/v3/api-docs`.
 
-### 5. Interfaz web (opcional, en preparación)
+### 5. Interfaz web (opcional, demo navegable)
 
 La UI del cliente vive en [`web/`](web/) y es un extra opcional de la Entrega 2. Por defecto
-arranca en modo demo, sin backend:
+arranca en modo demo, sin backend, con login, búsqueda, detalle, checkout, mis entradas y una
+pantalla **Para vos** con preferencias, recomendaciones explicables y eventos similares:
 
 ```bash
 cd web

@@ -21,6 +21,8 @@ const MOCK_TICKETS_KEY = 'ticketya.mock.tickets'
 const FESTIVAL_ID = 'd0000000-0000-4000-8000-000000000001'
 const TEATRO_ID = 'd0000000-0000-4000-8000-000000000002'
 const CHARLA_ID = 'd0000000-0000-4000-8000-000000000003'
+const DEPORTE_ID = 'd0000000-0000-4000-8000-000000000004'
+const RECITAL_ID = 'd0000000-0000-4000-8000-000000000005'
 
 export const MOCK_EVENTS: EventDetail[] = [
   {
@@ -112,6 +114,65 @@ export const MOCK_EVENTS: EventDetail[] = [
         precio: 0,
         capacidad: 200,
         disponibles: 174,
+      },
+    ],
+  },
+  {
+    id: DEPORTE_ID,
+    nombre: 'Clásico de básquet: UNICEN vs. Estudiantes',
+    descripcion:
+      'El clásico universitario de la ciudad. Entradas numeradas para la platea y generales para la popular.',
+    tipo: 'DEPORTE',
+    lugarId: 'a0000000-0000-4000-8000-000000000003',
+    lugarNombre: 'Gimnasio Duggan',
+    ciudad: 'Tandil',
+    organizadorId: '22222222-2222-4222-8222-222222222222',
+    fecha: '2027-06-12T21:30:00-03:00',
+    estado: 'PUBLICADO',
+    limitePorCliente: 4,
+    participantes: ['UNICEN', 'Estudiantes de Tandil'],
+    sectores: [
+      {
+        sectorId: 'b0000000-0000-4000-8000-000000000006',
+        nombre: 'Platea',
+        tipo: 'NUMERADO',
+        precio: 15000,
+        capacidad: 180,
+        disponibles: 151,
+      },
+      {
+        sectorId: 'b0000000-0000-4000-8000-000000000007',
+        nombre: 'Popular',
+        tipo: 'NO_NUMERADO',
+        precio: 8000,
+        capacidad: 400,
+        disponibles: 366,
+      },
+    ],
+  },
+  {
+    id: RECITAL_ID,
+    nombre: 'Noche de Rock en el Anfiteatro',
+    descripcion:
+      'Los Piojos y Callejeros vuelven al anfiteatro municipal con un show a beneficio de la cooperadora.',
+    tipo: 'RECITAL',
+    lugarId: 'a0000000-0000-4000-8000-000000000004',
+    lugarNombre: 'Anfiteatro Municipal',
+    ciudad: 'Tandil',
+    organizadorId: '22222222-2222-4222-8222-222222222222',
+    fecha: '2027-07-03T20:00:00-03:00',
+    estado: 'PUBLICADO',
+    limitePorCliente: 4,
+    participantes: ['Los Piojos', 'Callejeros'],
+    altaDemanda: true,
+    sectores: [
+      {
+        sectorId: 'b0000000-0000-4000-8000-000000000008',
+        nombre: 'Campo',
+        tipo: 'NO_NUMERADO',
+        precio: 22000,
+        capacidad: 3500,
+        disponibles: 2804,
       },
     ],
   },

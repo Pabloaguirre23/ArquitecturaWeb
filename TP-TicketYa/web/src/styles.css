@@ -456,6 +456,78 @@ select:focus-visible {
   font-size: 0.86rem;
 }
 
+.form-success {
+  margin: 10px 0 0;
+  color: var(--success);
+  font-size: 0.86rem;
+}
+
+.reason-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+
+.reason-list li + li {
+  margin-top: 2px;
+}
+
+.recommendation-card .price {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.preference-card {
+  margin-bottom: 26px;
+}
+
+.preferences-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.8fr) auto;
+  gap: 16px;
+  align-items: end;
+}
+
+.preference-types {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.preference-types legend {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.checkbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.checkbox-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
+.checkbox-row input {
+  width: auto;
+}
+
 .loading {
   display: flex;
   align-items: center;
@@ -861,6 +933,10 @@ select:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .preferences-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .summary {
     position: static;
   }
@@ -883,6 +959,10 @@ select:focus-visible {
   }
 
   .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .preferences-form {
     grid-template-columns: 1fr;
   }
 

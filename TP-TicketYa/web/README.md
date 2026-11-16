@@ -14,6 +14,7 @@ El change de OpenSpec es
 | `/events/:id` | Detalle, sectores y selección de asientos o cantidad |
 | `/checkout` | Confirmación de la compra y pago mock |
 | `/tickets` | Mis entradas con QR |
+| `/para-vos` | Preferencias y recomendaciones explicables |
 
 ## Requisitos
 
@@ -35,6 +36,23 @@ Password: demo
 
 El flujo de compra simula la pasarela con las opciones **Aprobado**, **Rechazado** y **Lento**.
 Las entradas compradas se guardan en `sessionStorage` y aparecen en “Mis entradas”.
+
+### Recomendaciones y preferencias
+
+La pantalla **Para vos** (`/para-vos`) permite guardar tipos de evento, artistas favoritos y
+ciudad, y muestra recomendaciones con el motivo de cada sugerencia. En modo demo:
+
+- Arranca con preferencias de ejemplo (`RECITAL`, `Los Piojos`, `Tandil`) para que la pantalla
+  tenga contenido desde el primer ingreso.
+- Persiste las preferencias en `sessionStorage` y recalcula las sugerencias al guardar.
+- Excluye los eventos que el cliente ya compró (las entradas demo incluyen una de teatro).
+- El detalle de cada evento muestra “También te puede gustar” con eventos similares por tipo,
+  artistas y ciudad.
+
+En modo gateway real usa `GET /api/recommendations`, `GET/PUT /api/recommendations/preferences`
+y `GET /api/recommendations/events/{eventId}/similar`. Igual que el login, estas rutas dependen
+de que P4 agregue `/api/recommendations/**` al gateway y de la tarea 2.1; hasta entonces la
+forma de recorrerlas es el modo demo.
 
 ## Modo gateway real
 
@@ -68,7 +86,7 @@ npm install
 npm run dev       # http://localhost:5173
 npm run build     # TypeScript + build de producción en dist/
 npm run lint      # oxlint
-npm run test      # Vitest (cliente HTTP, layout y mapa de asientos)
+npm run test      # Vitest (cliente HTTP, layout, asientos, tarjetas y mock de recomendaciones)
 ```
 
 ## Docker
@@ -103,11 +121,11 @@ La prueba contra el backend real (5.2) sigue bloqueada hasta que el gateway teng
 ```text
 web/
   src/
-    api/         cliente HTTP, tipos, adaptadores y datos demo
+    api/         cliente HTTP, tipos, adaptadores, datos demo y recomendaciones
     auth/        contexto de sesión, storage y ruta protegida
     components/  layout, tarjetas, estados, mapa de asientos y QR
-    pages/       login, búsqueda, detalle, checkout, entradas y 404
-    utils/       formato, errores, idempotencia y storage
+    pages/       login, búsqueda, detalle, checkout, entradas, para vos y 404
+    utils/       formato, errores, tipos de evento, idempotencia y storage
   Dockerfile
   nginx.conf
 ```

@@ -98,6 +98,30 @@ La interfaz SHALL permitir al cliente ver sus compras y entradas con evento, sec
 - **WHEN** el cliente no tiene compras
 - **THEN** se muestra un estado vacío con un enlace a la búsqueda
 
+### Requirement: Recomendaciones y preferencias
+
+La interfaz SHALL permitir al cliente guardar sus tipos de evento, artistas favoritos y ciudad, y SHALL mostrar recomendaciones explicables y eventos similares.
+
+#### Scenario: Preferencias guardadas
+- **WHEN** el cliente guarda sus tipos, artistas y ciudad
+- **THEN** la aplicación persiste las preferencias y recalcula las recomendaciones sin recargar la página
+
+#### Scenario: Recomendaciones con motivos
+- **WHEN** el cliente abre “Para vos”
+- **THEN** ve tarjetas con el evento, su afinidad y los motivos por los que se recomienda
+
+#### Scenario: Cliente sin preferencias
+- **WHEN** el cliente no cargó preferencias o no hay eventos que coincidan
+- **THEN** se muestran eventos populares o un estado vacío con un enlace a la búsqueda
+
+#### Scenario: Eventos similares
+- **WHEN** el cliente abre el detalle de un evento
+- **THEN** ve una sección “También te puede gustar” con eventos comprados por otros clientes que compraron el mismo evento
+
+#### Scenario: Preferencias inválidas
+- **WHEN** el cliente intenta guardar una ciudad vacía
+- **THEN** se muestra un error asociado al campo y no se guardan los cambios
+
 ### Requirement: Manejo de errores y estados de carga
 
 La interfaz SHALL mostrar estados de carga, errores legibles y acciones de reintento en todas las pantallas que consumen el gateway.

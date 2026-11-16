@@ -7,6 +7,7 @@ import { ErrorState } from '../components/ErrorState'
 import { EventCard } from '../components/EventCard'
 import { Loading } from '../components/Loading'
 import { errorMessage } from '../utils/errors'
+import { EVENT_TYPE_OPTIONS } from '../utils/eventTypes'
 
 interface Filters {
   q: string
@@ -120,10 +121,11 @@ export function SearchPage() {
               onChange={(event) => updateFilter('tipo', event.target.value)}
             >
               <option value="">Todos</option>
-              <option value="RECITAL">Recital</option>
-              <option value="TEATRO">Teatro</option>
-              <option value="DEPORTE">Deporte</option>
-              <option value="CONFERENCIA">Conferencia</option>
+              {EVENT_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 

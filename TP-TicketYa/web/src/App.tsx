@@ -6,6 +6,7 @@ import { CheckoutPage } from './pages/CheckoutPage'
 import { EventDetailPage } from './pages/EventDetailPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { RecommendationsPage } from './pages/RecommendationsPage'
 import { SearchPage } from './pages/SearchPage'
 import { TicketsPage } from './pages/TicketsPage'
 
@@ -21,6 +22,7 @@ export function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="checkout" element={<CheckoutPage />} />
               <Route path="tickets" element={<TicketsPage />} />
+              <Route path="para-vos" element={<RecommendationsPage />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />
           </Route>

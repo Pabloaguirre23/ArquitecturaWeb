@@ -142,6 +142,55 @@ export interface LoginResponse {
   nombre?: string
 }
 
+export interface RecommendationItem {
+  eventoId: string
+  nombre: string
+  tipo: TipoEvento
+  artistas: string[]
+  ciudad: string
+  fechaEvento: string
+  altaDemanda: boolean
+  puntaje: number
+  motivos: string[]
+}
+
+export interface RecommendationsResponse {
+  clienteId: string
+  generadoEn: string
+  recomendaciones: RecommendationItem[]
+}
+
+export interface Preferences {
+  clienteId?: string
+  tipos: string[]
+  artistas: string[]
+  ciudad: string | null
+  actualizadoEn?: string | null
+}
+
+export interface PreferencesRequest {
+  tipos: string[]
+  artistas: string[]
+  ciudad: string
+}
+
+export interface SimilarEventItem {
+  eventoId: string
+  nombre: string
+  tipo: TipoEvento
+  artistas: string[]
+  ciudad: string
+  fechaEvento: string
+  compradoresEnComun: number
+}
+
+export interface SimilarEventsResponse {
+  eventoId: string
+  generadoEn: string
+  similares: SimilarEventItem[]
+}
+
+
 export interface ProblemDetail {
   type?: string
   title?: string

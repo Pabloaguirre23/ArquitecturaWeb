@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getEvent, getSeats } from '../api/events'
+import { getSimilarEvents } from '../api/recommendations'
 import { createReservation } from '../api/orders'
 import type {
   CreateReservationItem,
   EventDetail,
   Seat,
   Sector,
+  SimilarEventItem,
 } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
 import { SeatGrid } from '../components/SeatGrid'
+import { SimilarEventCard } from '../components/SimilarEventCard'
 import { errorMessage } from '../utils/errors'
 import { formatCurrency, formatDate } from '../utils/format'
 import { saveReservation } from '../utils/reservationStorage'
@@ -29,6 +32,7 @@ export function EventDetailPage() {
   const [quantity, setQuantity] = useState(1)
   const [reserving, setReserving] = useState(false)
   const [reserveError, setReserveError] = useState<string | null>(null)
+  const [similar, setSimilar] = useState<SimilarEventItem[]>([])
 
   useEffect(() => {
     if (!id) {
@@ -53,6 +57,30 @@ export function EventDetailPage() {
       .finally(() => {
         if (!cancelled) {
           setLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  useEffect(() => {
+    if (!id) {
+      return
+    }
+    let cancelled = false
+    setSimilar([])
+
+    getSimilarEvents(id)
+      .then((result) => {
+        if (!cancelled) {
+          setSimilar(result.similares)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSimilar([])
         }
       })
 
@@ -322,6 +350,20 @@ export function EventDetailPage() {
           )}
         </aside>
       </div>
+
+      {similar.length > 0 && (
+        <section className="section-gap" aria-labelledby="similar-events-title">
+          <div className="results-head">
+            <h2 id="similar-events-title">También te puede gustar</h2>
+            <span className="muted">Según lo que compraron otros clientes</span>
+          </div>
+          <div className="event-grid">
+            {similar.map((item) => (
+              <SimilarEventCard key={item.eventoId} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

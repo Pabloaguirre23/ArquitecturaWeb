@@ -64,6 +64,7 @@ Restricciones:
 | `/events/:id` | Detalle | Evento, sectores, asientos/cantidad, selección |
 | `/checkout` | Checkout | Reserva, medio de pago mock, idempotencia, resultado |
 | `/tickets` | Mis entradas | Listado y detalle con QR |
+| `/para-vos` | Para vos | Preferencias, recomendaciones con motivos y eventos similares en el detalle |
 | `*` | 404 | Enlace a búsqueda |
 
 El estado de selección vive en `CheckoutContext`/`useState` de la pantalla y se pierde al refrescar; la reserva real en inventory es la que manda. No se agrega Redux/Zustand.
@@ -79,9 +80,18 @@ El estado de selección vive en `CheckoutContext`/`useState` de la pantalla y se
 ### 6. Testing y verificación
 
 - `npm run build` debe pasar sin errores de TypeScript.
-- `npm run lint` con ESLint (configuración mínima) y `npm run test` con Vitest para utilidades del cliente HTTP.
+- `npm run lint` con oxlint y `npm run test` con Vitest para el cliente HTTP, el layout, los asientos y el mock de recomendaciones.
 - Para el esqueleto alcanza con build + lint; los tests de componentes se agregan si la UI se entrega.
 - La verificación funcional se hace con el backend levantado: login, búsqueda, detalle, reserva, pago mock y “Mis entradas”.
+
+### 7. Recomendaciones y preferencias
+
+- La pantalla `/para-vos` consume `GET /api/recommendations` y `GET/PUT /api/recommendations/preferences`.
+- Cada tarjeta muestra nombre, fecha, ciudad, afinidad y los `motivos` que devuelve el servicio; no se recalcula el ranking en el cliente en modo real.
+- El detalle llama `GET /api/recommendations/events/{eventId}/similar` y muestra “También te puede gustar”; si falla, la sección se oculta y el detalle sigue funcionando.
+- En modo demo, `mockRecommendations.ts` reproduce el ranking (tipo, artista, ciudad y populares) y persiste las preferencias en `sessionStorage`.
+- El formulario exige ciudad, normaliza tipos/artistas y muestra un error asociado al campo si falta.
+- Un usuario con rol distinto de `CLIENT` ve un estado vacío explicativo; la autorización real sigue siendo del gateway.
 
 ## Risks / Trade-offs
 

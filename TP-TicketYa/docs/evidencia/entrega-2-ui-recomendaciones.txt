@@ -1,0 +1,82 @@
+Día 4 — 16/11/2026 — UI opcional (P5, extra)
+Tarea: recomendaciones y preferencias en la interfaz web
+
+1) Qué se agregó
+
+- Pantalla /para-vos (rol CLIENT) con:
+  - formulario de preferencias: tipos de evento, artistas favoritos y ciudad;
+  - guardado con validación de ciudad y normalización de tipos/artistas;
+  - recomendaciones con nombre, fecha, ciudad, afinidad y motivos;
+  - estados de carga, error, vacío y éxito.
+- Bloque "También te puede gustar" en el detalle del evento:
+  - consume GET /api/recommendations/events/{eventId}/similar;
+  - muestra cuántos compradores en común tiene cada evento;
+  - si falla, la sección se oculta y el detalle sigue funcionando.
+- Acceso "Para vos" en la navegación principal cuando hay sesión.
+- Modo demo:
+  - preferencias iniciales RECITAL / Los Piojos / Tandil;
+  - persistencia en sessionStorage;
+  - ranking por tipo (+3), artista (+4), ciudad (+2) y populares;
+  - exclusión de eventos ya comprados (el seed de entradas incluye teatro);
+  - dos eventos demo nuevos (básquet y recital) para que la pantalla tenga variedad.
+
+2) Archivos principales
+
+- web/src/api/recommendations.ts
+- web/src/api/mockRecommendations.ts
+- web/src/pages/RecommendationsPage.tsx
+- web/src/components/RecommendationCard.tsx
+- web/src/components/SimilarEventCard.tsx
+- web/src/utils/eventTypes.ts
+- web/src/pages/EventDetailPage.tsx, web/src/App.tsx, web/src/components/Layout.tsx
+- web/src/styles.css
+
+3) Verificación automática
+
+$ cd web
+$ npm ci
+added 81 packages in 838ms
+
+$ npm run build
+vite v8.3.8 building client environment for production...
+✓ 58 modules transformed.
+dist/index.html                   0.66 kB │ gzip:  0.40 kB
+dist/assets/index-DAwWU0pi.css   12.27 kB │ gzip:  3.55 kB
+dist/assets/index-DqlymqjB.js   304.79 kB │ gzip: 94.38 kB
+✓ built in 242ms
+
+$ npm run lint
+> oxlint
+(sin errores)
+
+$ npm run test
+Test Files  6 passed (6)
+Tests       13 passed (13)
+Duration    1.02s
+
+Casos nuevos:
+- mockRecommendations: preferencias demo, guardado normalizado, ciudad vacía -> 400,
+  orden por afinidad, exclusión de eventos comprados, prioridad del tipo guardado,
+  similares por artista/tipo/ciudad y 404 de evento inexistente.
+- RecommendationCard: nombre, motivos, afinidad y enlace al evento.
+- SimilarEventCard: motivo de co-compra y enlace al evento.
+
+4) Guion de demo manual
+
+1. `npm run dev` y entrar con cliente@ticketya.test / demo.
+2. Abrir "Para vos": se ven recomendaciones con motivos y el formulario precargado.
+3. Cambiar tipos/artistas/ciudad y guardar: mensaje de éxito y lista recalculada.
+4. Vaciar la ciudad y guardar: error asociado al campo, sin cambios.
+5. Abrir un evento: sección "También te puede gustar" con eventos similares.
+6. Comprar una entrada y volver a "Para vos": el evento comprado ya no se recomienda.
+
+5) Pendiente
+
+- 5.2 (flujo con backend real) sigue bloqueada por la tarea 2.1 (JWT en el gateway);
+  las rutas /api/recommendations/** también dependen de P4.
+- 4.3 (servicio web en el compose integral) sigue pendiente de aprobación de la UI.
+
+6) Nota de alcance
+
+La UI sigue siendo un extra opcional: no cambia contratos ni código de los servicios. Los
+endpoints usados son los del contrato de recommendation (7.1–7.5).

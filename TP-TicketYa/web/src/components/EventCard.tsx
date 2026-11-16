@@ -1,19 +1,13 @@
 import { Link } from 'react-router-dom'
 import type { EventSummary } from '../api/types'
+import { eventTypeLabel } from '../utils/eventTypes'
 import { formatCurrency, formatDate } from '../utils/format'
-
-const typeLabels: Record<string, string> = {
-  RECITAL: 'Recital',
-  TEATRO: 'Teatro',
-  DEPORTE: 'Deporte',
-  CONFERENCIA: 'Conferencia',
-}
 
 export function EventCard({ event }: { event: EventSummary }) {
   return (
     <Link className="event-card" to={`/events/${event.id}`}>
       <div className="event-cover">
-        <span>{typeLabels[event.tipo] ?? event.tipo}</span>
+        <span>{eventTypeLabel(event.tipo)}</span>
       </div>
       <div className="event-body">
         <h3>{event.nombre}</h3>
