@@ -16,6 +16,9 @@ describe('SeatGrid', () => {
 
     expect(html).toContain('role="group"')
     expect(html).toContain('aria-label="Mapa de asientos"')
+    expect(html).toContain('role="img"')
+    expect(html).toContain('Escenario')
+    expect(html).toContain('la fila 1 es la más cercana')
     expect(html).toContain('aria-pressed="true"')
     expect(html).toContain('aria-label="Fila 1, asiento 1, libre"')
     expect(html).toContain('aria-label="Fila 1, asiento 2, vendido"')

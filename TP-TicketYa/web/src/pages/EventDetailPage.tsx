@@ -244,6 +244,11 @@ export function EventDetailPage() {
         <section className="card">
           <h2>Elegí tu lugar</h2>
           <p className="muted">Límite de {event.limitePorCliente} entradas por cliente.</p>
+          {event.sectores.some((sector) => sector.tipo === 'NUMERADO') && (
+            <p className="hint">
+              Mapa referencial: el escenario está arriba y la fila 1 es la más cercana.
+            </p>
+          )}
 
           <div className="sector-list">
             {event.sectores.map((sector) => (

@@ -752,6 +752,22 @@ select:focus-visible {
   padding-bottom: 8px;
 }
 
+.seat-stage {
+  width: min(86%, 640px);
+  min-width: 240px;
+  margin: 2px auto 12px;
+  padding: 9px 18px;
+  border-radius: 0 0 24px 24px;
+  background: linear-gradient(135deg, #312e81, #7c3aed);
+  color: #fff;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  box-shadow: 0 8px 18px rgba(49, 46, 129, 0.18);
+}
+
 .seat-legend {
   display: flex;
   flex-wrap: wrap;

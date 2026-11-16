@@ -24,6 +24,13 @@ export function SeatGrid({
 
   return (
     <div className="seat-map" role="group" aria-label="Mapa de asientos">
+      <div
+        className="seat-stage"
+        role="img"
+        aria-label="Escenario ubicado arriba del mapa; la fila 1 es la más cercana"
+      >
+        <span>Escenario</span>
+      </div>
       <div className="seat-legend">
         <span><i className="legend-dot free" aria-hidden="true" /> Libre</span>
         <span><i className="legend-dot selected" aria-hidden="true" /> Elegido</span>
