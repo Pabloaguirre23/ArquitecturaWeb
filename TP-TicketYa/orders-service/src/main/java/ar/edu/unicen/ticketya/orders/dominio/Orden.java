@@ -23,14 +23,33 @@ public class Orden {
     @Column(name = "cliente_id", nullable = false)
     private UUID clienteId;
 
+    @Column(name = "cliente_email", length = 320)
+    private String clienteEmail;
+
     @Column(name = "evento_id", nullable = false)
     private UUID eventoId;
+
+    @Column(name = "evento_organizador_id")
+    private UUID eventoOrganizadorId;
 
     @Column(name = "evento_nombre", nullable = false, length = 200)
     private String eventoNombre;
 
     @Column(name = "evento_fecha", nullable = false)
     private OffsetDateTime eventoFecha;
+
+    @Column(name = "sector_nombre", length = 120)
+    private String sectorNombre;
+
+    @Column(name = "evento_tipo", length = 40)
+    private String eventoTipo;
+
+    /** Snapshot de artistas como arreglo JSON (por ejemplo {@code ["Los Piojos"]}). */
+    @Column(name = "evento_artistas", nullable = false, columnDefinition = "jsonb")
+    private String eventoArtistas = "[]";
+
+    @Column(name = "evento_ciudad", length = 120)
+    private String eventoCiudad;
 
     @Column(name = "reserva_id", nullable = false)
     private UUID reservaId;
@@ -80,12 +99,28 @@ public class Orden {
         this.clienteId = clienteId;
     }
 
+    public String getClienteEmail() {
+        return clienteEmail;
+    }
+
+    public void setClienteEmail(String clienteEmail) {
+        this.clienteEmail = clienteEmail;
+    }
+
     public UUID getEventoId() {
         return eventoId;
     }
 
     public void setEventoId(UUID eventoId) {
         this.eventoId = eventoId;
+    }
+
+    public UUID getEventoOrganizadorId() {
+        return eventoOrganizadorId;
+    }
+
+    public void setEventoOrganizadorId(UUID eventoOrganizadorId) {
+        this.eventoOrganizadorId = eventoOrganizadorId;
     }
 
     public String getEventoNombre() {
@@ -102,6 +137,38 @@ public class Orden {
 
     public void setEventoFecha(OffsetDateTime eventoFecha) {
         this.eventoFecha = eventoFecha;
+    }
+
+    public String getSectorNombre() {
+        return sectorNombre;
+    }
+
+    public void setSectorNombre(String sectorNombre) {
+        this.sectorNombre = sectorNombre;
+    }
+
+    public String getEventoTipo() {
+        return eventoTipo;
+    }
+
+    public void setEventoTipo(String eventoTipo) {
+        this.eventoTipo = eventoTipo;
+    }
+
+    public String getEventoArtistas() {
+        return eventoArtistas;
+    }
+
+    public void setEventoArtistas(String eventoArtistas) {
+        this.eventoArtistas = eventoArtistas;
+    }
+
+    public String getEventoCiudad() {
+        return eventoCiudad;
+    }
+
+    public void setEventoCiudad(String eventoCiudad) {
+        this.eventoCiudad = eventoCiudad;
     }
 
     public UUID getReservaId() {

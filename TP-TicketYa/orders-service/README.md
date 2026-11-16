@@ -53,7 +53,11 @@ Servicio de órdenes, pagos, entradas/QR y compensaciones de TicketYa.
 
 ## Modelo
 
-`orden`, `orden_item`, `pago`, `entrada`, `devolucion` e `idempotency_key`. Flyway en
+`orden`, `orden_item`, `pago`, `entrada`, `devolucion`, `idempotency_key` y `reintegro`.
+La migración `V5` de la Entrega 2 agrega el snapshot de compra (`cliente_email`,
+`evento_organizador_id`, `sector_nombre`, `evento_tipo`, `evento_artistas`, `evento_ciudad`),
+`entrada.used_at/used_by`, las tablas `saga_compra`, `outbox_event` y `audit_log`, y los
+índices de reporte por evento/sector. Flyway en
 [`src/main/resources/db/migration`](src/main/resources/db/migration).
 
 ## Variables de entorno
