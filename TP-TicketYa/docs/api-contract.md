@@ -126,6 +126,8 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 | PUT | `/api/recommendations/preferences` | CLIENT | 200 | recommendation |
 | GET | `/api/recommendations` | CLIENT | 200 | recommendation |
 | GET | `/api/recommendations/events/{eventId}/similar` | CLIENT | 200 | recommendation |
+| POST | `/api/queue/events/{eventoId}/join` | CLIENT | 201/200 | queue |
+| GET | `/api/queue/events/{eventoId}/position` | CLIENT | 200 | queue |
 
 “Autenticado” significa `CLIENT`, `ORGANIZER` o `ADMIN`; el dueño del recurso se valida dentro del servicio.
 Los endpoints `/internal/**` no se listan porque no se exponen por el gateway.
@@ -469,6 +471,7 @@ Reglas:
 - Todo o nada: si un asiento no está libre o la zona no alcanza, no se reserva nada.
 - `clienteId` sale de `X-User-Id`.
 - Límite por cliente: se toma `pg_advisory_xact_lock(hashtext(eventoId || clienteId))` y se suman `cliente_evento.entradas_vendidas` más las cantidades de reservas `VIGENTE`. Si eso más lo pedido supera `limitePorCliente`, se responde 422 y no se reserva nada.
+- Si el evento es de alta demanda, el header `X-Queue-Token` es obligatorio. Inventory valida el JWT en local (firma HS256, `exp`, `eventId`, `sub` y `type=QUEUE`) y no llama a queue. Sin token: `403 QUEUE_REQUIRED`. Token vencido, de otro cliente, de otro evento o con otra firma: `403 QUEUE_TOKEN_INVALID`. El token no es de un solo uso: se puede reutilizar hasta su `exp` (5 minutos). No hay unique en `reserva.queue_jti`. El límite por cliente y la no doble venta siguen aplicando.
 - Vencimiento: 10 minutos desde la creación.
 
 **201 Created**
@@ -510,7 +513,7 @@ Errores: `400 VALIDATION_ERROR`, `400 SECTOR_MISMATCH` (el asiento no pertenece 
 
 ### 4.5 Cancelar reserva — `DELETE /api/inventory/reservations/{reservaId}` (dueño)
 
-**204 No Content**. Idempotente: si ya estaba liberada/vencida, también 204. Errores: `403`, `404`.
+**204 No Content**. La reserva pasa a `CANCELADA` y se liberan asientos y cupo. Repetir la cancelación responde 204 y no libera dos veces. Errores: `403 NOT_RESERVATION_OWNER`, `404 RESERVATION_NOT_FOUND`, `409 RESERVATION_NOT_CANCELLABLE` (confirmada) y `410 RESERVATION_EXPIRED` (vencida).
 
 ### 4.6 Interno — alta/actualización de inventario
 
