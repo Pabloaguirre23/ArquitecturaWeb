@@ -917,6 +917,8 @@ El contrato canónico del sobre y de todos los payloads está en [`eventos.md`](
 
 ## 7. notification-service
 
+OpenAPI: [`../openapi/notification-openapi.json`](../openapi/notification-openapi.json). Swagger UI en `http://localhost:8085/swagger-ui.html`. El documento incluye los esquemas `bearerAuth`, `X-User-Id`, `X-User-Role` y `X-Correlation-Id`, además de `ProblemDetail` con ejemplos para `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOTIFICATION_FORBIDDEN` y `NOTIFICATION_NOT_FOUND`.
+
 ### 7.1 Listar mis notificaciones — `GET /api/notifications` (CLIENT)
 
 Devuelve solo las notificaciones del cliente autenticado (`X-User-Id`), ordenadas por `createdAt` descendente. Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100) y `estado` opcional (`PENDIENTE`, `ENVIADA` o `FALLIDA`).
