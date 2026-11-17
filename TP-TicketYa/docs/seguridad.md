@@ -6,10 +6,11 @@ catalog, inventory, orders, queue y notification las completa P4 en la tarea 2.8
 
 ## recommendation-service
 
-El gateway valida el JWT y descarta los encabezados `X-User-*` que mande el cliente
-(tareas 2.1–2.3). El servicio vuelve a exigir la identidad y el rol como defensa en
-profundidad: no acepta que un cliente declare otro `clienteId` ni que un rol distinto de
-`CLIENT` use los endpoints públicos.
+El gateway **validará** el JWT y descartará los encabezados `X-User-*` que mande el cliente
+(tareas 2.1–2.3, todavía pendientes al cierre de este documento). Mientras tanto, el servicio
+exige `X-User-Id` y `X-User-Role` como defensa en profundidad: no acepta que un cliente declare
+otro `clienteId` ni que un rol distinto de `CLIENT` use los endpoints públicos. La validación
+del JWT en el borde no debe marcarse como hecha hasta que 2.1–2.3 estén integradas.
 
 | Endpoint | Sin identidad | ORGANIZER / ADMIN | CLIENT dueño | CLIENT con datos de otro |
 |---|---|---|---|---|
