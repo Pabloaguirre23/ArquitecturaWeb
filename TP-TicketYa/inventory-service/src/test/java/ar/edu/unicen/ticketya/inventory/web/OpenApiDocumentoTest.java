@@ -55,14 +55,21 @@ class OpenApiDocumentoTest {
                 .contains("/internal/returns")
                 .contains("\"201\"")
                 .contains("\"400\"")
+                .contains("\"403\"")
                 .contains("\"404\"")
                 .contains("\"409\"")
                 .contains("\"410\"")
                 .contains("\"422\"")
+                .contains("X-Queue-Token")
+                .contains("QUEUE_REQUIRED")
+                .contains("QUEUE_TOKEN_INVALID")
                 .contains("SEAT_NOT_AVAILABLE")
                 .contains("INSUFFICIENT_AVAILABILITY")
+                .contains("EVENT_FINISHED")
                 .contains("CLIENT_LIMIT_EXCEEDED")
-                .contains("RESERVATION_EXPIRED");
+                .contains("RESERVATION_NOT_CANCELLABLE")
+                .contains("RESERVATION_EXPIRED")
+                .contains("\"delete\"");
 
         if (Boolean.getBoolean("export.openapi")) {
             ObjectMapper mapper = new ObjectMapper();

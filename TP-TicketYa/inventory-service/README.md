@@ -23,7 +23,7 @@ Servicio de disponibilidad, reservas temporales y no doble venta de TicketYa.
 | POST | `/internal/reservations/{reservaId}/release` | interno | Libera la reserva si el pago se rechazó. Idempotente, 204 |
 | POST | `/internal/returns` | interno | Devuelve un asiento vendido o repone una zona. Idempotente con `Idempotency-Key`, 204 |
 
-Límite por cliente, vencimiento, confirmación/liberación y devolución corresponden a las tareas 3.4–3.8. La prueba de concurrencia corre con `mvn test` contra PostgreSQL real (Testcontainers): 100 hilos sobre el mismo asiento y varios sobre el último lugar de una zona. El OpenAPI exportado está en [`../openapi/inventory-openapi.json`](../openapi/inventory-openapi.json) e incluye ejemplos y los códigos 201, 400, 404, 409, 410 y 422.
+Límite por cliente, vencimiento, confirmación/liberación y devolución corresponden a las tareas 3.4–3.8. La prueba de concurrencia corre con `mvn test` contra PostgreSQL real (Testcontainers): 100 hilos sobre el mismo asiento y varios sobre el último lugar de una zona. El OpenAPI exportado está en [`../openapi/inventory-openapi.json`](../openapi/inventory-openapi.json) e incluye el header `X-Queue-Token` y ejemplos de 403, 409 y 410.
 
 ## Reserva y no doble venta
 
@@ -60,6 +60,7 @@ Límite por cliente, vencimiento, confirmación/liberación y devolución corres
 | `QUEUE_URL` | `http://localhost:8086` | Queue para cerrar la fila de un evento agotado |
 | `QUEUE_CONNECT_TIMEOUT_MS` | `2000` | Timeout de conexión hacia queue |
 | `QUEUE_READ_TIMEOUT_MS` | `2000` | Timeout de lectura hacia queue |
+| `QUEUE_TOKEN_SECRET` | `ticketya-queue-dev-secret-key-32b` | Secreto HS256 del token de fila. Mínimo 32 bytes. El mismo que queue |
 
 El pool de desarrollo tiene 20 conexiones, `connection-timeout` de 3 s y `lock_timeout` de 3 s en PostgreSQL. Si una reserva no consigue el lock, falla rápido en vez de quedar colgada. El detector de conexiones perdidas avisa a los 10 s.
 
@@ -76,3 +77,32 @@ curl http://localhost:8082/actuator/health
 Swagger UI: <http://localhost:8082/swagger-ui.html> · OpenAPI en vivo: <http://localhost:8082/v3/api-docs>
 
 El archivo versionado se regenera con `mvn test -Dexport.openapi=true` (lo escribe `OpenApiDocumentoTest`).
+
+## Flujo de fila
+
+Queue habilita al cliente y le devuelve el JWT en `GET /api/queue/events/{eventoId}/position`. Inventory no llama a queue para reservar: exige ese token solo si el evento es de alta demanda.
+
+```bash
+# Sin token, evento de alta demanda
+curl -i -X POST http://localhost:8082/api/inventory/reservations \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e" \
+  -H "X-User-Role: CLIENT" \
+  -d '{"eventoId":"d0000000-0000-4000-8000-000000000001","items":[{"sectorId":"b0000000-0000-4000-8000-000000000002","cantidad":1}]}'
+# 403 QUEUE_REQUIRED
+
+# Con el token que devolvió la fila
+curl -i -X POST http://localhost:8082/api/inventory/reservations \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e" \
+  -H "X-User-Role: CLIENT" \
+  -H "X-Queue-Token: $TOKEN" \
+  -d '{"eventoId":"d0000000-0000-4000-8000-000000000001","items":[{"sectorId":"b0000000-0000-4000-8000-000000000002","cantidad":1}]}'
+# 201. Reutilizar el mismo token hasta exp sigue sujeto al límite por cliente.
+
+# Cancelar la reserva de otro cliente, una confirmada o una vencida
+curl -i -X DELETE http://localhost:8082/api/inventory/reservations/$RESERVA \
+  -H "X-User-Id: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e" \
+  -H "X-User-Role: CLIENT"
+# 403 NOT_RESERVATION_OWNER, 409 RESERVATION_NOT_CANCELLABLE o 410 RESERVATION_EXPIRED
+```

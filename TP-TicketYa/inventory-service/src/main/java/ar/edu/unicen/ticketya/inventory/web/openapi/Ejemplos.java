@@ -153,6 +153,30 @@ public final class Ejemplos {
             }
             """;
 
+    public static final String FILA_REQUERIDA = """
+            {
+              "type": "https://ticketya.local/errors/queue-required",
+              "title": "Forbidden",
+              "status": 403,
+              "detail": "Este evento exige un token de fila vigente",
+              "instance": "/api/inventory/reservations",
+              "code": "QUEUE_REQUIRED",
+              "errors": []
+            }
+            """;
+
+    public static final String FILA_INVALIDA = """
+            {
+              "type": "https://ticketya.local/errors/queue-token-invalid",
+              "title": "Forbidden",
+              "status": 403,
+              "detail": "El token de fila no corresponde a este cliente y evento",
+              "instance": "/api/inventory/reservations",
+              "code": "QUEUE_TOKEN_INVALID",
+              "errors": []
+            }
+            """;
+
     public static final String AJENA = """
             {
               "type": "https://ticketya.local/errors/not-reservation-owner",
@@ -221,6 +245,42 @@ public final class Ejemplos {
               "detail": "No hay disponibilidad suficiente en la zona b0000000-0000-4000-8000-000000000002",
               "instance": "/api/inventory/reservations",
               "code": "INSUFFICIENT_AVAILABILITY",
+              "errors": []
+            }
+            """;
+
+    public static final String EVENTO_FINALIZADO = """
+            {
+              "type": "https://ticketya.local/errors/event-finished",
+              "title": "Conflict",
+              "status": 409,
+              "detail": "El evento ya finalizó",
+              "instance": "/api/inventory/reservations",
+              "code": "EVENT_FINISHED",
+              "errors": []
+            }
+            """;
+
+    public static final String NO_CANCELABLE = """
+            {
+              "type": "https://ticketya.local/errors/reservation-not-cancellable",
+              "title": "Conflict",
+              "status": 409,
+              "detail": "La reserva ya está confirmada: hay que devolverla",
+              "instance": "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+              "code": "RESERVATION_NOT_CANCELLABLE",
+              "errors": []
+            }
+            """;
+
+    public static final String CANCELACION_VENCIDA = """
+            {
+              "type": "https://ticketya.local/errors/reservation-expired",
+              "title": "Gone",
+              "status": 410,
+              "detail": "La reserva está vencida y no se puede cancelar",
+              "instance": "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+              "code": "RESERVATION_EXPIRED",
               "errors": []
             }
             """;
