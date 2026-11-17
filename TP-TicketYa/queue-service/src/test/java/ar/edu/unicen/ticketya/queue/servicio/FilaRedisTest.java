@@ -113,6 +113,31 @@ class FilaRedisTest {
     }
 
     @Test
+    void unOrganizadorNoEntraNiConsulta() {
+        UUID evento = UUID.randomUUID();
+        abrir(evento);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-User-Id", CLIENTE_A);
+        headers.set("X-User-Role", "ORGANIZER");
+
+        ResponseEntity<String> ingreso = rest.exchange(
+                "/api/queue/events/" + evento + "/join",
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                String.class);
+        ResponseEntity<String> posicion = rest.exchange(
+                "/api/queue/events/" + evento + "/position",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                String.class);
+
+        assertThat(ingreso.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(ingreso.getBody()).contains("FORBIDDEN");
+        assertThat(posicion.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(redis.opsForZSet().size(FilaService.esperaKey(evento))).isZero();
+    }
+
+    @Test
     void sinIdentidadResponde401() {
         UUID evento = UUID.randomUUID();
         ResponseEntity<String> respuesta = rest.postForEntity("/api/queue/events/" + evento + "/join", null, String.class);

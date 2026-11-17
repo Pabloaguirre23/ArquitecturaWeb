@@ -75,6 +75,25 @@ class GatewayRoutingTest {
     }
 
     @Test
+    void unOrganizadorNoEntraALaFila() {
+        client.post().uri("/api/queue/events/" + UUID_CUALQUIERA + "/join")
+                .header("X-User-Id", ORGANIZER)
+                .header("X-User-Role", "ORGANIZER")
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FORBIDDEN");
+
+        client.get().uri("/api/queue/events/" + UUID_CUALQUIERA + "/position")
+                .header("X-User-Id", ORGANIZER)
+                .header("X-User-Role", "ORGANIZER")
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FORBIDDEN");
+    }
+
+    @Test
     void reservarSinIdentidadDevuelve401() {
         client.post().uri("/api/inventory/reservations")
                 .exchange()
