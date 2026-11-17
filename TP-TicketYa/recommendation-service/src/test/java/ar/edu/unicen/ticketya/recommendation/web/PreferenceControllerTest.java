@@ -134,6 +134,39 @@ class PreferenceControllerTest {
     }
 
     @Test
+    void guardarConRolOrganizadorDevuelve403() throws Exception {
+        mockMvc.perform(put("/api/recommendations/preferences")
+                        .header("X-User-Id", CLIENTE_TEXTO)
+                        .header("X-User-Role", "ORGANIZER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"tipos":["FESTIVAL"],"artistas":[],"ciudad":"Tandil"}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void guardarSinIdentidadDevuelve401() throws Exception {
+        mockMvc.perform(put("/api/recommendations/preferences")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"tipos":["FESTIVAL"],"artistas":[],"ciudad":"Tandil"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void consultarConIdentidadInvalidaDevuelve401() throws Exception {
+        mockMvc.perform(get("/api/recommendations/preferences")
+                        .header("X-User-Id", "no-es-un-uuid")
+                        .header("X-User-Role", "CLIENT"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
     void guardarConClienteIdAjenoDevuelve403() throws Exception {
         when(preferenceService.guardar(eq(CLIENTE), any(PreferenciasRequest.class)))
                 .thenThrow(ApiException.forbidden("NOT_PREFERENCE_OWNER",

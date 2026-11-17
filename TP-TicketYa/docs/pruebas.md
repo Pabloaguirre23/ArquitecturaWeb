@@ -394,3 +394,28 @@ La dependencia 10.1/10.3/10.4 → 9.6 es un riesgo de cronograma. Se mitiga así
 Riesgo residual: si P4 está saturado con JWT (2.1–2.3), el compose de integración y el plan
 de carga se reasignan a P5/P2. El compose integral no debe ser un cuello de botella de una
 sola persona.
+
+## 12. Módulo `integration-tests` (10.1, inicio Día 5)
+
+El módulo `TP-TicketYa/integration-tests` ejecuta flujos HTTP contra el gateway real, sin
+mocks de servicios. Se activa con `TICKETYA_E2E=true`; si no, los tests se omiten para no
+romper un build local sin entorno.
+
+Primer flujo implementado (gateway → catalog):
+
+```bash
+docker compose -f docker-compose.dev.yml up -d catalog-db
+(cd catalog-service && mvn -B -ntp spring-boot:run) &
+(cd api-gateway && mvn -B -ntp spring-boot:run) &
+# esperar http://localhost:8081/actuator/health y http://localhost:8080/actuator/health
+cd integration-tests
+TICKETYA_E2E=true mvn -B -ntp verify
+```
+
+Resultado del Día 5: **2 tests, 0 fallos**. Verifica el health del gateway y
+`GET /api/catalog/events?page=0&size=5&orden=FECHA_ASC` a través de 8080.
+
+Estado de los cinco flujos: búsqueda público ✅; login JWT, fila → reserva, compra → QR,
+acceso QR y compra → recomendación/notificación quedan pendientes de 2.1–2.3, 4.x, 6.4/6.5
+y 8.x. El detalle y los comandos están en
+[`../integration-tests/README.md`](../integration-tests/README.md).

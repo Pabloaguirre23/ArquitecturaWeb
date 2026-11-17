@@ -21,7 +21,7 @@
 - [ ] 2.4 (P1) Adaptar catalog-service y notification-service a la identidad JWT y a la matriz de roles (organizador dueño, admin, cliente y personal de acceso); verificar tests de 401/403/200 en los endpoints propios y del servicio de notificaciones.
 - [ ] 2.5 (P2) Adaptar inventory-service y queue-service a la identidad JWT y roles; verificar que solo el cliente reserva y consulta su reserva, que la fila es propia y que los endpoints internos exigen token.
 - [ ] 2.6 (P3) Adaptar orders-service a la identidad JWT y roles, incluyendo `ACCESS_STAFF` para el escaneo y `ORGANIZER`/`ADMIN` para reportes; verificar 401/403/200 y que un cliente no acceda a reportes ni a entradas ajenas.
-- [ ] 2.7 (P5) Adaptar recommendation-service a la identidad JWT: preferencias y recomendaciones solo del cliente autenticado; verificar 401 sin token, 403 al intentar datos de otro y 200 con el dueño.
+- [x] 2.7 (P5) Adaptar recommendation-service a la identidad JWT: preferencias y recomendaciones solo del cliente autenticado; verificar 401 sin token, 403 al intentar datos de otro y 200 con el dueño. _Hecho el Día 5: preferencias y recomendaciones exigen `X-User-Id` + rol `CLIENT`; `PUT` rechaza `clienteId` ajeno; el endpoint interno exige `X-Internal-Token`; tests de 401/403/200 y matriz en `docs/seguridad.md`._
 - [ ] 2.8 (P4) Crear la matriz de seguridad endpoint × rol en `docs/seguridad.md` y una carpeta Postman/Newman que recorra todos los endpoints con cada rol; verificar que cada fila tenga evidencia de 401, 403 o 200 según corresponda.
 
 ## 3. catalog-service: alta demanda, edición, outbox y cache
@@ -86,7 +86,7 @@
 
 ## 10. Integración, carga, documentación y cierre
 
-- [ ] 10.1 (P5) Crear el módulo `integration-tests` con Testcontainers/Docker Compose y cinco flujos: login → búsqueda, fila → reserva, compra → QR, acceso QR y reporte, y compra → recomendación/notificación; verificar la suite verde contra el compose real.
+- [ ] 10.1 (P5) Crear el módulo `integration-tests` con Testcontainers/Docker Compose y cinco flujos: login → búsqueda, fila → reserva, compra → QR, acceso QR y reporte, y compra → recomendación/notificación; verificar la suite verde contra el compose real. _Iniciado el Día 5: módulo `integration-tests` con el primer flujo gateway → búsqueda de catalog y el esqueleto de los cinco flujos documentado en `integration-tests/README.md`; los flujos restantes dependen de 2.1, 4.x, 6.4/6.5 y 8.x._
 - [ ] 10.2 (P3) Actualizar la colección Postman/Newman v2 con auth, fila, compra, acceso, reportes, preferencias, recomendaciones, notificaciones y la carpeta de seguridad; verificar una corrida completa 100 % verde por el gateway.
 - [ ] 10.3 (P2) Crear el plan JMeter del flujo de compra (login, búsqueda, reserva, pago) con datos de prueba y corridas de 500 y 1000 usuarios concurrentes; guardar los resultados crudos y el comando reproducible.
 - [ ] 10.4 (P5) Escribir `docs/informe-carga.md` con hardware, usuarios, throughput, p50/p95/p99, errores y análisis de cuello de botella; verificar que las conclusiones se desprendan de los resultados guardados.
