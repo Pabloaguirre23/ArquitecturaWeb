@@ -134,7 +134,7 @@ Los endpoints `/internal/**` no se listan porque no se exponen por el gateway.
 
 ## 3. catalog-service
 
-OpenAPI: [`../openapi/catalog-openapi.json`](../openapi/catalog-openapi.json). Swagger UI en `http://localhost:8081/swagger-ui.html`. El documento incluye los esquemas `X-User-Id`, `X-User-Role`, `X-Correlation-Id` y `X-Internal-Token`, la cabecera `X-Cache` en las consultas cacheadas y ejemplos de `ProblemDetail`.
+OpenAPI: [`../openapi/catalog-openapi.json`](../openapi/catalog-openapi.json). Swagger UI en `http://localhost:8081/swagger-ui.html`. El documento incluye los esquemas `X-User-Id`, `X-User-Role`, `X-Correlation-Id` y `X-Internal-Token`, la cabecera `X-Cache` en las consultas cacheadas y ejemplos de `ProblemDetail`. La publicación de eventos de dominio se describe en [3.15](#315-eventos-de-dominio-y-outbox-tarea-32).
 
 ### 3.1 Crear lugar — `POST /api/catalog/venues` (ADMIN)
 
@@ -348,7 +348,7 @@ Solo devuelve eventos en `PUBLICADO` o `AGOTADO`. Los caracteres `%`, `_` y `\` 
 }
 ```
 
-Errores: `400 INVALID_DATE_RANGE` (`fechaDesde` posterior a `fechaHasta`), `400 INVALID_SORT`. La respuesta incluye `X-Cache: HIT|MISS|BYPASS` según el estado de la caché de Redis; el TTL se configura con `CATALOG_CACHE_TTL` y la búsqueda se invalida al publicar, editar, cancelar o cambiar precios.
+Errores: `400 INVALID_DATE_RANGE` (`fechaDesde` posterior a `fechaHasta`), `400 INVALID_SORT`. La respuesta incluye `X-Cache: HIT|MISS|BYPASS` según el estado de la caché de Redis; el TTL se configura con `CATALOG_CACHE_SEARCH_TTL` (default `30s`) y la búsqueda se invalida al publicar, editar, cancelar o cambiar precios.
 
 ### 3.11 Detalle de evento — `GET /api/catalog/events/{eventoId}` (público)
 
@@ -415,6 +415,29 @@ Catalog consume estos endpoints internos de queue-service (no pública nuevos en
 | POST | `/internal/events/{eventoId}/close` | Cancelar (`CANCELADO`), agotar (`AGOTADO`) o finalizar (`FINALIZADO`) | `{"motivo":"CANCELADO"}` |
 
 Ambas llamadas envían `X-Internal-Token` y propagan `X-Correlation-Id` cuando está disponible (origen: `QUEUE_INTERNAL_TOKEN`, por defecto el mismo valor que `INTERNAL_TOKEN`). Usan `QUEUE_CONNECT_TIMEOUT_MS` (default 2000) y `QUEUE_READ_TIMEOUT_MS` (default 3000) y hasta 3 intentos con backoff ante timeout, pérdida de conexión o 5xx; los 4xx no se reintentan. Solo se invocan si `altaDemanda: true`: un evento normal nunca llama a queue. Si queue-service está caído, catalog registra un warning y continúa la operación (fallback); la apertura/cierre se reintenta en la siguiente operación idempotente o con el scheduler. El contrato de la fila está en [`fila-virtual/spec.md`](../openspec/changes/entrega-2-completo/specs/fila-virtual/spec.md).
+
+### 3.15 Eventos de dominio y outbox (tarea 3.2)
+
+Catalog publica `evento.publicado`, `evento.actualizado` y `evento.cancelado` en el exchange topic `ticketya.events`, usando el `type` como routing key. Cada mensaje se escribe primero en `outbox_event` dentro de la transacción que cambia el evento, con este sobre:
+
+```json
+{
+  "eventId": "e0000000-0000-4000-8000-000000000002",
+  "type": "evento.publicado",
+  "occurredAt": "2026-11-16T12:00:00Z",
+  "correlationId": "5d1f2e3a-4b6c-4d8e-9f01-2a3b4c5d6e7f",
+  "version": 1,
+  "payload": { "eventoId": "d0000000-0000-4000-8000-000000000001" }
+}
+```
+
+El ejemplo completo del payload publicado está en [`ejemplos/evento-publicado.json`](../docs/ejemplos/evento-publicado.json) y es el mismo que consume notification-service (§7). `eventId` es único y `correlationId` preserva la cabecera `X-Correlation-Id` de la petición que originó el cambio.
+
+El publicador procesa `CATALOG_OUTBOX_BATCH_SIZE` eventos (default `50`) cada `CATALOG_OUTBOX_PUBLISH_MS` (default `2000`). Ante un fallo de RabbitMQ incrementa `attempts`, persiste `last_error` y reprograma con backoff lineal de `CATALOG_OUTBOX_BACKOFF_SECONDS × attempts` (base default `5`). Tras `CATALOG_OUTBOX_MAX_ATTEMPTS` (default `10`) el evento pasa a `FAILED` y no se reintenta; la operación de negocio ya confirmada no se revierte. Los estados `PENDING`, `PUBLISHED` y `FAILED` están definidos por `V6__outbox_event.sql` y `V8__outbox_failed_status.sql`.
+
+### 3.16 Auditoría (tarea 9.2)
+
+Publicar, editar y cancelar un evento escriben una fila en `audit_log` (`V7__audit_log.sql`) con `evento_id`, `accion` (`PUBLICAR_EVENTO`, `EDITAR_EVENTO`, `CANCELAR_EVENTO`), usuario, rol, `resultado` (`EXITOSO`/`RECHAZADO`), detalle y `correlation_id` (propagado desde `X-Correlation-Id`). La escritura es best-effort y corre fuera de la transacción de negocio: si la bitácora falla se registra un warning y la operación principal no se revierte. Las peticiones sin identidad se rechazan antes de auditar.
 
 ## 4. inventory-service
 
@@ -919,6 +942,8 @@ El contrato canónico del sobre y de todos los payloads está en [`eventos.md`](
 
 OpenAPI: [`../openapi/notification-openapi.json`](../openapi/notification-openapi.json). Swagger UI en `http://localhost:8085/swagger-ui.html`. El documento incluye los esquemas `bearerAuth`, `X-User-Id`, `X-User-Role` y `X-Correlation-Id`, además de `ProblemDetail` con ejemplos para `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOTIFICATION_FORBIDDEN` y `NOTIFICATION_NOT_FOUND`.
 
+Los estados `PENDIENTE`, `ENVIADA` y `FALLIDA` reflejan el ciclo de envío. El primer envío ocurre al consumir el evento; si falla, la notificación queda `PENDIENTE` con `proximoReintento` calculado con backoff lineal (`NOTIFICATION_BACKOFF_SECONDS × intentos`). `reenviarPendientes()` reintenta cada `NOTIFICATION_RETRY_POLL_MS` (default `10000`) y tras `NOTIFICATION_MAX_ATTEMPTS` (default `3`) la marca `FALLIDA`. Una notificación ya enviada o fallida no se reenvía.
+
 ### 7.1 Listar mis notificaciones — `GET /api/notifications` (CLIENT)
 
 Devuelve solo las notificaciones del cliente autenticado (`X-User-Id`), ordenadas por `createdAt` descendente. Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100) y `estado` opcional (`PENDIENTE`, `ENVIADA` o `FALLIDA`).
@@ -951,7 +976,7 @@ Devuelve solo las notificaciones del cliente autenticado (`X-User-Id`), ordenada
 
 ### 7.2 Detalle de notificación — `GET /api/notifications/{notificacionId}` (CLIENT dueño)
 
-**200** con el mismo objeto de 7.1. Una notificación de otro cliente responde `403 NOTIFICATION_FORBIDDEN`; una inexistente, `404 NOTIFICATION_NOT_FOUND`.
+**200** con el mismo objeto de 7.1. Una notificación de otro cliente responde `403 NOTIFICATION_FORBIDDEN`; una inexistente, `404 NOTIFICATION_NOT_FOUND`. Un `notificacionId` con formato UUID inválido responde `400 VALIDATION_ERROR` con `errors[0].field = "notificacionId"`.
 
 ## 8. Flujo de compra de punta a punta
 
@@ -1024,6 +1049,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 409 | `EVENT_INCOMPLETE` | Faltan precios para publicar |
 | 409 | `EVENT_NOT_CANCELLABLE` | Evento finalizado o ya cancelado |
 | 409 | `EVENT_NOT_ON_SALE` | Evento cancelado/finalizado al reservar |
+| 409 | `SECTOR_ALREADY_EXISTS` | Ya existe un sector con ese nombre en el lugar |
 | 409 | `SEAT_NOT_AVAILABLE` | Asiento reservado o vendido |
 | 409 | `INSUFFICIENT_AVAILABILITY` | Zona sin lugares suficientes |
 | 409 | `RESERVATION_NOT_CONFIRMABLE` | Reserva liberada o vencida al confirmar |
@@ -1036,7 +1062,6 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 422 | `IDEMPOTENCY_KEY_REUSED` | Misma `Idempotency-Key` con cuerpo distinto |
 | 422 | `RETURN_WINDOW_CLOSED` | Faltan 72 h o menos para el evento |
 | 502 | `INVENTORY_UNAVAILABLE` | catalog/orders no pudo hablar con inventory |
-| 502 | `ORDERS_UNAVAILABLE` | catalog no pudo avisar la cancelación a orders |
 | 502 | `PAYMENT_GATEWAY_ERROR` | La pasarela mock falló o expiró |
 | 503 | `INVENTORY_UNAVAILABLE` | No se pudo obtener disponibilidad en el detalle |
 | 500 | `INTERNAL_ERROR` | Error inesperado; no expone stacktrace |
