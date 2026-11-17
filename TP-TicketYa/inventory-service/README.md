@@ -39,7 +39,7 @@ Límite por cliente, vencimiento, confirmación/liberación y devolución corres
 - Cancelar: `DELETE /api/inventory/reservations/{id}` lo pide el dueño. La reserva `VIGENTE` pasa a `CANCELADA` y se reponen asientos y zona en el mismo update condicional, así repetir responde 204 sin liberar dos veces. Otro cliente recibe 403. Una confirmada recibe 409 y la venta no cambia. Una vencida recibe 410.
 - Devolver: un asiento `VENDIDO` vuelve a `LIBRE` y resta 1 en `cliente_evento`. Una zona suma la cantidad a `disponibles` y, si el body trae `clienteId`, resta esa cantidad del cupo. Sin `clienteId` la zona se repone pero el límite no se libera. Con el header `Idempotency-Key`, repetir el mismo cuerpo no repone dos veces.
 - Concurrencia: `ConcurrenciaPostgresTest` verifica que un asiento y el último lugar de una zona se reservan una sola vez.
-- Si después de reservar, confirmar, liberar, vencer o devolver no queda ningún lugar libre, el evento pasa a `AGOTADO` y se avisa a catalog con `PATCH /internal/events/{id}/availability` y `{"agotado":true}`. Al volver a haber lugar, pasa a `PUBLICADO` y avisa con `false`. El aviso sale después del commit, con un reintento. Si catalog no responde, la operación local queda hecha.
+- Si después de reservar, confirmar, liberar, vencer o devolver no queda ningún lugar libre, el evento pasa a `AGOTADO` y se avisa a catalog con `PATCH /internal/events/{id}/availability` y `{"agotado":true}`. Al volver a haber lugar, pasa a `PUBLICADO` y avisa con `false`. El aviso sale después del commit. Es idempotente: ante un 5xx o un timeout se reintenta hasta 3 intentos, con backoff. Si catalog sigue caído, el fallback registra la correlación y no deshace la operación local. El mismo aviso lo repite el reconciliador. Tras varios fallos el circuito se abre y las llamadas siguientes fallan rápido; cuando catalog vuelve, el circuito se cierra. Un 4xx no se reintenta ni abre el circuito.
 - El alta de inventario es idempotente por `eventoId + version` y usa `ON CONFLICT DO NOTHING` para los asientos.
 
 ## Modelo
@@ -54,6 +54,8 @@ Límite por cliente, vencimiento, confirmación/liberación y devolución corres
 | `DB_URL` | `jdbc:postgresql://localhost:5434/inventory_db` | Conexión JDBC |
 | `DB_USER` / `DB_PASSWORD` | `ticketya` | Credenciales |
 | `CATALOG_URL` | `http://localhost:8081` | Catalog para avisar `AGOTADO` / `PUBLICADO` |
+| `CATALOG_CONNECT_TIMEOUT_MS` | `2000` | Timeout de conexión hacia catalog |
+| `CATALOG_READ_TIMEOUT_MS` | `2000` | Timeout de lectura hacia catalog |
 
 El pool de desarrollo tiene 20 conexiones, `connection-timeout` de 3 s y `lock_timeout` de 3 s en PostgreSQL. Si una reserva no consigue el lock, falla rápido en vez de quedar colgada. El detector de conexiones perdidas avisa a los 10 s.
 
