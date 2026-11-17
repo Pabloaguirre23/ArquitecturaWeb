@@ -25,7 +25,7 @@ implementación arranca el Día 1.
 | JWT y autorización | Pendiente | Tareas 2.1–2.8 |
 | Fila virtual | Pendiente | Tareas 4.1–4.4, 5.1 |
 | Control de acceso QR | Pendiente | Tarea 6.4 |
-| Preferencias y recomendaciones | En curso (7.1–7.4) | `recommendation-service` + tests Mongo/Rabbit |
+| Preferencias y recomendaciones | Completo (7.1–7.5) | `recommendation-service` + tests Mongo/Rabbit/HTTP y [`evidencia/entrega-2-dia-4.txt`](evidencia/entrega-2-dia-4.txt) |
 | Notificaciones | Pendiente | Tareas 8.1–8.4 |
 | Reportes | Pendiente | Tarea 6.5 |
 | Consistencia, saga y outbox | Pendiente | Tareas 6.2, 6.3, 3.2 |
@@ -93,7 +93,7 @@ implementación arranca el Día 1.
 - [ ] **Fila virtual** con Redis, posición, tandas y token. → 4.1–4.4
 - [ ] **Token de fila** exigido por inventory en eventos de alta demanda. → 5.1
 - [ ] **Control de acceso QR** con uso único y concurrencia. → 6.4
-- [ ] **Preferencias y recomendaciones** con MongoDB, historial y co-compra. → 7.1–7.5 _(7.1–7.4 hechos; queda 7.5)_
+- [x] **Preferencias y recomendaciones** con MongoDB, historial y co-compra. → 7.1–7.5 _(completas: preferencias, historial idempotente, ranking explicable y eventos similares; evidencia en [`evidencia/entrega-2-dia-4.txt`](evidencia/entrega-2-dia-4.txt))_
 - [ ] **Notificaciones** asíncronas con reintentos, DLQ y consulta propia. → 8.1–8.4
 - [ ] **Reportes** por evento y sector con autorización. → 6.5
 - [ ] **Saga, outbox y compensaciones** en la compra. → 6.2, 6.3
