@@ -2,7 +2,8 @@
   "openapi": "3.0.1",
   "info": {
     "title": "TicketYa - queue-service",
-    "version": "0.0.1"
+    "version": "0.0.1",
+    "description": "Fila virtual. No hay WebSockets: el cliente consulta GET /position cada 2 a 5 segundos. La habilitación es por tandas."
   },
   "paths": {
     "/api/queue/events/{eventoId}/join": {
@@ -24,6 +25,7 @@
     "/api/queue/events/{eventoId}/position": {
       "get": {
         "summary": "Consultar posición o token",
+        "description": "Polling cada 2 a 5 segundos. EN_ESPERA trae posición y estimación. HABILITADO trae el token, reutilizable hasta exp. CERRADA no trae token.",
         "parameters": [
           { "name": "eventoId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
           { "name": "X-User-Id", "in": "header", "required": true, "schema": { "type": "string", "format": "uuid" } },

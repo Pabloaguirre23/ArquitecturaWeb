@@ -88,6 +88,22 @@
     {
       "key": "entradasAfectadas",
       "value": ""
+    },
+    {
+      "key": "queueUrl",
+      "value": "http://localhost:8086"
+    },
+    {
+      "key": "queueEventoId",
+      "value": ""
+    },
+    {
+      "key": "queueClientId",
+      "value": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    },
+    {
+      "key": "internalToken",
+      "value": "ticketya-internal-dev"
     }
   ],
   "item": [
@@ -2169,6 +2185,285 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Fila",
+      "description": "Flujo de queue-service en el puerto 8086. Abrir y cerrar no pasan por el gateway. Levantar queue con QUEUE_INTERVAL_SECONDS=2 y QUEUE_SCHEDULER_MS=1000: el request del token espera 4 segundos.",
+      "item": [
+        {
+          "name": "Abrir fila",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('queueEventoId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 ABIERTA', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.estado).to.eql('ABIERTA');",
+                  "    pm.expect(body.eventoId).to.eql(pm.collectionVariables.get('queueEventoId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Internal-Token", "value": "{{internalToken}}" }
+            ],
+            "url": {
+              "raw": "{{queueUrl}}/internal/events/{{queueEventoId}}",
+              "host": ["{{queueUrl}}"],
+              "path": ["internal", "events", "{{queueEventoId}}"]
+            }
+          }
+        },
+        {
+          "name": "Ingresar a la fila",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 EN_ESPERA en la posición 1', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.estado).to.eql('EN_ESPERA');",
+                  "    pm.expect(body.posicion).to.eql(1);",
+                  "    pm.expect(body.token).to.be.undefined;",
+                  "    pm.collectionVariables.set('queuePosicion', body.posicion);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-User-Id", "value": "{{queueClientId}}" },
+              { "key": "X-User-Role", "value": "CLIENT" }
+            ],
+            "url": {
+              "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/join",
+              "host": ["{{queueUrl}}"],
+              "path": ["api", "queue", "events", "{{queueEventoId}}", "join"]
+            }
+          }
+        },
+        {
+          "name": "Reingresar conserva la posición",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 y la misma posición', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.estado).to.eql('EN_ESPERA');",
+                  "    pm.expect(body.posicion).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-User-Id", "value": "{{queueClientId}}" },
+              { "key": "X-User-Role", "value": "CLIENT" }
+            ],
+            "url": {
+              "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/join",
+              "host": ["{{queueUrl}}"],
+              "path": ["api", "queue", "events", "{{queueEventoId}}", "join"]
+            }
+          }
+        },
+        {
+          "name": "Consultar posición en espera",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 EN_ESPERA sin token', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.estado).to.eql('EN_ESPERA');",
+                  "    pm.expect(body.posicion).to.eql(1);",
+                  "    pm.expect(body.token).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-User-Id", "value": "{{queueClientId}}" },
+              { "key": "X-User-Role", "value": "CLIENT" }
+            ],
+            "url": {
+              "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/position",
+              "host": ["{{queueUrl}}"],
+              "path": ["api", "queue", "events", "{{queueEventoId}}", "position"]
+            }
+          }
+        },
+        {
+          "name": "Consultar posición habilitada",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hasta = Date.now() + 4000;",
+                  "while (Date.now() < hasta) {}",
+                  ""
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 HABILITADO con token', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.estado).to.eql('HABILITADO');",
+                  "    pm.expect(body.token).to.be.a('string').and.not.empty;",
+                  "    pm.collectionVariables.set('queueToken', body.token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-User-Id", "value": "{{queueClientId}}" },
+              { "key": "X-User-Role", "value": "CLIENT" }
+            ],
+            "url": {
+              "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/position",
+              "host": ["{{queueUrl}}"],
+              "path": ["api", "queue", "events", "{{queueEventoId}}", "position"]
+            }
+          }
+        },
+        {
+          "name": "Cerrar fila",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 CERRADA por AGOTADO', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.estado).to.eql('CERRADA');",
+                  "    pm.expect(body.motivo).to.eql('AGOTADO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Internal-Token", "value": "{{internalToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"AGOTADO\"\n}"
+            },
+            "url": {
+              "raw": "{{queueUrl}}/internal/events/{{queueEventoId}}/close",
+              "host": ["{{queueUrl}}"],
+              "path": ["internal", "events", "{{queueEventoId}}", "close"]
+            }
+          }
+        },
+        {
+          "name": "Posición tras el cierre",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 CERRADA sin token', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.estado).to.eql('CERRADA');",
+                  "    pm.expect(body.token).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-User-Id", "value": "{{queueClientId}}" },
+              { "key": "X-User-Role", "value": "CLIENT" }
+            ],
+            "url": {
+              "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/position",
+              "host": ["{{queueUrl}}"],
+              "path": ["api", "queue", "events", "{{queueEventoId}}", "position"]
+            }
+          }
+        },
+        {
+          "name": "Ingreso con la fila cerrada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 QUEUE_CLOSED', function () {",
+                  "    pm.response.to.have.status(409);",
+                  "    pm.expect(pm.response.json().code).to.eql('QUEUE_CLOSED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-User-Id", "value": "{{queueClientId}}" },
+              { "key": "X-User-Role", "value": "CLIENT" }
+            ],
+            "url": {
+              "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/join",
+              "host": ["{{queueUrl}}"],
+              "path": ["api", "queue", "events", "{{queueEventoId}}", "join"]
+            }
+          }
         }
       ]
     }

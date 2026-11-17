@@ -910,6 +910,54 @@ El historial es idempotente por `(eventId, clienteId, eventoId)`. Un evento dupl
 
 El contrato canónico del sobre y de todos los payloads está en [`eventos.md`](eventos.md), con el fixture [`ejemplos/orden-pagada.json`](ejemplos/orden-pagada.json). orders debe publicar `eventoTipo`, `artistas` y `ciudad` desde el snapshot de la orden (ADR-017 y migración 6.1); no se acepta que recommendation los consulte a catalog al consumir.
 
+## 6.1 queue-service
+
+No hay WebSockets. El cliente hace polling de `GET /api/queue/events/{eventoId}/position` cada 2 a 5 segundos. La habilitación es por tandas: cada `intervaloSegundos` (30 por defecto) salen los primeros `batchSize` clientes (50 por defecto), en orden de llegada. Abrir y cerrar son internos y no pasan por el gateway.
+
+### 6.1.1 Abrir — `POST /internal/events/{eventoId}`
+
+Lo llama catalog al publicar un evento de alta demanda. Header `X-Internal-Token`. Sin cuerpo.
+
+**201** si la fila se crea, **200** si ya existía. Repetirlo no pisa `batchSize` ni `intervaloSegundos`. Si ya está `CERRADA`, no vuelve a `queue:open`.
+
+```json
+{ "eventoId": "11111111-1111-4111-8111-111111111111", "estado": "ABIERTA", "batchSize": 50, "intervaloSegundos": 30 }
+```
+
+### 6.1.2 Ingresar — `POST /api/queue/events/{eventoId}/join` (CLIENT)
+
+Headers `X-User-Id` y `X-User-Role`.
+
+**201** en el primer ingreso, **200** si el cliente ya estaba. La posición no cambia (`ZADD NX`).
+
+```json
+{
+  "eventoId": "11111111-1111-4111-8111-111111111111",
+  "posicion": 1,
+  "adelante": 0,
+  "estado": "EN_ESPERA",
+  "estimacionSegundos": 30
+}
+```
+
+Errores: `401 UNAUTHORIZED`, `409 QUEUE_NOT_OPEN` (el evento no tiene fila), `409 QUEUE_CLOSED` (la fila ya no admite ingresos).
+
+### 6.1.3 Posición — `GET /api/queue/events/{eventoId}/position` (CLIENT)
+
+Misma identidad que el ingreso. Es el request que el cliente repite.
+
+- `EN_ESPERA`: `posicion` (`ZRANK + 1`), `adelante` y `estimacionSegundos` = `(adelante / batchSize + 1) * intervaloSegundos`.
+- `HABILITADO`: `posicion` 0 y `token`, el JWT de compra. No es de un solo uso: vale hasta `exp` (5 minutos) y se puede reutilizar. No hay unique en `queue_jti`.
+- `CERRADA`: sin token. La fila se cerró mientras el cliente estaba adentro.
+
+**404** `NOT_IN_QUEUE` si nunca ingresó o si el token ya venció.
+
+### 6.1.4 Cerrar — `POST /internal/events/{eventoId}/close`
+
+Header `X-Internal-Token`. Cuerpo `{ "motivo": "CANCELADO" | "FINALIZADO" | "AGOTADO" }`.
+
+**200** al cerrar y al repetir el cierre. El motivo original se conserva. **404** si la fila nunca se abrió. **400** si el motivo no es uno de esos tres.
+
 ## 7. Flujo de compra de punta a punta
 
 ```bash
@@ -973,8 +1021,11 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 404 | `ORDER_NOT_FOUND` | Orden inexistente |
 | 404 | `TICKET_NOT_FOUND` | Entrada inexistente |
 | 404 | `RETURN_NOT_FOUND` | Devolución inexistente |
+| 404 | `NOT_IN_QUEUE` | El cliente no ingresó a esa fila o su token de fila venció |
 | 404 | `NOT_FOUND` | Ruta inexistente |
 | 405 | `METHOD_NOT_ALLOWED` | Método HTTP no permitido |
+| 409 | `QUEUE_NOT_OPEN` | El evento no tiene fila virtual |
+| 409 | `QUEUE_CLOSED` | La fila ya no admite ingresos |
 | 409 | `EVENT_NOT_EDITABLE` | Evento ya publicado o en estado no editable |
 | 409 | `EVENT_INCOMPLETE` | Faltan precios para publicar |
 | 409 | `EVENT_NOT_CANCELLABLE` | Evento finalizado o ya cancelado |

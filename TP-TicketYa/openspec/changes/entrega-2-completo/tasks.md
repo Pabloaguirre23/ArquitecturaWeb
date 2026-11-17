@@ -39,7 +39,7 @@
 - [x] 4.1 (P2) Implementar el modelo Redis de la fila: sorted set por evento, hash de estado, ingreso idempotente con `ZADD NX`, posición (`ZRANK + 1`) y consulta de estado; verificar tests de primer ingreso, reingreso sin duplicar, posición y 409 en evento sin fila.
 - [x] 4.2 (P2) Implementar el scheduler de tandas con tamaño e intervalo configurables, habilitación FIFO, emisión de token JWT (`eventId`, `sub`, `jti`, `exp`, `type=QUEUE`) y limpieza de vencidos; verificar que no se habilite dos veces al mismo cliente y que el token venza.
 - [x] 4.3 (P2) Cerrar la fila al cancelar, finalizar o agotar el evento, invalidar tokens nuevos y definir la recuperación ante reinicio de Redis (AOF o cierre controlado); verificar con tests y con un reinicio del contenedor.
-- [ ] 4.4 (P2) Actualizar OpenAPI, README y contrato de queue-service; documentar la simplificación de polling/tandas y verificar que el flujo completo se pueda ejecutar con `curl` y Postman.
+- [x] 4.4 (P2) Actualizar OpenAPI, README y contrato de queue-service; documentar la simplificación de polling/tandas y verificar que el flujo completo se pueda ejecutar con `curl` y Postman.
 
 ## 5. inventory-service: token de fila, cancelación y resiliencia
 
