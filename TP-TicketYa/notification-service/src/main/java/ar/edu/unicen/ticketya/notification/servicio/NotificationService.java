@@ -6,11 +6,13 @@ import ar.edu.unicen.ticketya.notification.repositorio.NotificacionRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +56,25 @@ public class NotificationService {
         return repository.save(notificacion);
     }
 
+    @Scheduled(fixedDelayString = "${notification.retry.poll-ms:10000}")
+    @Transactional
+    public int reenviarPendientes() {
+        OffsetDateTime ahora = OffsetDateTime.now(clock);
+        List<Notificacion> pendientes = repository.findByEstadoAndProximoReintentoBefore(
+                EstadoNotificacion.PENDIENTE, ahora);
+        for (Notificacion notificacion : pendientes) {
+            if (notificacion.getEstado() != EstadoNotificacion.PENDIENTE) {
+                continue;
+            }
+            intentarEnvio(notificacion);
+            repository.save(notificacion);
+        }
+        if (!pendientes.isEmpty()) {
+            log.info("Reintentadas {} notificaciones pendientes", pendientes.size());
+        }
+        return pendientes.size();
+    }
+
     void intentarEnvio(Notificacion notificacion) {
         OffsetDateTime ahora = OffsetDateTime.now(clock);
         try {
@@ -69,7 +90,7 @@ public class NotificationService {
             if (notificacion.getIntentos() >= maxIntentos) {
                 notificacion.setEstado(EstadoNotificacion.FALLIDA);
                 notificacion.setProximoReintento(null);
-                log.warn("NotificaciÃ³n {} agotÃ³ intentos: {}", notificacion.getId(), mensaje);
+                log.warn("Notificación {} agotó intentos: {}", notificacion.getId(), mensaje);
             } else {
                 notificacion.setEstado(EstadoNotificacion.PENDIENTE);
                 long segundos = backoffBase.toSeconds() * notificacion.getIntentos();

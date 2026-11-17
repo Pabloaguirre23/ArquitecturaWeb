@@ -1,0 +1,17 @@
+{
+  "eventId": "e0000000-0000-4000-8000-000000000002",
+  "type": "evento.publicado",
+  "occurredAt": "2026-11-16T12:00:00Z",
+  "correlationId": "5d1f2e3a-4b6c-4d8e-9f01-2a3b4c5d6e7f",
+  "version": 1,
+  "payload": {
+    "eventoId": "d0000000-0000-4000-8000-000000000001",
+    "nombre": "Festival de Rock Tandil 2027",
+    "tipo": "FESTIVAL",
+    "artistas": ["Los Piojos", "Callejeros"],
+    "ciudad": "Tandil",
+    "fechaEvento": "2027-03-15T00:00:00Z",
+    "organizadorId": "22222222-2222-4222-8222-222222222222",
+    "estado": "PUBLICADO"
+  }
+}
