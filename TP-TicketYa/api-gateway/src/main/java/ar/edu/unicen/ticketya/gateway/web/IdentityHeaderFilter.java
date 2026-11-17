@@ -36,6 +36,7 @@ public class IdentityHeaderFilter implements org.springframework.cloud.gateway.f
     private static final Set<String> ADMIN_ONLY = Set.of("ADMIN");
     private static final Set<String> ORGANIZER_ONLY = Set.of("ORGANIZER");
     private static final Set<String> AUTHENTICATED = Set.of("CLIENT", "ORGANIZER", "ADMIN");
+    private static final Set<String> CLIENT_ONLY = Set.of("CLIENT");
 
     private static final Set<String> PUBLIC_GET_PATHS = Set.of(
             "/api/catalog/events",
@@ -63,9 +64,9 @@ public class IdentityHeaderFilter implements org.springframework.cloud.gateway.f
             rule(HttpMethod.PUT, "/api/catalog/events/" + ID + "/prices/" + ID, ORGANIZER_ONLY),
             rule(HttpMethod.POST, "/api/catalog/events/" + ID + "/publish", ORGANIZER_ONLY),
             rule(HttpMethod.POST, "/api/catalog/events/" + ID + "/cancel", ADMIN_ONLY),
-            rule(HttpMethod.POST, "/api/inventory/reservations", AUTHENTICATED),
-            rule(HttpMethod.GET, "/api/inventory/reservations/" + ID, AUTHENTICATED),
-            rule(HttpMethod.DELETE, "/api/inventory/reservations/" + ID, AUTHENTICATED),
+            rule(HttpMethod.POST, "/api/inventory/reservations", CLIENT_ONLY),
+            rule(HttpMethod.GET, "/api/inventory/reservations/" + ID, CLIENT_ONLY),
+            rule(HttpMethod.DELETE, "/api/inventory/reservations/" + ID, CLIENT_ONLY),
             rule(HttpMethod.POST, "/api/orders", AUTHENTICATED),
             rule(HttpMethod.GET, "/api/orders", AUTHENTICATED),
             rule(HttpMethod.GET, "/api/orders/" + ID, AUTHENTICATED),

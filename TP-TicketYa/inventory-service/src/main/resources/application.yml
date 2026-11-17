@@ -89,6 +89,9 @@ resilience4j:
           - org.springframework.web.client.HttpServerErrorException
           - org.springframework.web.client.ResourceAccessException
 
+inventory:
+  internal-token: ${INTERNAL_TOKEN:ticketya-internal-dev}
+
 queue:
   url: ${QUEUE_URL:http://localhost:8086}
   internal-token: ${INTERNAL_TOKEN:ticketya-internal-dev}

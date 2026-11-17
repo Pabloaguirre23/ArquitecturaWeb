@@ -38,6 +38,7 @@ public class QueueController {
             @ApiResponse(responseCode = "201", description = "Primer ingreso"),
             @ApiResponse(responseCode = "200", description = "El cliente ya estaba en la fila"),
             @ApiResponse(responseCode = "401", description = "Falta la identidad"),
+            @ApiResponse(responseCode = "403", description = "El rol no es CLIENT"),
             @ApiResponse(responseCode = "409", description = "El evento no tiene fila o la fila está cerrada")
     })
     public ResponseEntity<PosicionResponse> ingresar(
@@ -45,6 +46,7 @@ public class QueueController {
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestHeader(value = "X-User-Role", required = false) String role) {
         RequestIdentity identity = RequestIdentity.require(userId, role);
+        identity.requireRole("CLIENT");
         FilaService.Ingreso ingreso = filaService.ingresar(eventoId, identity.userId());
         if (ingreso.nuevo()) {
             return ResponseEntity.created(URI.create("/api/queue/events/" + eventoId + "/position"))
@@ -63,6 +65,7 @@ public class QueueController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Posición actual"),
             @ApiResponse(responseCode = "401", description = "Falta la identidad"),
+            @ApiResponse(responseCode = "403", description = "El rol no es CLIENT"),
             @ApiResponse(responseCode = "404", description = "El cliente no está en la fila")
     })
     public PosicionResponse posicion(
@@ -70,6 +73,7 @@ public class QueueController {
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestHeader(value = "X-User-Role", required = false) String role) {
         RequestIdentity identity = RequestIdentity.require(userId, role);
+        identity.requireRole("CLIENT");
         return filaService.consultar(eventoId, identity.userId());
     }
 }

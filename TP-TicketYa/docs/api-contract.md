@@ -111,9 +111,9 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 | GET | `/api/catalog/events/{eventoId}` | público | 200 | catalog |
 | GET | `/api/inventory/events/{eventoId}/availability` | público | 200 | inventory |
 | GET | `/api/inventory/events/{eventoId}/seats` | público | 200 | inventory |
-| POST | `/api/inventory/reservations` | autenticado | 201 | inventory |
-| GET | `/api/inventory/reservations/{reservaId}` | dueño | 200 | inventory |
-| DELETE | `/api/inventory/reservations/{reservaId}` | dueño | 204 | inventory |
+| POST | `/api/inventory/reservations` | CLIENT | 201 | inventory |
+| GET | `/api/inventory/reservations/{reservaId}` | CLIENT dueño | 200 | inventory |
+| DELETE | `/api/inventory/reservations/{reservaId}` | CLIENT dueño | 204 | inventory |
 | POST | `/api/orders` | autenticado | 201 | orders |
 | GET | `/api/orders` | autenticado | 200 | orders |
 | GET | `/api/orders/{ordenId}` | dueño | 200 | orders |
@@ -396,7 +396,7 @@ OpenAPI: [`../openapi/inventory-openapi.json`](../openapi/inventory-openapi.json
 
 `PATCH /internal/events/{eventoId}/state`
 
-Lo llama catalog cuando cancela o finaliza un evento.
+Lo llama catalog cuando cancela o finaliza un evento. Todos los `/internal/**` de inventory exigen `X-Internal-Token`. Sin el header, o con un valor distinto, responden `401 UNAUTHORIZED`.
 
 ```json
 { "estado": "CANCELADO" }
@@ -450,7 +450,7 @@ Errores: `404 EVENT_NOT_FOUND`.
 
 Errores: `400 SECTOR_NOT_FROM_EVENT`, `404 EVENT_NOT_FOUND`/`SECTOR_NOT_FOUND`. Para sectores no numerados devuelve lista vacía.
 
-### 4.3 Reservar — `POST /api/inventory/reservations` (autenticado)
+### 4.3 Reservar — `POST /api/inventory/reservations` (CLIENT)
 
 ```json
 {
@@ -533,11 +533,11 @@ Errores: `400 VALIDATION_ERROR`, `400 SECTOR_MISMATCH` (el asiento no pertenece 
 }
 ```
 
-### 4.4 Consultar reserva — `GET /api/inventory/reservations/{reservaId}` (dueño)
+### 4.4 Consultar reserva — `GET /api/inventory/reservations/{reservaId}` (CLIENT dueño)
 
 **200** `ReservationResponse`. Si está vencida libera los lugares y devuelve `estado: "VENCIDA"` (no 410 en la consulta; 410 se usa al pagar). Errores: `403 NOT_RESERVATION_OWNER`, `404 RESERVATION_NOT_FOUND`.
 
-### 4.5 Cancelar reserva — `DELETE /api/inventory/reservations/{reservaId}` (dueño)
+### 4.5 Cancelar reserva — `DELETE /api/inventory/reservations/{reservaId}` (CLIENT dueño)
 
 **204 No Content** si estaba `VIGENTE` (pasa a `CANCELADA` y libera asientos y cupo) o si ya estaba `CANCELADA` (no libera otra vez).
 
