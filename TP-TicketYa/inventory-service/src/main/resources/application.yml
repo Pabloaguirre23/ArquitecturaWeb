@@ -56,6 +56,17 @@ resilience4j:
         automaticTransitionFromOpenToHalfOpenEnabled: true
         ignoreExceptions:
           - org.springframework.web.client.HttpClientErrorException
+      queue:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 1
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        ignoreExceptions:
+          - org.springframework.web.client.HttpClientErrorException
   retry:
     retryAspectOrder: 2
     instances:
@@ -68,8 +79,22 @@ resilience4j:
         retryExceptions:
           - org.springframework.web.client.HttpServerErrorException
           - org.springframework.web.client.ResourceAccessException
+      queue:
+        maxAttempts: 3
+        waitDuration: 100ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        randomizedWaitFactor: 0.5
+        retryExceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - org.springframework.web.client.ResourceAccessException
 
 queue:
+  url: ${QUEUE_URL:http://localhost:8086}
+  internal-token: ${INTERNAL_TOKEN:ticketya-internal-dev}
+  timeout:
+    connect-ms: ${QUEUE_CONNECT_TIMEOUT_MS:2000}
+    read-ms: ${QUEUE_READ_TIMEOUT_MS:2000}
   token:
     secret: ${QUEUE_TOKEN_SECRET:ticketya-queue-dev-secret-key-32b}
 

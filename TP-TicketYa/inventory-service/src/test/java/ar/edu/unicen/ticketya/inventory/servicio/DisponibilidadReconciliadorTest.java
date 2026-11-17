@@ -1,5 +1,6 @@
 package ar.edu.unicen.ticketya.inventory.servicio;
 
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,12 +22,14 @@ class DisponibilidadReconciliadorTest {
     private EventoInventarioRepository eventoRepository;
     @Mock
     private CatalogClient catalogClient;
+    @Mock
+    private QueueFilaClient queueFilaClient;
 
     private DisponibilidadReconciliador reconciliador;
 
     @BeforeEach
     void setUp() {
-        reconciliador = new DisponibilidadReconciliador(eventoRepository, catalogClient);
+        reconciliador = new DisponibilidadReconciliador(eventoRepository, catalogClient, queueFilaClient);
     }
 
     @Test
@@ -41,6 +44,24 @@ class DisponibilidadReconciliadorTest {
 
         verify(catalogClient).notificarDisponibilidad(publicado.getEventoId(), false);
         verify(catalogClient).notificarDisponibilidad(agotado.getEventoId(), true);
+        verify(queueFilaClient, never()).cerrarAgotada(publicado.getEventoId());
+        verify(queueFilaClient, never()).cerrarAgotada(agotado.getEventoId());
+    }
+
+    @Test
+    void unAgotadoDeAltaDemandaCierraLaFilaYUnoPublicadoNo() {
+        EventoInventario publicado = evento(EstadoEventoInventario.PUBLICADO);
+        publicado.setAltaDemanda(true);
+        EventoInventario agotado = evento(EstadoEventoInventario.AGOTADO);
+        agotado.setAltaDemanda(true);
+        when(eventoRepository.findByEstadoIn(List.of(
+                EstadoEventoInventario.PUBLICADO, EstadoEventoInventario.AGOTADO)))
+                .thenReturn(List.of(publicado, agotado));
+
+        reconciliador.reconciliar();
+
+        verify(queueFilaClient, never()).cerrarAgotada(publicado.getEventoId());
+        verify(queueFilaClient).cerrarAgotada(agotado.getEventoId());
     }
 
     private EventoInventario evento(EstadoEventoInventario estado) {
