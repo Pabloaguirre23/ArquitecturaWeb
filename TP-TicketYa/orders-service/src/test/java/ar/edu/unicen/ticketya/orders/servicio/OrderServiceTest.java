@@ -18,6 +18,7 @@ import ar.edu.unicen.ticketya.orders.dominio.MedioPago;
 import ar.edu.unicen.ticketya.orders.dominio.Orden;
 import ar.edu.unicen.ticketya.orders.dominio.OrdenItem;
 import ar.edu.unicen.ticketya.orders.dominio.Pago;
+import ar.edu.unicen.ticketya.orders.dominio.PasoSaga;
 import ar.edu.unicen.ticketya.orders.dominio.Reintegro;
 import ar.edu.unicen.ticketya.orders.repositorio.EntradaRepository;
 import ar.edu.unicen.ticketya.orders.repositorio.OrdenItemRepository;
@@ -38,7 +39,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -68,21 +68,29 @@ class OrderServiceTest {
     private TicketService ticketService;
     @Mock
     private IdempotencyService idempotencyService;
+    @Mock
+    private SagaCompraService sagaCompraService;
+    @Mock
+    private OrderCompensationService orderCompensationService;
 
     private OrderService orderService;
     private OrderPersistenceService orderPersistenceService;
     private OrderEmissionService orderEmissionService;
+    private Orden ordenGuardada;
+    private final List<Pago> pagosGuardados = new java.util.ArrayList<>();
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-03T15:00:00Z"), ZONA);
     private final UUID clienteId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
         orderPersistenceService = new OrderPersistenceService(
-                ordenRepository, ordenItemRepository, pagoRepository);
-        orderEmissionService = new OrderEmissionService(ordenRepository, ticketService);
+                ordenRepository, ordenItemRepository, pagoRepository, reintegroRepository,
+                sagaCompraService);
+        orderEmissionService = new OrderEmissionService(ordenRepository, ticketService, sagaCompraService);
         orderService = new OrderService(ordenRepository, ordenItemRepository, entradaRepository,
                 pagoRepository, reintegroRepository, inventoryClient, paymentGateway,
-                orderPersistenceService, orderEmissionService, idempotencyService, clock);
+                orderPersistenceService, orderEmissionService, orderCompensationService,
+                sagaCompraService, idempotencyService, clock);
     }
 
     @Test
@@ -90,9 +98,10 @@ class OrderServiceTest {
         ReservationDto reserva = reserva("VIGENTE", OffsetDateTime.parse("2026-11-03T12:10:00-03:00"));
         when(inventoryClient.obtenerReserva(reserva.id())).thenReturn(reserva);
         stubOrdenGuardada();
-        when(paymentGateway.cobrar(any(), any(), any(), any()))
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
                 .thenReturn(new PaymentGateway.PaymentResult(EstadoPago.APROBADO, "mock-1"));
-        when(ticketService.emitir(any(Orden.class), any())).thenReturn(List.of());
+        when(ticketService.emitir(any(Orden.class), any()))
+                .thenReturn(List.of(entrada(reserva, UUID.randomUUID())));
 
         OrderResponse response = orderService.crear(
                 new CrearOrdenRequest(reserva.id(), MedioPago.TARJETA, "APROBADO"),
@@ -102,7 +111,10 @@ class OrderServiceTest {
         assertThat(response.total()).isEqualByComparingTo("30000.00");
         assertThat(response.items()).hasSize(2);
         assertThat(response.eventoNombre()).isEqualTo("Recital");
-        verify(inventoryClient).confirmarReserva(reserva.id());
+        verify(inventoryClient).confirmarReserva(eq(reserva.id()), anyString());
+        verify(paymentGateway).cobrar(eq(response.id()), eq(new BigDecimal("30000.00")),
+                eq(MedioPago.TARJETA), eq("APROBADO"),
+                eq(ClavesIdempotencia.paso(response.id(), PasoSaga.PAGO_APROBADO)));
         verify(ordenItemRepository).saveAll(any());
     }
 
@@ -111,7 +123,7 @@ class OrderServiceTest {
         ReservationDto reserva = reserva("VIGENTE", OffsetDateTime.parse("2026-11-03T12:10:00-03:00"));
         when(inventoryClient.obtenerReserva(reserva.id())).thenReturn(reserva);
         stubOrdenGuardada();
-        when(paymentGateway.cobrar(any(), any(), any(), any()))
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
                 .thenReturn(new PaymentGateway.PaymentResult(EstadoPago.APROBADO, "mock-1"));
         Entrada primera = entrada(reserva, UUID.randomUUID());
         Entrada segunda = entrada(reserva, UUID.randomUUID());
@@ -131,7 +143,7 @@ class OrderServiceTest {
         ReservationDto reserva = reserva("VIGENTE", OffsetDateTime.parse("2026-11-03T12:10:00-03:00"));
         when(inventoryClient.obtenerReserva(reserva.id())).thenReturn(reserva);
         stubOrdenGuardada();
-        when(paymentGateway.cobrar(any(), any(), any(), any()))
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
                 .thenReturn(new PaymentGateway.PaymentResult(EstadoPago.RECHAZADO, "mock-2"));
 
         OrderResponse response = orderService.crear(
@@ -140,9 +152,10 @@ class OrderServiceTest {
 
         assertThat(response.estado()).isEqualTo(EstadoOrden.RECHAZADA);
         assertThat(response.entradas()).isEmpty();
-        verify(inventoryClient).liberarReserva(reserva.id(), "PAGO_RECHAZADO");
+        verify(orderCompensationService).compensar(eq(response.id()),
+                eq(EstadoOrden.RECHAZADA), eq("PAGO_RECHAZADO"));
         verify(ticketService, never()).emitir(any(), any());
-        verify(inventoryClient, never()).confirmarReserva(any());
+        verify(inventoryClient, never()).confirmarReserva(any(), anyString());
     }
 
     @Test
@@ -150,7 +163,7 @@ class OrderServiceTest {
         ReservationDto reserva = reserva("VIGENTE", OffsetDateTime.parse("2026-11-03T12:10:00-03:00"));
         when(inventoryClient.obtenerReserva(reserva.id())).thenReturn(reserva);
         stubOrdenGuardada();
-        when(paymentGateway.cobrar(any(), any(), any(), any()))
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
                 .thenThrow(new PaymentGatewayException("timeout"));
 
         assertThatThrownBy(() -> orderService.crear(
@@ -160,7 +173,8 @@ class OrderServiceTest {
                     assertThat(ex.getStatus().value()).isEqualTo(502);
                     assertThat(ex.getCode()).isEqualTo("PAYMENT_GATEWAY_ERROR");
                 });
-        verify(inventoryClient).liberarReserva(reserva.id(), "ERROR_PAGO");
+        verify(orderCompensationService).compensar(any(),
+                eq(EstadoOrden.ERROR_PAGO), eq("ERROR_PAGO"));
         verify(idempotencyService).liberar("compra-0008");
     }
 
@@ -169,11 +183,10 @@ class OrderServiceTest {
         ReservationDto reserva = reserva("VIGENTE", OffsetDateTime.parse("2026-11-03T12:10:00-03:00"));
         when(inventoryClient.obtenerReserva(reserva.id())).thenReturn(reserva);
         stubOrdenGuardada();
-        stubReintegroCompensacion();
-        when(paymentGateway.cobrar(any(), any(), any(), any()))
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
                 .thenReturn(new PaymentGateway.PaymentResult(EstadoPago.APROBADO, "mock-3"));
         org.mockito.Mockito.doThrow(new RuntimeException("inventory caído"))
-                .when(inventoryClient).confirmarReserva(reserva.id());
+                .when(inventoryClient).confirmarReserva(eq(reserva.id()), anyString());
 
         OrderResponse response = orderService.crear(
                 new CrearOrdenRequest(reserva.id(), MedioPago.TARJETA, "APROBADO"),
@@ -181,21 +194,17 @@ class OrderServiceTest {
 
         assertThat(response.estado()).isEqualTo(EstadoOrden.REINTEGRO_PENDIENTE);
         assertThat(response.entradas()).isEmpty();
-        verify(inventoryClient).liberarReserva(reserva.id(), "ERROR_CONFIRMACION");
+        verify(orderCompensationService).compensar(eq(response.id()),
+                eq(EstadoOrden.REINTEGRO_PENDIENTE), eq("ERROR_CONFIRMACION"));
         verify(ticketService, never()).emitir(any(), any());
-        ArgumentCaptor<Pago> pago = ArgumentCaptor.forClass(Pago.class);
-        verify(pagoRepository, org.mockito.Mockito.atLeastOnce()).save(pago.capture());
-        // compensación crea un reintegro pendiente y llama a la pasarela
-        verify(paymentGateway).reintegrar(eq(pago.getValue().getId()), any(BigDecimal.class));
     }
 
     @Test
-    void siFallaLaEmisionDeEntradasLaOrdenNoQuedaPagadaYSeDevuelvenLosLugares() {
+    void siFallaLaEmisionDeEntradasLaOrdenNoQuedaPagadaYSeCompensa() {
         ReservationDto reserva = reserva("VIGENTE", OffsetDateTime.parse("2026-11-03T12:10:00-03:00"));
         when(inventoryClient.obtenerReserva(reserva.id())).thenReturn(reserva);
         stubOrdenGuardada();
-        stubReintegroCompensacion();
-        when(paymentGateway.cobrar(any(), any(), any(), any()))
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
                 .thenReturn(new PaymentGateway.PaymentResult(EstadoPago.APROBADO, "mock-4"));
         when(ticketService.emitir(any(Orden.class), any())).thenThrow(new RuntimeException("sin conexión"));
 
@@ -204,11 +213,29 @@ class OrderServiceTest {
                 clienteId, "compra-0010");
 
         assertThat(response.estado()).isEqualTo(EstadoOrden.REINTEGRO_PENDIENTE);
+        assertThat(response.estado()).isNotEqualTo(EstadoOrden.PAGADA);
         assertThat(response.entradas()).isEmpty();
-        ArgumentCaptor<ReturnDto> returnDtoCaptor = ArgumentCaptor.forClass(ReturnDto.class);
-        verify(inventoryClient).devolverItems(returnDtoCaptor.capture());
-        assertThat(returnDtoCaptor.getValue().clienteId()).isEqualTo(reserva.clienteId());
-        verify(inventoryClient, never()).liberarReserva(any(), anyString());
+        verify(orderCompensationService).compensar(eq(response.id()),
+                eq(EstadoOrden.REINTEGRO_PENDIENTE), eq("ERROR_EMISION"));
+    }
+
+    @Test
+    void unaEmisionVaciaNuncaDejaLaOrdenPagada() {
+        ReservationDto reserva = reserva("VIGENTE", OffsetDateTime.parse("2026-11-03T12:10:00-03:00"));
+        when(inventoryClient.obtenerReserva(reserva.id())).thenReturn(reserva);
+        stubOrdenGuardada();
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
+                .thenReturn(new PaymentGateway.PaymentResult(EstadoPago.APROBADO, "mock-5"));
+        when(ticketService.emitir(any(Orden.class), any())).thenReturn(List.of());
+
+        OrderResponse response = orderService.crear(
+                new CrearOrdenRequest(reserva.id(), MedioPago.TARJETA, "APROBADO"),
+                clienteId, "compra-0013");
+
+        assertThat(response.estado()).isEqualTo(EstadoOrden.REINTEGRO_PENDIENTE);
+        assertThat(response.entradas()).isEmpty();
+        verify(orderCompensationService).compensar(eq(response.id()),
+                eq(EstadoOrden.REINTEGRO_PENDIENTE), eq("ERROR_EMISION"));
     }
 
     @Test
@@ -216,7 +243,7 @@ class OrderServiceTest {
         OrderResponse guardada = new OrderResponse(UUID.randomUUID(), clienteId, UUID.randomUUID(),
                 UUID.randomUUID(), "Recital", OffsetDateTime.parse("2027-01-15T21:00:00-03:00"),
                 EstadoOrden.PAGADA, MedioPago.TARJETA, new BigDecimal("15000.00"),
-                List.of(), List.of(), OffsetDateTime.parse("2026-11-03T12:00:00-03:00"));
+                List.of(), List.of(), OffsetDateTime.parse("2026-11-03T12:00:00-03:00"), null, null);
         org.mockito.Mockito.doThrow(new DataIntegrityViolationException("duplicada"))
                 .when(idempotencyService).registrar(anyString(), any(), any());
         when(idempotencyService.resolverExistente(anyString(), any())).thenReturn(guardada);
@@ -312,33 +339,38 @@ class OrderServiceTest {
     }
 
     private void stubOrdenGuardada() {
+        ordenGuardada = null;
+        pagosGuardados.clear();
         when(ordenRepository.save(any(Orden.class))).thenAnswer(invocation -> {
             Orden orden = invocation.getArgument(0);
             if (orden.getId() == null) {
                 orden.setId(UUID.randomUUID());
             }
+            ordenGuardada = orden;
             return orden;
         });
+        org.mockito.Mockito.lenient().when(ordenRepository.findById(any())).thenAnswer(invocation ->
+                ordenGuardada != null && ordenGuardada.getId().equals(invocation.getArgument(0))
+                        ? Optional.of(ordenGuardada)
+                        : Optional.empty());
         when(ordenItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(pagoRepository.save(any(Pago.class))).thenAnswer(invocation -> {
             Pago pago = invocation.getArgument(0);
             if (pago.getId() == null) {
                 pago.setId(UUID.randomUUID());
             }
+            pagosGuardados.removeIf(p -> p.getId().equals(pago.getId()));
+            pagosGuardados.add(pago);
             return pago;
         });
-    }
-
-    private void stubReintegroCompensacion() {
-        java.util.List<Reintegro> reintegros = new java.util.ArrayList<>();
-        when(reintegroRepository.findByPagoId(any())).thenAnswer(inv -> new java.util.ArrayList<>(reintegros));
-        when(reintegroRepository.save(any(Reintegro.class))).thenAnswer(inv -> {
-            Reintegro r = inv.getArgument(0);
-            if (r.getId() == null) r.setId(UUID.randomUUID());
-            reintegros.removeIf(x -> x.getId() != null && x.getId().equals(r.getId()));
-            reintegros.add(r);
-            return r;
-        });
+        when(pagoRepository.findById(any())).thenAnswer(invocation ->
+                pagosGuardados.stream()
+                        .filter(p -> p.getId().equals(invocation.getArgument(0)))
+                        .findFirst());
+        org.mockito.Mockito.lenient().when(pagoRepository.findByOrdenId(any())).thenAnswer(invocation ->
+                pagosGuardados.stream()
+                        .filter(p -> p.getOrdenId().equals(invocation.getArgument(0)))
+                        .toList());
     }
 
     @Test
@@ -383,7 +415,8 @@ class OrderServiceTest {
         assertThat(primera.getEstado()).isEqualTo(EstadoEntrada.EN_REINTEGRO);
         assertThat(segunda.getEstado()).isEqualTo(EstadoEntrada.EN_REINTEGRO);
         assertThat(pago.getEstado()).isEqualTo(EstadoPago.REINTEGRADO);
-        verify(paymentGateway, org.mockito.Mockito.times(2)).reintegrar(eq(pago.getId()), any(BigDecimal.class));
+        verify(paymentGateway, org.mockito.Mockito.times(2)).reintegrar(eq(pago.getId()),
+                any(BigDecimal.class), anyString());
     }
 
     @Test
@@ -396,7 +429,7 @@ class OrderServiceTest {
 
         assertThat(response.entradasAfectadas()).isZero();
         assertThat(response.reintegrosSolicitados()).isZero();
-        verify(paymentGateway, never()).reintegrar(any(UUID.class), any(BigDecimal.class));
+        verify(paymentGateway, never()).reintegrar(any(UUID.class), any(BigDecimal.class), anyString());
     }
 
     @Test
@@ -439,14 +472,16 @@ class OrderServiceTest {
         assertThat(response.entradasAfectadas()).isEqualTo(3);
         assertThat(response.reintegrosSolicitados()).isEqualTo(3);
         assertThat(reintegros).hasSize(3);
-        verify(paymentGateway, org.mockito.Mockito.times(3)).reintegrar(eq(pago.getId()), eq(new BigDecimal("10000.00")));
+        verify(paymentGateway, org.mockito.Mockito.times(3)).reintegrar(eq(pago.getId()),
+                eq(new BigDecimal("10000.00")), anyString());
 
         // reintento: no duplica reintegros ni llamadas para los ya aprobados
         when(entradaRepository.findByEventoIdAndEstado(eventoId, EstadoEntrada.VALIDA)).thenReturn(List.of());
         var retry = orderService.cancelarEvento(eventoId);
         assertThat(retry.reintegrosSolicitados()).isEqualTo(3);
         assertThat(reintegros).hasSize(3);
-        verify(paymentGateway, org.mockito.Mockito.times(3)).reintegrar(eq(pago.getId()), eq(new BigDecimal("10000.00")));
+        verify(paymentGateway, org.mockito.Mockito.times(3)).reintegrar(eq(pago.getId()),
+                eq(new BigDecimal("10000.00")), anyString());
     }
 
     private Entrada entrada(ReservationDto reserva, UUID qr) {

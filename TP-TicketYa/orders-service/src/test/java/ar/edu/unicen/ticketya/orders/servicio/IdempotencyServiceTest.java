@@ -134,6 +134,6 @@ class IdempotencyServiceTest {
         return new OrderResponse(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), "Recital", OffsetDateTime.parse("2027-01-15T21:00:00-03:00"),
                 EstadoOrden.PAGADA, MedioPago.TARJETA, new BigDecimal("15000.00"),
-                List.of(), List.of(), OffsetDateTime.parse("2026-11-03T12:00:00-03:00"));
+                List.of(), List.of(), OffsetDateTime.parse("2026-11-03T12:00:00-03:00"), null, null);
     }
 }

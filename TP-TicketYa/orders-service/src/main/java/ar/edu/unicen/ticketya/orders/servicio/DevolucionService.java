@@ -187,7 +187,8 @@ public class DevolucionService {
 
         if (reintegro.getEstado() != EstadoReintegro.APROBADO) {
             try {
-                paymentGateway.reintegrar(pago.getId(), reintegro.getMonto());
+                paymentGateway.reintegrar(pago.getId(), reintegro.getMonto(),
+                        ClavesIdempotencia.reintegroEntrada(pago.getId(), entrada.getId()));
                 reintegro.setEstado(EstadoReintegro.APROBADO);
                 reintegroRepository.save(reintegro);
             } catch (RuntimeException ex) {

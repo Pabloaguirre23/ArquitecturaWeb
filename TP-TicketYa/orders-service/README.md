@@ -28,18 +28,38 @@ Servicio de órdenes, pagos, entradas/QR y compensaciones de TicketYa.
    Si ya existe: misma respuesta (misma clave y cuerpo), `422 IDEMPOTENCY_KEY_REUSED`
    (cuerpo distinto) o `409 IDEMPOTENCY_IN_PROGRESS` con `Retry-After`.
 3. Consulta la reserva a inventory (`GET /internal/reservations/{id}`), valida dueño y vigencia.
-4. Guarda el snapshot del evento, los ítems y el pago `PENDIENTE` en una transacción corta
-   (`OrderPersistenceService`); el total se calcula en el servidor.
-5. Llama a la pasarela mock (`PaymentGateway`): `APROBADO`, `RECHAZADO` o `LENTO` (timeout).
-   - `APROBADO`: confirma la reserva en inventory y emite las entradas en una transacción
-     propia (`OrderEmissionService`); la orden pasa a `PAGADA` en esa misma transacción.
-   - `RECHAZADO`: orden `RECHAZADA`, sin entradas, y libera la reserva.
-   - `LENTO`: `502 PAYMENT_GATEWAY_ERROR`, libera la reserva y no deja orden pagada.
+4. Guarda la orden, los ítems, el pago `PENDIENTE` y la saga en `ORDEN_CREADA` (`EN_PROCESO`)
+   en una transacción corta (`OrderPersistenceService`); el total se calcula en el servidor.
+5. Llama a la pasarela mock (`PaymentGateway`) con la clave `ordenId:PAGO_APROBADO`:
+   `APROBADO`, `RECHAZADO` o `LENTO` (timeout).
+   - `APROBADO`: registra el pago y avanza la saga a `PAGO_APROBADO`; confirma la reserva en
+     inventory con su propia clave y emite las entradas en una transacción propia
+     (`OrderEmissionService`). La orden pasa a `PAGADA` y la saga a `COMPLETADA` en esa misma
+     transacción; una emisión vacía nunca deja la orden pagada.
+   - `RECHAZADO`: orden `RECHAZADA`, sin entradas, y compensación que libera la reserva.
+   - `LENTO`: `502 PAYMENT_GATEWAY_ERROR`, compensación de la reserva y ninguna orden pagada.
 6. Si falla la confirmación de inventory o la emisión de entradas después del pago, la orden
-   queda `REINTEGRO_PENDIENTE`; el pago pasa a `REINTEGRO_PENDIENTE` o `REINTEGRADO` según el
-   resultado de la pasarela y se liberan o devuelven los lugares.
+   queda `REINTEGRO_PENDIENTE` y la saga en `COMPENSANDO`; la compensación se ejecuta en orden
+   inverso (reintegro pendiente y luego devolución de ítems o liberación de la reserva) y deja
+   el pago en `REINTEGRO_PENDIENTE` o `REINTEGRADO`, o la saga en `COMPENSADA` si todo responde.
 7. Al completar, guarda la respuesta en `idempotency_key` para que los reintentos devuelvan
-   exactamente la misma orden y las mismas entradas.
+   exactamente la misma orden y las mismas entradas. La respuesta expone `sagaEstado` y
+   `sagaPaso` para consultar el avance de la compra.
+
+## Saga de compra
+
+- Pasos persistidos: `RESERVA_VALIDADA` (precondición), `ORDEN_CREADA`, `PAGO_APROBADO`,
+  `INVENTARIO_CONFIRMADO` y `ENTRADAS_EMITIDAS`.
+- Estados: `EN_PROCESO`, `COMPLETADA`, `COMPENSANDO`, `COMPENSADA` y `FALLIDA`. Una fila de
+  `saga_compra` por orden permite reanudar o compensar después de un reinicio.
+- Comandos idempotentes: `ClavesIdempotencia` deriva claves estables por orden y paso
+  (`ordenId:PAGO_APROBADO`, `ordenId:INVENTARIO_CONFIRMADO`, `ordenId:LIBERAR_RESERVA`,
+  `pagoId:REINTEGRO:COMPRA`, `pagoId:REINTEGRO:<entradaId>`) y se envían como
+  `Idempotency-Key` a inventory y a la pasarela. Reintentar un paso no duplica reserva, cobro,
+  confirmación ni entradas.
+- `SagaCompraRetryService` reintenta las sagas `COMPENSANDO` cada
+  `orders.sagas.retry-delay-ms` (60 s por defecto) hasta `orders.sagas.max-intentos` (10); si
+  se agotan, la deja `FALLIDA`. Si la compensación no se puede preparar, también queda `FALLIDA`.
 
 ## Devoluciones y reintentos
 
@@ -68,6 +88,8 @@ La migración `V5` de la Entrega 2 agrega el snapshot de compra (`cliente_email`
 | `DB_URL` | `jdbc:postgresql://localhost:5435/orders_db` | Conexión JDBC |
 | `DB_USER` / `DB_PASSWORD` | `ticketya` | Credenciales |
 | `INVENTORY_URL` | `http://localhost:8082` | Cliente interno hacia inventory |
+| `ORDERS_SAGAS_RETRY_DELAY_MS` | `60000` | Frecuencia del reintento de sagas `COMPENSANDO` |
+| `ORDERS_SAGAS_MAX_INTENTOS` | `10` | Reintentos de compensación antes de `FALLIDA` |
 
 ## Ejecutar y probar
 

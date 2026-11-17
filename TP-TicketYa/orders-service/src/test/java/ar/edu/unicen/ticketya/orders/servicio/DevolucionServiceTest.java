@@ -3,6 +3,8 @@ package ar.edu.unicen.ticketya.orders.servicio;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -154,7 +156,7 @@ class DevolucionServiceTest {
         ArgumentCaptor<ReturnDto> returnDtoCaptor = ArgumentCaptor.forClass(ReturnDto.class);
         verify(inventoryClient).devolverItems(returnDtoCaptor.capture());
         assertThat(returnDtoCaptor.getValue().clienteId()).isEqualTo(entrada.getClienteId());
-        verify(paymentGateway).reintegrar(pago.getId(), new BigDecimal("15000.00"));
+        verify(paymentGateway).reintegrar(eq(pago.getId()), eq(new BigDecimal("15000.00")), anyString());
     }
 
     @Test
@@ -192,7 +194,7 @@ class DevolucionServiceTest {
         assertThat(captor.getAllValues().get(captor.getAllValues().size() - 1).getEstado())
                 .isEqualTo(EstadoDevolucion.PROCESANDO);
         assertThat(entrada.getEstado()).isEqualTo(EstadoEntrada.EN_DEVOLUCION);
-        verify(paymentGateway).reintegrar(pago.getId(), new BigDecimal("15000.00"));
+        verify(paymentGateway).reintegrar(eq(pago.getId()), eq(new BigDecimal("15000.00")), anyString());
     }
 
     @Test
@@ -262,7 +264,7 @@ class DevolucionServiceTest {
 
         service.aprobar(devolucion.getId());
 
-        verify(paymentGateway).reintegrar(pago.getId(), new BigDecimal("15000.00"));
+        verify(paymentGateway).reintegrar(eq(pago.getId()), eq(new BigDecimal("15000.00")), anyString());
         assertThat(pago.getEstado()).isEqualTo(EstadoPago.PARCIALMENTE_REINTEGRADO);
     }
 
@@ -297,7 +299,7 @@ class DevolucionServiceTest {
 
         service.aprobar(devolucion.getId());
 
-        verify(paymentGateway).reintegrar(pago.getId(), new BigDecimal("15000.00"));
+        verify(paymentGateway).reintegrar(eq(pago.getId()), eq(new BigDecimal("15000.00")), anyString());
         assertThat(pago.getEstado()).isEqualTo(EstadoPago.REINTEGRADO);
     }
 
@@ -325,7 +327,7 @@ class DevolucionServiceTest {
         });
 
         org.mockito.Mockito.doThrow(new RuntimeException("pasarela caída"))
-                .when(paymentGateway).reintegrar(any(), any());
+                .when(paymentGateway).reintegrar(any(), any(), any());
 
         assertThatThrownBy(() -> service.aprobar(devolucion.getId()))
                 .isInstanceOfSatisfying(ApiException.class, ex -> {
@@ -337,7 +339,7 @@ class DevolucionServiceTest {
         assertThat(reintegros.get(0).getEstado()).isEqualTo(EstadoReintegro.PENDIENTE);
 
         // reintento: la pasarela responde OK
-        org.mockito.Mockito.doNothing().when(paymentGateway).reintegrar(any(), any());
+        org.mockito.Mockito.doNothing().when(paymentGateway).reintegrar(any(), any(), any());
 
         ReturnResponse response = service.aprobar(devolucion.getId());
 
