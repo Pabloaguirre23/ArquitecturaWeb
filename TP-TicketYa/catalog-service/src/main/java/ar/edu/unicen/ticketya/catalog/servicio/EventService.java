@@ -65,6 +65,7 @@ public class EventService {
     private final EventoSectorPrecioRepository precioRepository;
     private final InventoryClient inventoryClient;
     private final OrdersClient ordersClient;
+    private final QueueClient queueClient;
     private final Clock clock;
 
     public EventService(EventoRepository eventoRepository,
@@ -75,6 +76,7 @@ public class EventService {
                         EventoSectorPrecioRepository precioRepository,
                         InventoryClient inventoryClient,
                         OrdersClient ordersClient,
+                        QueueClient queueClient,
                         Clock clock) {
         this.eventoRepository = eventoRepository;
         this.lugarRepository = lugarRepository;
@@ -84,6 +86,7 @@ public class EventService {
         this.precioRepository = precioRepository;
         this.inventoryClient = inventoryClient;
         this.ordersClient = ordersClient;
+        this.queueClient = queueClient;
         this.clock = clock;
     }
 
@@ -172,6 +175,14 @@ public class EventService {
         } catch (RuntimeException ex) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "INVENTORY_UNAVAILABLE",
                     "No se pudo confirmar el inventario del evento; el evento sigue en borrador", List.of());
+        }
+        if (evento.isAltaDemanda()) {
+            try {
+                queueClient.abrir(eventoId);
+            } catch (RuntimeException ex) {
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "QUEUE_UNAVAILABLE",
+                        "No se pudo abrir la fila del evento; el evento sigue en borrador", List.of());
+            }
         }
 
         evento.setInventarioVersion(nuevaVersion);
@@ -377,6 +388,7 @@ public class EventService {
                 inventarioOk = false;
                 log.warn("No se pudo frenar la venta del evento {} en inventory; queda pendiente", eventoId, ex);
             }
+            cerrarFila(evento, "CANCELADO");
         }
         // Solo se avisa a orders después de cerrar la venta en inventory: si inventory
         // falla, no se reintegran entradas mientras el evento todavía se puede comprar.
@@ -418,6 +430,21 @@ public class EventService {
         eventoRepository.save(evento);
     }
 
+    private void cerrarFila(Evento evento, String motivo) {
+        if (!evento.isAltaDemanda()) {
+            return;
+        }
+        try {
+            queueClient.cerrar(evento.getId(), motivo);
+        } catch (HttpClientErrorException ex) {
+            if (ex.getStatusCode().value() != HttpStatus.NOT_FOUND.value()) {
+                log.warn("No se pudo cerrar la fila del evento {}: HTTP {}", evento.getId(), ex.getStatusCode().value());
+            }
+        } catch (RuntimeException ex) {
+            log.warn("No se pudo cerrar la fila del evento {}", evento.getId(), ex);
+        }
+    }
+
     @Transactional
     public int finalizarEventosVencidos() {
         List<Evento> vencidos = eventoRepository.findByEstadoInAndFechaBefore(
@@ -426,6 +453,7 @@ public class EventService {
         for (Evento evento : vencidos) {
             try {
                 inventoryClient.actualizarEstado(evento.getId(), "FINALIZADO");
+                cerrarFila(evento, "FINALIZADO");
                 evento.setEstado(EstadoEvento.FINALIZADO);
                 cerrados.add(evento);
             } catch (HttpClientErrorException ex) {
@@ -433,6 +461,7 @@ public class EventService {
                 if (status == HttpStatus.CONFLICT.value() || status == HttpStatus.NOT_FOUND.value()) {
                     log.warn("Inventory ya estaba terminal o no tenía el evento {}; se finaliza en catálogo igual",
                             evento.getId(), ex);
+                    cerrarFila(evento, "FINALIZADO");
                     evento.setEstado(EstadoEvento.FINALIZADO);
                     cerrados.add(evento);
                 } else {

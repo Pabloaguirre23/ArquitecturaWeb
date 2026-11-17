@@ -39,6 +39,13 @@ inventory:
     connect-ms: ${INVENTORY_CONNECT_TIMEOUT_MS:2000}
     read-ms: ${INVENTORY_READ_TIMEOUT_MS:3000}
 
+queue:
+  url: ${QUEUE_URL:http://localhost:8086}
+  internal-token: ${INTERNAL_TOKEN:ticketya-internal-dev}
+  timeout:
+    connect-ms: ${QUEUE_CONNECT_TIMEOUT_MS:2000}
+    read-ms: ${QUEUE_READ_TIMEOUT_MS:3000}
+
 orders:
   url: ${ORDERS_URL:http://localhost:8083}
   timeout:

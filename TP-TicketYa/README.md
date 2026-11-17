@@ -16,14 +16,15 @@ Repositorio del curso: <https://github.com/Pabloaguirre23/ArquitecturaWeb> (este
 | `recommendation-service` | 8084 | `recommendation_db` (27017, MongoDB) | Preferencias, historial y recomendaciones |
 | `notification-service` | 8085 | `notification_db` (5436) | Esqueleto de notificaciones asíncronas |
 | `rabbitmq` | 5672 / 15672 | — | Bus de eventos (`orden.pagada` → historial) |
+| `queue-service` | 8086 | Redis 7 (6379) | Fila virtual. Esqueleto: health y conexión a Redis |
 
-Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**` y eventos por RabbitMQ; el cliente siempre entra por el gateway. `queue-service` se agrega en las próximas tareas.
+Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**` y eventos por RabbitMQ; el cliente siempre entra por el gateway. `queue-service` guarda la fila en Redis.
 
 ## Requisitos
 
 - **Java 21** (Temurin recomendado)
 - **Maven 3.9+**
-- **Docker Desktop** (para PostgreSQL 16, MongoDB 7 y RabbitMQ 3.13)
+- **Docker Desktop** (para PostgreSQL 16, MongoDB 7, RabbitMQ 3.13 y Redis 7)
 - Git
 
 Verificar:
@@ -175,6 +176,7 @@ Sin headers, el gateway responde 401 en formato RFC 7807. El contrato completo e
 | `recommendation-service/` | Preferencias, historial y recomendaciones (MongoDB) |
 | `notification-service/` | Esqueleto de notificaciones (PostgreSQL + RabbitMQ) |
 | `api-gateway/` | Punto de entrada único |
+| `queue-service/` | Fila virtual sobre Redis |
 | `openspec/` | Especificaciones (propuesta → specs → diseño → tareas) |
 | `docs/` | Contrato, plan, checklist, arquitectura y briefs del equipo |
 | `docker-compose.dev.yml` | PostgreSQL 16 por servicio, MongoDB 7 y RabbitMQ 3.13 |
