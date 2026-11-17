@@ -1,4 +1,4 @@
-﻿# notification-service
+# notification-service
 
 Servicio de notificaciones de TicketYa con **PostgreSQL** y **RabbitMQ**.
 

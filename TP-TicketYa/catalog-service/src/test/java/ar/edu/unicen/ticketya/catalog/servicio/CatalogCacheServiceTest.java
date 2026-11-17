@@ -2,6 +2,7 @@ package ar.edu.unicen.ticketya.catalog.servicio;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -9,6 +10,12 @@ import static org.mockito.Mockito.when;
 import ar.edu.unicen.ticketya.catalog.config.CacheConfig;
 import java.time.Duration;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -113,6 +120,47 @@ class CatalogCacheServiceTest {
 
         assertThat(result.value()).isEqualTo("base");
         assertThat(result.header()).isEqualTo("MISS");
+    }
+
+    @Test
+    void dosMissConcurrentesCarganLaBaseUnaSolaVez() throws Exception {
+        ConcurrentHashMap<Object, Object> almacen = new ConcurrentHashMap<>();
+        AtomicInteger cargas = new AtomicInteger();
+        when(cacheManager.getCache("detalle")).thenReturn(cache);
+        when(cache.get(any())).thenAnswer(inv -> {
+            Object valor = almacen.get(inv.getArgument(0));
+            return valor == null ? null : new SimpleValueWrapper(valor);
+        });
+        doAnswer(inv -> {
+            almacen.put(inv.getArgument(0), inv.getArgument(1));
+            return null;
+        }).when(cache).put(any(), any());
+
+        int hilos = 8;
+        ExecutorService executor = Executors.newFixedThreadPool(hilos);
+        CountDownLatch salida = new CountDownLatch(1);
+        CountDownLatch fin = new CountDownLatch(hilos);
+        for (int i = 0; i < hilos; i++) {
+            executor.submit(() -> {
+                try {
+                    salida.await();
+                    cacheService.getOrLoad("detalle", "clave", () -> {
+                        cargas.incrementAndGet();
+                        return "base";
+                    });
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    fin.countDown();
+                }
+            });
+        }
+        salida.countDown();
+        assertThat(fin.await(10, TimeUnit.SECONDS)).isTrue();
+        executor.shutdownNow();
+
+        assertThat(cargas.get()).isEqualTo(1);
+        assertThat(almacen.get("clave")).isEqualTo("base");
     }
 
     @Test

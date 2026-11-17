@@ -140,7 +140,7 @@ public class EventService {
         Evento evento = buscarEvento(eventoId);
         requireOwner(evento, organizadorId);
         if (evento.getEstado() != EstadoEvento.BORRADOR) {
-            throw ApiException.conflict("EVENT_NOT_EDITABLE", "El evento ya no estÃ¡ en borrador");
+            throw ApiException.conflict("EVENT_NOT_EDITABLE", "El evento ya no está en borrador");
         }
         if (request.precio().signum() < 0) {
             throw ApiException.badRequest("INVALID_PRICE", "El precio no puede ser negativo");
@@ -159,15 +159,19 @@ public class EventService {
         return new PrecioResponse(precio.getEventoId(), precio.getSectorId(), precio.getPrecio());
     }
 
-    @Transactional
     public EventoResponse publicar(UUID eventoId, UUID organizadorId) {
+        return publicar(eventoId, organizadorId, null);
+    }
+
+    @Transactional
+    public EventoResponse publicar(UUID eventoId, UUID organizadorId, String correlationId) {
         Evento evento = buscarEvento(eventoId);
         requireOwner(evento, organizadorId);
         if (evento.getEstado() != EstadoEvento.BORRADOR) {
             throw ApiException.conflict("EVENT_NOT_EDITABLE", "Solo se puede publicar un evento en borrador");
         }
         if (!evento.getFecha().isAfter(OffsetDateTime.now(clock))) {
-            throw validacion("fecha", "el evento ya pasÃ³ y no se puede publicar");
+            throw validacion("fecha", "el evento ya pasó y no se puede publicar");
         }
 
         List<Sector> sectores = sectorRepository.findByLugarIdOrderByNombreAsc(evento.getLugarId());
@@ -195,7 +199,7 @@ public class EventService {
         evento.setEstado(EstadoEvento.PUBLICADO);
         evento = eventoRepository.save(evento);
         Lugar lugar = lugarRepository.findById(evento.getLugarId()).orElseThrow();
-        registrarEventoOutbox(CatalogEvents.EVENTO_PUBLICADO, evento);
+        registrarEventoOutbox(CatalogEvents.EVENTO_PUBLICADO, evento, correlationId);
         invalidarCachesEvento(eventoId);
         abrirFilaSiCorresponde(evento);
         return EventoResponse.from(evento, lugar.getNombre(), lugar.getCiudad(),
@@ -206,8 +210,13 @@ public class EventService {
                         .toList());
     }
 
-    @Transactional
     public EventoResponse editarEvento(UUID eventoId, EditarEventoRequest request, UUID organizadorId) {
+        return editarEvento(eventoId, request, organizadorId, null);
+    }
+
+    @Transactional
+    public EventoResponse editarEvento(UUID eventoId, EditarEventoRequest request, UUID organizadorId,
+                                       String correlationId) {
         Evento evento = buscarEvento(eventoId);
         requireOwner(evento, organizadorId);
         if (evento.getEstado() == EstadoEvento.CANCELADO || evento.getEstado() == EstadoEvento.FINALIZADO) {
@@ -226,7 +235,7 @@ public class EventService {
         if (request.nombre() != null) {
             String nombre = request.nombre().trim();
             if (nombre.isEmpty()) {
-                throw validacion("nombre", "no puede estar vacÃ­o");
+                throw validacion("nombre", "no puede estar vacío");
             }
             evento.setNombre(nombre);
         }
@@ -307,7 +316,7 @@ public class EventService {
         Lugar lugar = lugarRepository.findById(evento.getLugarId())
                 .orElseThrow(() -> ApiException.notFound("VENUE_NOT_FOUND", "No existe el lugar del evento"));
         if (publicado) {
-            registrarEventoOutbox(CatalogEvents.EVENTO_ACTUALIZADO, evento);
+            registrarEventoOutbox(CatalogEvents.EVENTO_ACTUALIZADO, evento, correlationId);
             abrirFilaSiCorresponde(evento);
         }
         invalidarCachesEvento(eventoId);
@@ -378,8 +387,12 @@ public class EventService {
     }
 
 
-    @Transactional
     public CancelacionResponse cancelar(UUID eventoId) {
+        return cancelar(eventoId, null);
+    }
+
+    @Transactional
+    public CancelacionResponse cancelar(UUID eventoId, String correlationId) {
         Evento evento = buscarEvento(eventoId);
         if (evento.getEstado() == EstadoEvento.CANCELADO || evento.getEstado() == EstadoEvento.FINALIZADO) {
             throw ApiException.conflict("EVENT_NOT_CANCELLABLE",
@@ -396,7 +409,7 @@ public class EventService {
             } catch (HttpClientErrorException ex) {
                 int status = ex.getStatusCode().value();
                 if (status == HttpStatus.NOT_FOUND.value() || status == HttpStatus.CONFLICT.value()) {
-                    log.info("Inventory no tenÃ­a el evento {} o ya estaba terminal; no hay venta que frenar", eventoId);
+                    log.info("Inventory no tenía el evento {} o ya estaba terminal; no hay venta que frenar", eventoId);
                 } else {
                     pendiente = true;
                     inventarioOk = false;
@@ -408,19 +421,19 @@ public class EventService {
                 log.warn("No se pudo frenar la venta del evento {} en inventory; queda pendiente", eventoId, ex);
             }
         }
-        // Solo se avisa a orders despuÃ©s de cerrar la venta en inventory: si inventory
-        // falla, no se reintegran entradas mientras el evento todavÃ­a se puede comprar.
+        // Solo se avisa a orders después de cerrar la venta en inventory: si inventory
+        // falla, no se reintegran entradas mientras el evento todavía se puede comprar.
         if (inventarioOk) {
             try {
                 ordersClient.cancelarEvento(eventoId);
             } catch (RuntimeException ex) {
                 pendiente = true;
-                log.warn("No se pudo avisar la cancelaciÃ³n del evento {} a orders; queda pendiente", eventoId, ex);
+                log.warn("No se pudo avisar la cancelación del evento {} a orders; queda pendiente", eventoId, ex);
             }
         }
         evento.setCancelacionPendiente(pendiente);
         evento = eventoRepository.save(evento);
-        registrarEventoOutbox(CatalogEvents.EVENTO_CANCELADO, evento);
+        registrarEventoOutbox(CatalogEvents.EVENTO_CANCELADO, evento, correlationId);
         invalidarCachesEvento(eventoId);
         cerrarFilaSiCorresponde(evento, "CANCELADO");
         return new CancelacionResponse(evento.getId(), evento.getEstado(), evento.isCancelacionPendiente());
@@ -471,17 +484,17 @@ public class EventService {
             } catch (HttpClientErrorException ex) {
                 int status = ex.getStatusCode().value();
                 if (status == HttpStatus.CONFLICT.value() || status == HttpStatus.NOT_FOUND.value()) {
-                    log.warn("Inventory ya estaba terminal o no tenÃ­a el evento {}; se finaliza en catÃ¡logo igual",
+                    log.warn("Inventory ya estaba terminal o no tenía el evento {}; se finaliza en catálogo igual",
                             evento.getId(), ex);
                     evento.setEstado(EstadoEvento.FINALIZADO);
                     cerrarFilaSiCorresponde(evento, "FINALIZADO");
                     cerrados.add(evento);
                 } else {
-                    log.warn("Inventory rechazÃ³ la finalizaciÃ³n del evento {}; queda {} para reintentar",
+                    log.warn("Inventory rechazó la finalización del evento {}; queda {} para reintentar",
                             evento.getId(), evento.getEstado(), ex);
                 }
             } catch (RuntimeException ex) {
-                log.warn("No se pudo avisar la finalizaciÃ³n del evento {} a inventory; queda {} para reintentar",
+                log.warn("No se pudo avisar la finalización del evento {} a inventory; queda {} para reintentar",
                         evento.getId(), evento.getEstado(), ex);
             }
         }
@@ -504,23 +517,23 @@ public class EventService {
             } catch (HttpClientErrorException ex) {
                 int status = ex.getStatusCode().value();
                 if (status == HttpStatus.NOT_FOUND.value() || status == HttpStatus.CONFLICT.value()) {
-                    log.info("Inventory no tenÃ­a el evento {} o ya estaba terminal; se cierra el aviso", evento.getId());
+                    log.info("Inventory no tenía el evento {} o ya estaba terminal; se cierra el aviso", evento.getId());
                 } else {
                     ok = false;
                     inventarioOk = false;
-                    log.warn("Sigue pendiente el aviso de cancelaciÃ³n del evento {} a inventory", evento.getId(), ex);
+                    log.warn("Sigue pendiente el aviso de cancelación del evento {} a inventory", evento.getId(), ex);
                 }
             } catch (RuntimeException ex) {
                 ok = false;
                 inventarioOk = false;
-                log.warn("Sigue pendiente el aviso de cancelaciÃ³n del evento {} a inventory", evento.getId(), ex);
+                log.warn("Sigue pendiente el aviso de cancelación del evento {} a inventory", evento.getId(), ex);
             }
             if (inventarioOk) {
                 try {
                     ordersClient.cancelarEvento(evento.getId());
                 } catch (RuntimeException ex) {
                     ok = false;
-                    log.warn("Sigue pendiente el aviso de cancelaciÃ³n del evento {} a orders", evento.getId(), ex);
+                    log.warn("Sigue pendiente el aviso de cancelación del evento {} a orders", evento.getId(), ex);
                 }
             }
             if (ok) {
@@ -757,7 +770,7 @@ public class EventService {
 
     private ApiException validacion(String field, String message) {
         return new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR",
-                "La solicitud tiene campos invÃ¡lidos", List.of(Map.of("field", field, "message", message)));
+                "La solicitud tiene campos inválidos", List.of(Map.of("field", field, "message", message)));
     }
     private String searchKey(TipoEvento tipo, UUID organizadorId, String participante, String ciudad,
                              OffsetDateTime fechaDesde, OffsetDateTime fechaHasta, String orden, int page, int size) {
@@ -779,26 +792,30 @@ public class EventService {
             catalogCacheService.evictEventCaches(eventoId);
         }
     }
-    private void registrarEventoOutbox(String type, Evento evento) {
+    private void registrarEventoOutbox(String type, Evento evento, String correlationId) {
         if (outboxService == null) {
             return;
         }
+        String ciudad = lugarRepository.findById(evento.getLugarId())
+                .map(Lugar::getCiudad)
+                .orElse(null);
+        List<String> artistas = participanteRepository.findByEventoIdOrderByNombreAsc(evento.getId())
+                .stream()
+                .map(EventoParticipante::getNombre)
+                .toList();
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("eventoId", evento.getId());
+        payload.put("eventoId", evento.getId().toString());
         payload.put("nombre", evento.getNombre());
         payload.put("tipo", evento.getTipo() == null ? null : evento.getTipo().name());
-        payload.put("lugarId", evento.getLugarId());
-        payload.put("organizadorId", evento.getOrganizadorId());
-        payload.put("fecha", evento.getFecha());
-        // El sobre de docs/eventos.md exige estos campos: notification-service los usa
-        // para buscar clientes con artista favorito en la ciudad del evento (8.3).
-        payload.put("artistas", participanteRepository.findByEventoIdOrderByNombreAsc(evento.getId())
-                .stream().map(EventoParticipante::getNombre).toList());
-        payload.put("ciudad", lugarRepository.findById(evento.getLugarId())
-                .map(Lugar::getCiudad).orElse(null));
-        payload.put("fechaEvento", evento.getFecha() == null ? null : evento.getFecha().toInstant());
+        payload.put("artistas", artistas);
+        payload.put("ciudad", ciudad);
+        payload.put("fechaEvento", evento.getFecha() == null ? null : evento.getFecha().toInstant().toString());
+        payload.put("organizadorId", evento.getOrganizadorId().toString());
         payload.put("estado", evento.getEstado() == null ? null : evento.getEstado().name());
-        outboxService.register(type, evento.getId(), null, payload);
+        String correlacion = correlationId == null || correlationId.isBlank()
+                ? UUID.randomUUID().toString()
+                : correlationId;
+        outboxService.register(type, evento.getId(), correlacion, payload);
     }
 
     /**

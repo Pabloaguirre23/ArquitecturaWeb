@@ -1,4 +1,4 @@
-﻿server:
+server:
   port: ${SERVER_PORT:8085}
 
 spring:
@@ -45,6 +45,8 @@ springdoc:
     path: /swagger-ui.html
 
 notification:
+  retry:
+    poll-ms: ${NOTIFICATION_RETRY_POLL_MS:10000}
   sender:
     max-attempts: ${NOTIFICATION_MAX_ATTEMPTS:3}
     backoff-seconds: ${NOTIFICATION_BACKOFF_SECONDS:30}

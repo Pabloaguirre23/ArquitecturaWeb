@@ -1,4 +1,4 @@
-﻿-- Outbox transaccional para eventos de dominio de catálogo (3.2)
+-- Outbox transaccional para eventos de dominio de catálogo (3.2)
 CREATE TABLE outbox_event (
     id              UUID PRIMARY KEY,
     event_id        UUID NOT NULL UNIQUE,

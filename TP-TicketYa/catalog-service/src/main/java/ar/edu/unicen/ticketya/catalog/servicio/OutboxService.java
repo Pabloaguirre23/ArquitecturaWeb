@@ -27,10 +27,13 @@ public class OutboxService {
     public void register(String type, UUID aggregateId, String correlationId, Map<String, Object> payload) {
         OffsetDateTime now = OffsetDateTime.now(clock);
         UUID eventId = UUID.randomUUID();
-        EventEnvelope envelope = new EventEnvelope(eventId, type, now.toString(), correlationId, 1, payload);
+        String correlacion = correlationId == null || correlationId.isBlank()
+                ? UUID.randomUUID().toString()
+                : correlationId;
+        EventEnvelope envelope = new EventEnvelope(eventId, type, now.toString(), correlacion, 1, payload);
         try {
             String json = objectMapper.writeValueAsString(envelope.asMap());
-            repository.save(new OutboxEvent(UUID.randomUUID(), eventId, type, aggregateId, now, correlationId, 1, json, now));
+            repository.save(new OutboxEvent(UUID.randomUUID(), eventId, type, aggregateId, now, correlacion, 1, json, now));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("No se pudo serializar el evento de outbox " + type, e);
         }

@@ -1,6 +1,7 @@
 package ar.edu.unicen.ticketya.catalog.web;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -70,7 +71,7 @@ class EventControllerTest {
     @Test
     void adminPuedeCancelarYRecibeElEstadoDeLaNotificacion() throws Exception {
         UUID eventoId = UUID.randomUUID();
-        when(eventService.cancelar(eventoId))
+        when(eventService.cancelar(eq(eventoId), anyString()))
                 .thenReturn(new CancelacionResponse(eventoId, EstadoEvento.CANCELADO, true));
 
         mockMvc.perform(post("/api/catalog/events/{id}/cancel", eventoId)
@@ -176,8 +177,8 @@ class EventControllerTest {
     void editarMapeaElCuerpoYDevuelveElEventoActualizado() throws Exception {
         UUID eventoId = UUID.randomUUID();
         UUID organizadorId = UUID.randomUUID();
-        when(eventService.editarEvento(eq(eventoId), any(EditarEventoRequest.class), eq(organizadorId)))
-                .thenReturn(new EventoResponse(eventoId, "Festival editado", "Nueva descripciÃ³n",
+        when(eventService.editarEvento(eq(eventoId), any(EditarEventoRequest.class), eq(organizadorId), anyString()))
+                .thenReturn(new EventoResponse(eventoId, "Festival editado", "Nueva descripción",
                         TipoEvento.FESTIVAL, UUID.randomUUID(), "Estadio", "Tandil", organizadorId,
                         OffsetDateTime.parse("2027-06-01T21:00:00-03:00"), EstadoEvento.PUBLICADO,
                         6, true, List.of("Artista A"), List.of()));
@@ -187,7 +188,7 @@ class EventControllerTest {
                         .header("X-User-Role", "ORGANIZER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"nombre":"Festival editado","descripcion":"Nueva descripciÃ³n",
+                                {"nombre":"Festival editado","descripcion":"Nueva descripción",
                                  "fecha":"2027-06-01T21:00:00-03:00","limitePorCliente":6}
                                 """))
                 .andExpect(status().isOk())
@@ -195,7 +196,7 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.limitePorCliente").value(6))
                 .andExpect(jsonPath("$.altaDemanda").value(true));
 
-        verify(eventService).editarEvento(eq(eventoId), any(EditarEventoRequest.class), eq(organizadorId));
+        verify(eventService).editarEvento(eq(eventoId), any(EditarEventoRequest.class), eq(organizadorId), anyString());
     }
 
     @Test
@@ -235,7 +236,7 @@ class EventControllerTest {
     void editarUnEventoTerminalDevuelve409() throws Exception {
         UUID eventoId = UUID.randomUUID();
         UUID organizadorId = UUID.randomUUID();
-        when(eventService.editarEvento(eq(eventoId), any(EditarEventoRequest.class), eq(organizadorId)))
+        when(eventService.editarEvento(eq(eventoId), any(EditarEventoRequest.class), eq(organizadorId), anyString()))
                 .thenThrow(ApiException.conflict("EVENT_NOT_EDITABLE", "No se puede editar el evento"));
 
         mockMvc.perform(put("/api/catalog/events/{id}", eventoId)
@@ -276,7 +277,7 @@ class EventControllerTest {
     void publicarMapeaElEventoYDevuelve200() throws Exception {
         UUID eventoId = UUID.randomUUID();
         UUID organizadorId = UUID.randomUUID();
-        when(eventService.publicar(eventoId, organizadorId))
+        when(eventService.publicar(eq(eventoId), eq(organizadorId), anyString()))
                 .thenReturn(new EventoResponse(eventoId, "Festival", null, TipoEvento.FESTIVAL,
                         UUID.randomUUID(), "Estadio", "Tandil", organizadorId,
                         OffsetDateTime.parse("2027-05-01T21:00:00-03:00"), EstadoEvento.PUBLICADO,

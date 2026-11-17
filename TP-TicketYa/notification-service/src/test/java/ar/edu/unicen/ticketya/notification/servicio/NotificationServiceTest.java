@@ -2,6 +2,7 @@ package ar.edu.unicen.ticketya.notification.servicio;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -120,6 +121,50 @@ class NotificationServiceTest {
 
         assertThat(resultado.getEstado()).isEqualTo(EstadoNotificacion.PENDIENTE);
         assertThat(resultado.getUltimoError()).contains("no tiene email");
+    }
+
+    @Test
+    void elSchedulerReintentaUnaPendienteHastaEnviarla() throws Exception {
+        Notificacion pendiente = nueva();
+        pendiente.setEstado(EstadoNotificacion.PENDIENTE);
+        pendiente.setIntentos(1);
+        pendiente.setProximoReintento(java.time.OffsetDateTime.parse("2026-11-15T12:00:10Z"));
+        when(repository.findByEstadoAndProximoReintentoBefore(eq(EstadoNotificacion.PENDIENTE), any()))
+                .thenReturn(java.util.List.of(pendiente));
+        when(repository.save(any(Notificacion.class))).thenAnswer(inv -> inv.getArgument(0));
+        doThrow(new RuntimeException("smtp caído")).doNothing().when(sender).send(any(Notificacion.class));
+
+        service.reenviarPendientes();
+
+        assertThat(pendiente.getEstado()).isEqualTo(EstadoNotificacion.PENDIENTE);
+        assertThat(pendiente.getIntentos()).isEqualTo(2);
+        assertThat(pendiente.getProximoReintento()).isNotNull();
+
+        int reintentadas = service.reenviarPendientes();
+
+        assertThat(reintentadas).isEqualTo(1);
+        assertThat(pendiente.getEstado()).isEqualTo(EstadoNotificacion.ENVIADA);
+        assertThat(pendiente.getIntentos()).isEqualTo(3);
+        assertThat(pendiente.getProximoReintento()).isNull();
+        verify(sender, times(2)).send(any(Notificacion.class));
+    }
+
+    @Test
+    void elSchedulerMarcaFallidaAlAgotarLosIntentos() throws Exception {
+        Notificacion pendiente = nueva();
+        pendiente.setEstado(EstadoNotificacion.PENDIENTE);
+        pendiente.setIntentos(2);
+        pendiente.setProximoReintento(java.time.OffsetDateTime.parse("2026-11-15T12:00:10Z"));
+        when(repository.findByEstadoAndProximoReintentoBefore(eq(EstadoNotificacion.PENDIENTE), any()))
+                .thenReturn(java.util.List.of(pendiente));
+        when(repository.save(any(Notificacion.class))).thenAnswer(inv -> inv.getArgument(0));
+        doThrow(new RuntimeException("smtp caído")).when(sender).send(any(Notificacion.class));
+
+        service.reenviarPendientes();
+
+        assertThat(pendiente.getEstado()).isEqualTo(EstadoNotificacion.FALLIDA);
+        assertThat(pendiente.getIntentos()).isEqualTo(3);
+        assertThat(pendiente.getProximoReintento()).isNull();
     }
 
     private Notificacion nueva() {
