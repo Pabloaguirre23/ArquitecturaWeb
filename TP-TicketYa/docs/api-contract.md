@@ -468,6 +468,7 @@ Reglas:
 - Un item con `cantidad` es de zona no numerada; `asientoIds` debe omitirse.
 - Todo o nada: si un asiento no está libre o la zona no alcanza, no se reserva nada.
 - `clienteId` sale de `X-User-Id`.
+- Si el evento es de alta demanda, el header `X-Queue-Token` es obligatorio. Es el JWT que entrega queue al habilitar al cliente (`type=QUEUE`, claims `eventId`, `sub`, `jti`, `exp`), firmado con `QUEUE_TOKEN_SECRET`. Inventory lo valida en local y no llama a queue en la reserva. Sin token: `403 QUEUE_REQUIRED`. Token vencido, de otro evento, de otro cliente o con firma inválida: `403 QUEUE_TOKEN_INVALID` y no se toca el cupo. El token se puede reutilizar hasta `exp`. Un evento normal no lo exige. Cuando ese evento queda `AGOTADO`, inventory cierra la fila con `POST /internal/events/{eventoId}/close` y motivo `AGOTADO`; no la vuelve a abrir.
 - Límite por cliente: se toma `pg_advisory_xact_lock(hashtext(eventoId || clienteId))` y se suman `cliente_evento.entradas_vendidas` más las cantidades de reservas `VIGENTE`. Si eso más lo pedido supera `limitePorCliente`, se responde 422 y no se reserva nada.
 - Vencimiento: 10 minutos desde la creación.
 
@@ -502,7 +503,35 @@ Reglas:
 }
 ```
 
-Errores: `400 VALIDATION_ERROR`, `400 SECTOR_MISMATCH` (el asiento no pertenece al sector del ítem), `404 EVENT_NOT_FOUND`/`SECTOR_NOT_FOUND`, `409 SEAT_NOT_AVAILABLE`, `409 INSUFFICIENT_AVAILABILITY`, `409 EVENT_NOT_ON_SALE` (cancelado), `409 EVENT_FINISHED` (la fecha del evento ya pasó), `422 CLIENT_LIMIT_EXCEEDED`, `503 LOCK_TIMEOUT` (con `Retry-After: 1`).
+Errores: `400 VALIDATION_ERROR`, `400 SECTOR_MISMATCH` (el asiento no pertenece al sector del ítem), `401 UNAUTHORIZED`, `403 QUEUE_REQUIRED`, `403 QUEUE_TOKEN_INVALID`, `404 EVENT_NOT_FOUND`/`SECTOR_NOT_FOUND`, `409 SEAT_NOT_AVAILABLE`, `409 INSUFFICIENT_AVAILABILITY`, `409 EVENT_NOT_ON_SALE` (cancelado), `409 EVENT_FINISHED` (la fecha del evento ya pasó), `422 CLIENT_LIMIT_EXCEEDED`, `503 LOCK_TIMEOUT` (con `Retry-After: 1`).
+
+`403 QUEUE_REQUIRED`
+
+```json
+{
+  "type": "https://ticketya.local/errors/queue-required",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "Este evento exige un token de fila vigente",
+  "instance": "/api/inventory/reservations",
+  "code": "QUEUE_REQUIRED",
+  "errors": []
+}
+```
+
+`409 SEAT_NOT_AVAILABLE`
+
+```json
+{
+  "type": "https://ticketya.local/errors/seat-not-available",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "El asiento c0000000-0000-4000-8000-010101000000 ya no está disponible",
+  "instance": "/api/inventory/reservations",
+  "code": "SEAT_NOT_AVAILABLE",
+  "errors": []
+}
+```
 
 ### 4.4 Consultar reserva — `GET /api/inventory/reservations/{reservaId}` (dueño)
 
@@ -510,7 +539,51 @@ Errores: `400 VALIDATION_ERROR`, `400 SECTOR_MISMATCH` (el asiento no pertenece 
 
 ### 4.5 Cancelar reserva — `DELETE /api/inventory/reservations/{reservaId}` (dueño)
 
-**204 No Content**. Idempotente: si ya estaba liberada/vencida, también 204. Errores: `403`, `404`.
+**204 No Content** si estaba `VIGENTE` (pasa a `CANCELADA` y libera asientos y cupo) o si ya estaba `CANCELADA` (no libera otra vez).
+
+Errores: `401 UNAUTHORIZED`, `403 NOT_RESERVATION_OWNER`, `404 RESERVATION_NOT_FOUND`, `409 RESERVATION_NOT_CANCELLABLE` (confirmada o en un estado que no se cancela), `410 RESERVATION_EXPIRED`.
+
+`403 NOT_RESERVATION_OWNER`
+
+```json
+{
+  "type": "https://ticketya.local/errors/not-reservation-owner",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "La reserva pertenece a otro cliente",
+  "instance": "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+  "code": "NOT_RESERVATION_OWNER",
+  "errors": []
+}
+```
+
+`409 RESERVATION_NOT_CANCELLABLE`
+
+```json
+{
+  "type": "https://ticketya.local/errors/reservation-not-cancellable",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "La reserva ya está confirmada: hay que devolverla",
+  "instance": "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+  "code": "RESERVATION_NOT_CANCELLABLE",
+  "errors": []
+}
+```
+
+`410 RESERVATION_EXPIRED`
+
+```json
+{
+  "type": "https://ticketya.local/errors/reservation-expired",
+  "title": "Gone",
+  "status": 410,
+  "detail": "La reserva está vencida y no se puede cancelar",
+  "instance": "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+  "code": "RESERVATION_EXPIRED",
+  "errors": []
+}
+```
 
 ### 4.6 Interno — alta/actualización de inventario
 
@@ -546,7 +619,7 @@ Errores: `400 VALIDATION_ERROR`, `400 SECTOR_MISMATCH` (el asiento no pertenece 
 { "eventoId": "1f2e...", "sectores": 1, "asientos": 200, "idempotente": true }
 ```
 
-Idempotente por `eventoId` + `version`: reintentar no duplica filas ni reinicia disponibilidad ya vendida. Catalog incrementa `version` en cada publicación o edición de un evento publicado; `altaDemanda` es opcional para inventory hasta la tarea 5.1 (las versiones actuales ignoran campos desconocidos).
+Idempotente por `eventoId` + `version`: reintentar no duplica filas ni reinicia disponibilidad ya vendida. Catalog incrementa `version` en cada publicación o edición de un evento publicado. `altaDemanda` queda persistido: si es `true`, la reserva pública exige `X-Queue-Token`.
 
 ### 4.6.1 Interno — cambiar estado del evento
 
@@ -960,6 +1033,8 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 403 | `FORBIDDEN` | Rol sin permiso para la ruta |
 | 403 | `NOT_EVENT_OWNER` | El evento es de otro organizador |
 | 403 | `NOT_RESERVATION_OWNER` | La reserva es de otro cliente |
+| 403 | `QUEUE_REQUIRED` | El evento de alta demanda se reserva sin token de fila |
+| 403 | `QUEUE_TOKEN_INVALID` | El token de fila venció, es de otro cliente o evento, o la firma no cierra |
 | 403 | `ORDER_NOT_OWNER` | La orden es de otro cliente |
 | 403 | `NOT_TICKET_OWNER` | La entrada es de otro cliente |
 | 403 | `NOT_PREFERENCE_OWNER` | Las preferencias son de otro cliente |
@@ -976,6 +1051,8 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 409 | `EVENT_INCOMPLETE` | Faltan precios para publicar |
 | 409 | `EVENT_NOT_CANCELLABLE` | Evento finalizado o ya cancelado |
 | 409 | `EVENT_NOT_ON_SALE` | Evento cancelado/finalizado al reservar |
+| 409 | `EVENT_FINISHED` | La fecha del evento ya pasó al reservar |
+| 409 | `RESERVATION_NOT_CANCELLABLE` | La reserva confirmada no se cancela: hay que devolverla |
 | 409 | `SEAT_NOT_AVAILABLE` | Asiento reservado o vendido |
 | 409 | `INSUFFICIENT_AVAILABILITY` | Zona sin lugares suficientes |
 | 409 | `RESERVATION_NOT_CONFIRMABLE` | Reserva liberada o vencida al confirmar |
@@ -983,7 +1060,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 409 | `RETURN_ALREADY_EXISTS` | Ya hay una devolución abierta |
 | 409 | `RETURN_ALREADY_RESOLVED` | La devolución ya fue resuelta |
 | 409 | `IDEMPOTENCY_IN_PROGRESS` | Reintento mientras la compra original corre (incluye `Retry-After`) |
-| 410 | `RESERVATION_EXPIRED` | Se intenta pagar una reserva vencida |
+| 410 | `RESERVATION_EXPIRED` | Se intenta pagar o cancelar una reserva vencida |
 | 422 | `CLIENT_LIMIT_EXCEEDED` | Supera el límite de entradas por cliente |
 | 422 | `IDEMPOTENCY_KEY_REUSED` | Misma `Idempotency-Key` con cuerpo distinto |
 | 422 | `RETURN_WINDOW_CLOSED` | Faltan 72 h o menos para el evento |
