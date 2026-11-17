@@ -136,4 +136,34 @@ class NotificacionControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("NOTIFICATION_FORBIDDEN"));
     }
+
+    @Test
+    void detalleSinIdentidadDevuelve401() throws Exception {
+        mockMvc.perform(get("/api/notifications/{id}", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void detalleInexistenteDevuelve404() throws Exception {
+        UUID notificacionId = UUID.randomUUID();
+        when(consultaService.obtener(eq(notificacionId), any(UUID.class)))
+                .thenThrow(ApiException.notFound("NOTIFICATION_NOT_FOUND", "La notificación no existe"));
+
+        mockMvc.perform(get("/api/notifications/{id}", notificacionId)
+                        .header("X-User-Id", CLIENTE)
+                        .header("X-User-Role", "CLIENT"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOTIFICATION_NOT_FOUND"))
+                .andExpect(jsonPath("$.detail").value("La notificación no existe"));
+    }
+
+    @Test
+    void detalleConUuidInvalidoDevuelve400() throws Exception {
+        mockMvc.perform(get("/api/notifications/{id}", "no-uuid")
+                        .header("X-User-Id", CLIENTE)
+                        .header("X-User-Role", "CLIENT"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
 }

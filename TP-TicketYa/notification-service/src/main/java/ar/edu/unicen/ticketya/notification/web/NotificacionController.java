@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -26,7 +27,7 @@ public class NotificacionController {
         this.consultaService = consultaService;
     }
 
-    @GetMapping
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Listar mis notificaciones",
             description = "Devuelve solo las notificaciones del cliente autenticado, ordenadas por fecha "
                     + "descendente. Permite filtrar por estado y pagina con page/size.")
@@ -45,11 +46,12 @@ public class NotificacionController {
         return consultaService.listar(identity.userId(), estado, page, size);
     }
 
-    @GetMapping("/{notificacionId}")
+    @GetMapping(value = "/{notificacionId}", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Consultar una notificación propia",
             description = "Devuelve el estado, los intentos y las fechas de una notificación del cliente "
                     + "autenticado. Una notificación de otro cliente responde 403.")
     @ApiResponse(responseCode = "200", description = "Notificación propia")
+    @ApiResponse(responseCode = "400", description = "Identificador inválido (VALIDATION_ERROR)")
     @ApiResponse(responseCode = "401", description = "Falta identidad (UNAUTHORIZED)")
     @ApiResponse(responseCode = "403", description = "Notificación de otro cliente (NOTIFICATION_FORBIDDEN)")
     @ApiResponse(responseCode = "404", description = "La notificación no existe (NOTIFICATION_NOT_FOUND)")
