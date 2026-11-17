@@ -50,7 +50,9 @@ class TokenFilaPostgresTest {
 
     @AfterEach
     void apagarAltaDemanda() {
-        jdbcTemplate.update("UPDATE evento_inventario SET alta_demanda = false WHERE evento_id = ?", EVENTO);
+        jdbcTemplate.update(
+                "UPDATE evento_inventario SET alta_demanda = false, limite_por_cliente = 4 WHERE evento_id = ?",
+                EVENTO);
     }
 
     @Test
@@ -95,6 +97,26 @@ class TokenFilaPostgresTest {
                 "SELECT queue_jti FROM reserva WHERE id = ?", UUID.class, respuesta.id())).isEqualTo(jti);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT origen FROM reserva WHERE id = ?", String.class, respuesta.id())).isEqualTo("FILA");
+    }
+
+    @Test
+    void elMismoTokenNoSalteaElLimitePorCliente() {
+        marcarAltaDemanda();
+        jdbcTemplate.update("UPDATE evento_inventario SET limite_por_cliente = 1 WHERE evento_id = ?", EVENTO);
+        UUID cliente = UUID.randomUUID();
+        String jwt = token(EVENTO, cliente, Instant.now().plusSeconds(300), clave());
+        int antes = disponibles();
+
+        reservaService.reservar(pedido(), cliente, jwt);
+        ApiException segunda = catchThrowableOfType(
+                () -> reservaService.reservar(pedido(), cliente, jwt), ApiException.class);
+
+        assertThat(segunda.getStatus().value()).isEqualTo(422);
+        assertThat(segunda.getCode()).isEqualTo("CLIENT_LIMIT_EXCEEDED");
+        assertThat(disponibles()).isEqualTo(antes - 1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM reserva WHERE cliente_id = ? AND estado = 'VIGENTE'",
+                Integer.class, cliente)).isEqualTo(1);
     }
 
     @Test
