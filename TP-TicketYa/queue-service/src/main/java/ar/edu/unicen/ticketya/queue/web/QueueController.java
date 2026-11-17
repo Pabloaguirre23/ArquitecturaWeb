@@ -18,7 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/queue")
-@Tag(name = "Fila virtual", description = "Ingreso y posición en la fila de un evento de alta demanda.")
+@Tag(name = "Fila virtual", description = """
+        Ingreso y posición en la fila de un evento de alta demanda. \
+        No hay WebSockets: el cliente consulta su posición cada 2 a 5 segundos \
+        hasta recibir HABILITADO o CERRADA.
+        """)
 public class QueueController {
 
     private final FilaService filaService;
@@ -38,6 +42,7 @@ public class QueueController {
             @ApiResponse(responseCode = "201", description = "Primer ingreso"),
             @ApiResponse(responseCode = "200", description = "El cliente ya estaba en la fila"),
             @ApiResponse(responseCode = "401", description = "Falta la identidad"),
+            @ApiResponse(responseCode = "403", description = "El rol no es CLIENT"),
             @ApiResponse(responseCode = "409", description = "El evento no tiene fila o la fila está cerrada")
     })
     public ResponseEntity<PosicionResponse> ingresar(
@@ -45,6 +50,7 @@ public class QueueController {
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestHeader(value = "X-User-Role", required = false) String role) {
         RequestIdentity identity = RequestIdentity.require(userId, role);
+        identity.requireRole("CLIENT");
         FilaService.Ingreso ingreso = filaService.ingresar(eventoId, identity.userId());
         if (ingreso.nuevo()) {
             return ResponseEntity.created(URI.create("/api/queue/events/" + eventoId + "/position"))
@@ -57,12 +63,14 @@ public class QueueController {
     @Operation(summary = "Consultar la posición propia",
             description = """
                     En espera: posición (ZRANK + 1), personas adelante y estimación. \
+                    El cliente repite esta consulta cada 2 a 5 segundos. No hay WebSockets. \
                     Habilitado por una tanda: estado HABILITADO y el token de compra. \
                     404 si nunca ingresó o si el token ya venció.
                     """)
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Posición actual"),
             @ApiResponse(responseCode = "401", description = "Falta la identidad"),
+            @ApiResponse(responseCode = "403", description = "El rol no es CLIENT"),
             @ApiResponse(responseCode = "404", description = "El cliente no está en la fila")
     })
     public PosicionResponse posicion(
@@ -70,6 +78,7 @@ public class QueueController {
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestHeader(value = "X-User-Role", required = false) String role) {
         RequestIdentity identity = RequestIdentity.require(userId, role);
+        identity.requireRole("CLIENT");
         return filaService.consultar(eventoId, identity.userId());
     }
 }

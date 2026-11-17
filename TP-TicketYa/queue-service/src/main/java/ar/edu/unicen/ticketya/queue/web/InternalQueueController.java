@@ -3,6 +3,7 @@ package ar.edu.unicen.ticketya.queue.web;
 import ar.edu.unicen.ticketya.queue.config.QueueProperties;
 import ar.edu.unicen.ticketya.queue.servicio.FilaService;
 import ar.edu.unicen.ticketya.queue.web.dto.AbrirFilaRequest;
+import ar.edu.unicen.ticketya.queue.web.dto.CerrarFilaRequest;
 import ar.edu.unicen.ticketya.queue.web.dto.FilaEstadoResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/internal/events")
-@Tag(name = "Fila interna", description = "Apertura de la fila. La llama catalog al publicar un evento de alta demanda.")
+@Tag(name = "Fila interna", description = "Apertura y cierre de la fila. Catalog la abre al publicar y la cierra al cancelar o finalizar. Inventory la cierra al agotar.")
 public class InternalQueueController {
 
     private final FilaService filaService;
@@ -36,9 +37,7 @@ public class InternalQueueController {
             @PathVariable UUID eventoId,
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
             @RequestBody(required = false) @Valid AbrirFilaRequest body) {
-        if (token == null || !token.equals(properties.internalToken())) {
-            throw ApiException.unauthorized("Falta el encabezado X-Internal-Token");
-        }
+        exigirToken(token);
         Integer batch = body == null ? null : body.batchSize();
         Integer intervalo = body == null ? null : body.intervaloSegundos();
         FilaService.Apertura apertura = filaService.abrir(eventoId, batch, intervalo);
@@ -46,5 +45,26 @@ public class InternalQueueController {
             return ResponseEntity.status(201).body(apertura.estado());
         }
         return ResponseEntity.ok(apertura.estado());
+    }
+
+    @PostMapping("/{eventoId}/close")
+    @Operation(summary = "Cerrar la fila de un evento",
+            description = """
+                    La llama catalog al cancelar o finalizar, e inventory al agotar. \
+                    No admite ingresos nuevos ni emite tokens. Quien estaba en la fila consulta estado CERRADA. \
+                    Repetir el cierre no cambia el motivo original.
+                    """)
+    public FilaEstadoResponse cerrar(
+            @PathVariable UUID eventoId,
+            @RequestHeader(value = "X-Internal-Token", required = false) String token,
+            @RequestBody @Valid CerrarFilaRequest body) {
+        exigirToken(token);
+        return filaService.cerrar(eventoId, body.motivo());
+    }
+
+    private void exigirToken(String token) {
+        if (token == null || !token.equals(properties.internalToken())) {
+            throw ApiException.unauthorized("Falta el encabezado X-Internal-Token");
+        }
     }
 }

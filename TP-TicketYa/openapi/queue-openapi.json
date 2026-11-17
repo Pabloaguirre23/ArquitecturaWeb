@@ -1,0 +1,59 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "TicketYa - queue-service",
+    "version": "0.0.1",
+    "description": "Fila virtual. No hay WebSockets: el cliente consulta GET /position cada 2 a 5 segundos. La habilitación es por tandas."
+  },
+  "paths": {
+    "/api/queue/events/{eventoId}/join": {
+      "post": {
+        "summary": "Ingresar a la fila",
+        "parameters": [
+          { "name": "eventoId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "X-User-Id", "in": "header", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "X-User-Role", "in": "header", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "201": { "description": "Primer ingreso" },
+          "200": { "description": "Reingreso, misma posición" },
+          "401": { "description": "Sin identidad" },
+          "409": { "description": "QUEUE_NOT_OPEN o QUEUE_CLOSED" }
+        }
+      }
+    },
+    "/api/queue/events/{eventoId}/position": {
+      "get": {
+        "summary": "Consultar posición o token",
+        "description": "Polling cada 2 a 5 segundos. EN_ESPERA trae posición y estimación. HABILITADO trae el token, reutilizable hasta exp. CERRADA no trae token.",
+        "parameters": [
+          { "name": "eventoId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "X-User-Id", "in": "header", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "X-User-Role", "in": "header", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "EN_ESPERA, HABILITADO o CERRADA. El token no es de un solo uso y vive hasta exp." },
+          "404": { "description": "NOT_IN_QUEUE" }
+        }
+      }
+    },
+    "/internal/events/{eventoId}": {
+      "post": {
+        "summary": "Abrir la fila. Lo llama catalog al publicar un evento de alta demanda.",
+        "responses": {
+          "201": { "description": "Fila creada" },
+          "200": { "description": "Ya existía. Si está CERRADA, no vuelve a queue:open" }
+        }
+      }
+    },
+    "/internal/events/{eventoId}/close": {
+      "post": {
+        "summary": "Cerrar la fila con motivo CANCELADO, FINALIZADO o AGOTADO.",
+        "responses": {
+          "200": { "description": "Cerrada o ya estaba cerrada" },
+          "404": { "description": "QUEUE_NOT_OPEN" }
+        }
+      }
+    }
+  }
+}
