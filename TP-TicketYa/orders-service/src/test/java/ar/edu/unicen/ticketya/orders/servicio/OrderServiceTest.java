@@ -39,6 +39,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -62,6 +63,8 @@ class OrderServiceTest {
     private ReintegroRepository reintegroRepository;
     @Mock
     private InventoryClient inventoryClient;
+    @Mock
+    private CatalogClient catalogClient;
     @Mock
     private PaymentGateway paymentGateway;
     @Mock
@@ -91,7 +94,7 @@ class OrderServiceTest {
         orderEmissionService = new OrderEmissionService(ordenRepository, ticketService,
                 sagaCompraService, outboxService);
         orderService = new OrderService(ordenRepository, ordenItemRepository, entradaRepository,
-                pagoRepository, reintegroRepository, inventoryClient, paymentGateway,
+                pagoRepository, reintegroRepository, inventoryClient, catalogClient, paymentGateway,
                 orderPersistenceService, orderEmissionService, orderCompensationService,
                 sagaCompraService, idempotencyService, clock);
     }
@@ -120,6 +123,56 @@ class OrderServiceTest {
                 eq(ClavesIdempotencia.paso(response.id(), PasoSaga.PAGO_APROBADO)));
         verify(ordenItemRepository).saveAll(any());
         verify(outboxService).registrar(eq("orden.pagada"), eq(response.id()), any());
+    }
+
+    @Test
+    void crearOrdenEnriqueceElSnapshotDelEventoDesdeCatalog() {
+        ReservationDto reserva = reserva("VIGENTE", OffsetDateTime.parse("2026-11-03T12:10:00-03:00"));
+        UUID sectorId = reserva.items().get(0).sectorId();
+        UUID organizadorId = UUID.randomUUID();
+        when(inventoryClient.obtenerReserva(reserva.id())).thenReturn(reserva);
+        when(catalogClient.obtenerEvento(reserva.eventoId())).thenReturn(new EventoSnapshot(
+                "SHOW", List.of("Los Piojos", "Divididos"), "Tandil", organizadorId,
+                java.util.Map.of(sectorId, "Campo")));
+        stubOrdenGuardada();
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
+                .thenReturn(new PaymentGateway.PaymentResult(EstadoPago.APROBADO, "mock-1"));
+        when(ticketService.emitir(any(Orden.class), any()))
+                .thenReturn(List.of(entrada(reserva, UUID.randomUUID())));
+
+        OrderResponse response = orderService.crear(
+                new CrearOrdenRequest(reserva.id(), MedioPago.TARJETA, "APROBADO"),
+                clienteId, "compra-enriquecida");
+
+        assertThat(response.estado()).isEqualTo(EstadoOrden.PAGADA);
+        ArgumentCaptor<java.util.Map<String, Object>> payload =
+                ArgumentCaptor.forClass(java.util.Map.class);
+        verify(outboxService).registrar(eq("orden.pagada"), eq(response.id()), payload.capture());
+        assertThat(payload.getValue()).containsEntry("eventoTipo", "SHOW")
+                .containsEntry("ciudad", "Tandil")
+                .containsEntry("artistas", List.of("Los Piojos", "Divididos"))
+                .containsEntry("eventoNombre", "Recital");
+    }
+
+    @Test
+    void fallaDeCatalogNoImpideLaCompraYPublicaElEventoConFallback() {
+        ReservationDto reserva = reserva("VIGENTE", OffsetDateTime.parse("2026-11-03T12:10:00-03:00"));
+        when(inventoryClient.obtenerReserva(reserva.id())).thenReturn(reserva);
+        when(catalogClient.obtenerEvento(reserva.eventoId()))
+                .thenThrow(new RuntimeException("catalog caído"));
+        stubOrdenGuardada();
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
+                .thenReturn(new PaymentGateway.PaymentResult(EstadoPago.APROBADO, "mock-1"));
+        when(ticketService.emitir(any(Orden.class), any()))
+                .thenReturn(List.of(entrada(reserva, UUID.randomUUID())));
+
+        OrderResponse response = orderService.crear(
+                new CrearOrdenRequest(reserva.id(), MedioPago.TARJETA, "APROBADO"),
+                clienteId, "compra-sin-catalog");
+
+        assertThat(response.estado()).isEqualTo(EstadoOrden.PAGADA);
+        verify(outboxService).registrar(eq("orden.pagada"), eq(response.id()), any());
+        verify(catalogClient).obtenerEvento(reserva.eventoId());
     }
 
     @Test

@@ -11,6 +11,8 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Bitácora persistente de operaciones críticas (compra, devolución, cancelación e ingreso).
@@ -43,6 +45,7 @@ public class AuditLog {
     @Column(nullable = false, length = 20)
     private ResultadoAuditoria resultado;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String detalle;
 

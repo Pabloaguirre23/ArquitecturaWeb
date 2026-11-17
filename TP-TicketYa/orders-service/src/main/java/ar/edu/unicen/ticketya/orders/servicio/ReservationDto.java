@@ -34,6 +34,27 @@ public record ReservationDto(
                 null, null, null, null, null, null);
     }
 
+    /**
+     * Devuelve una copia enriquecida con el snapshot que viene de catalog. El email
+     * del cliente viene de inventory y se conserva; el resto se completa desde
+     * catalog. El nombre del sector se resuelve por el sectorId del primer item.
+     */
+    public ReservationDto conSnapshot(EventoSnapshot snapshot) {
+        if (snapshot == null) {
+            return this;
+        }
+        String sectorNombre = null;
+        if (items != null && !items.isEmpty() && snapshot.sectores() != null) {
+            UUID sectorId = items.get(0).sectorId();
+            if (sectorId != null) {
+                sectorNombre = snapshot.sectores().get(sectorId);
+            }
+        }
+        return new ReservationDto(id, eventoId, eventoNombre, eventoFecha, clienteId, estado,
+                expiresAt, items, total, clienteEmail, snapshot.organizadorId(), sectorNombre,
+                snapshot.tipo(), snapshot.artistas(), snapshot.ciudad());
+    }
+
     public record Item(
             UUID sectorId,
             UUID asientoId,

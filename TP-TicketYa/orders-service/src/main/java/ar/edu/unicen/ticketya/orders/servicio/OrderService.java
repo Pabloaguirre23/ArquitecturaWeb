@@ -26,6 +26,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,7 @@ import org.springframework.web.client.RestClientResponseException;
 public class OrderService {
 
     private static final List<String> TOKENS_VALIDOS = List.of("APROBADO", "RECHAZADO", "LENTO");
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OrdenRepository ordenRepository;
     private final OrdenItemRepository ordenItemRepository;
@@ -43,6 +46,7 @@ public class OrderService {
     private final PagoRepository pagoRepository;
     private final ReintegroRepository reintegroRepository;
     private final InventoryClient inventoryClient;
+    private final CatalogClient catalogClient;
     private final PaymentGateway paymentGateway;
     private final OrderPersistenceService orderPersistenceService;
     private final OrderEmissionService orderEmissionService;
@@ -57,6 +61,7 @@ public class OrderService {
                         PagoRepository pagoRepository,
                         ReintegroRepository reintegroRepository,
                         InventoryClient inventoryClient,
+                        CatalogClient catalogClient,
                         PaymentGateway paymentGateway,
                         OrderPersistenceService orderPersistenceService,
                         OrderEmissionService orderEmissionService,
@@ -70,6 +75,7 @@ public class OrderService {
         this.pagoRepository = pagoRepository;
         this.reintegroRepository = reintegroRepository;
         this.inventoryClient = inventoryClient;
+        this.catalogClient = catalogClient;
         this.paymentGateway = paymentGateway;
         this.orderPersistenceService = orderPersistenceService;
         this.orderEmissionService = orderEmissionService;
@@ -132,6 +138,7 @@ public class OrderService {
     private OrderResponse ejecutarCompra(CrearOrdenRequest request, UUID clienteId) {
         ReservationDto reserva = consultarReserva(request.reservaId());
         validarReserva(reserva, clienteId);
+        reserva = enriquecerConCatalog(reserva);
 
         // Paso RESERVA_VALIDADA cumplido. La orden y la saga nacen en una transacción corta.
         OrderPersistenceService.OrdenCreada creada =
@@ -188,6 +195,25 @@ public class OrderService {
         orden.setEstado(estado);
         orderCompensationService.compensar(orden.getId(), estado, motivo);
         return toResponse(orden, items, List.of());
+    }
+
+    /**
+     * Enriquece el snapshot del evento con datos de catalog (tarea 6.3). Es
+     * best-effort: si catalog falla o no responde, se sigue con la reserva
+     * original para que la compra no se caiga por un servicio auxiliar.
+     */
+    private ReservationDto enriquecerConCatalog(ReservationDto reserva) {
+        if (reserva == null || reserva.eventoId() == null) {
+            return reserva;
+        }
+        try {
+            EventoSnapshot snapshot = catalogClient.obtenerEvento(reserva.eventoId());
+            return reserva.conSnapshot(snapshot);
+        } catch (RuntimeException ex) {
+            log.warn("No se pudo enriquecer el snapshot del evento {} desde catalog: {}",
+                    reserva.eventoId(), ex.getMessage());
+            return reserva;
+        }
     }
 
     private ReservationDto consultarReserva(UUID reservaId) {

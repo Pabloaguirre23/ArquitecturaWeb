@@ -87,6 +87,15 @@ El sobre respeta el contrato de [`docs/eventos.md`](../docs/eventos.md): `eventI
   tope `max`). Agotar `maxAttempts` no borra ni marca como fallido el evento: se sigue
   reintentando con el mismo `eventId`. No hay estado `FAILED` en la migración V5.
 
+### Snapshot del evento desde catalog
+
+`inventory` solo entrega `eventoNombre` y `eventoFecha` en la reserva; el resto del snapshot
+(`eventoTipo`, `artistas`, `ciudad`, `eventoOrganizadorId` y `sectorNombre`) se completa al crear
+la orden consultando `GET /api/catalog/events/{eventoId}` con `CatalogRestClient` (timeouts de
+1 s de conexión y 2 s de lectura). El enriquecimiento es **best-effort**: si catalog falla,
+devuelve vacío o no responde, se continúa con la reserva original y la compra no se interrumpe;
+los campos que no se pudieron completar quedan en `null`/lista vacía en el evento.
+
 ## Devoluciones y reintentos
 
 - Al aprobar una devolución, la entrada pasa a `EN_DEVOLUCION` (deja de ser válida) y recién
@@ -114,6 +123,7 @@ La migración `V5` de la Entrega 2 agrega el snapshot de compra (`cliente_email`
 | `DB_URL` | `jdbc:postgresql://localhost:5435/orders_db` | Conexión JDBC |
 | `DB_USER` / `DB_PASSWORD` | `ticketya` | Credenciales |
 | `INVENTORY_URL` | `http://localhost:8082` | Cliente interno hacia inventory |
+| `CATALOG_URL` | `http://localhost:8081` | Cliente a catalog para enriquecer el snapshot del evento |
 | `ORDERS_SAGAS_RETRY_DELAY_MS` | `60000` | Frecuencia del reintento de sagas `COMPENSANDO` |
 | `ORDERS_SAGAS_MAX_INTENTOS` | `10` | Reintentos de compensación antes de `FALLIDA` |
 | `RABBITMQ_HOST` / `RABBITMQ_PORT` | `localhost` / `5672` | Broker del outbox |

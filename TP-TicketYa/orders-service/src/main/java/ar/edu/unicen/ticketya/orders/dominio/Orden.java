@@ -11,6 +11,8 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "orden")
@@ -45,6 +47,7 @@ public class Orden {
     private String eventoTipo;
 
     /** Snapshot de artistas como arreglo JSON (por ejemplo {@code ["Los Piojos"]}). */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "evento_artistas", nullable = false, columnDefinition = "jsonb")
     private String eventoArtistas = "[]";
 

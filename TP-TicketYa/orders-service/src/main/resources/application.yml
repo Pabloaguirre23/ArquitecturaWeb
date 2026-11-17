@@ -42,6 +42,9 @@ springdoc:
 inventory:
   url: ${INVENTORY_URL:http://localhost:8082}
 
+catalog:
+  url: ${CATALOG_URL:http://localhost:8081}
+
 orders:
   outbox:
     exchange: ${ORDERS_OUTBOX_EXCHANGE:ticketya.events}
