@@ -24,6 +24,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -149,9 +150,13 @@ public class InventoryController {
             @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
                     description = "CLIENT, ORGANIZER o ADMIN.",
                     schema = @Schema(type = "string"), example = "CLIENT")
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @Parameter(name = "X-Queue-Token", in = ParameterIn.HEADER,
+                    description = "JWT de fila. Obligatorio si el evento es de alta demanda.",
+                    schema = @Schema(type = "string"))
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
-        ReservationResponse response = reservaService.reservar(request, identity.userId());
+        ReservationResponse response = reservaService.reservar(request, identity.userId(), queueToken);
         return ResponseEntity.created(URI.create("/api/inventory/reservations/" + response.id())).body(response);
     }
 
@@ -189,5 +194,29 @@ public class InventoryController {
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
         return reservaService.obtener(reservaId, identity.userId());
+    }
+
+    @DeleteMapping("/reservations/{reservaId}")
+    @Operation(summary = "Cancelar una reserva propia",
+            description = """
+                    Solo el dueño, y solo si sigue VIGENTE. Libera asientos y cupo. \
+                    Repetir la cancelación responde 204 sin liberar otra vez. \
+                    Una reserva de otro cliente responde 403. Una confirmada responde 409. Una vencida responde 410.
+                    """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Cancelada, o ya estaba cancelada"),
+            @ApiResponse(responseCode = "401", description = "Falta la identidad o X-User-Id no es un UUID"),
+            @ApiResponse(responseCode = "403", description = "La reserva es de otro cliente"),
+            @ApiResponse(responseCode = "404", description = "No existe la reserva"),
+            @ApiResponse(responseCode = "409", description = "La reserva ya está confirmada o no se puede cancelar"),
+            @ApiResponse(responseCode = "410", description = "La reserva está vencida")
+    })
+    public ResponseEntity<Void> cancelar(
+            @PathVariable UUID reservaId,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        RequestIdentity identity = RequestIdentity.require(userId, userRole);
+        reservaService.cancelar(reservaId, identity.userId());
+        return ResponseEntity.noContent().build();
     }
 }

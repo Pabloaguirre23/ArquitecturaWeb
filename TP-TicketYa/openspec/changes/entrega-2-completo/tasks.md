@@ -43,9 +43,9 @@
 
 ## 5. inventory-service: token de fila, cancelación y resiliencia
 
-- [ ] 5.1 (P2) Migración Flyway nueva para `alta_demanda` y `queue_jti`; validar el token de fila en la reserva (firma, expiración, evento, cliente) y exigirlo solo en eventos de alta demanda. Verificar 403 sin token/vencido/ajeno y reserva normal con token válido.
-- [ ] 5.2 (P2) Implementar `DELETE /api/inventory/reservations/{id}` para cancelar una reserva propia, liberar asientos/cupo y responder de forma idempotente; verificar 204/200, repetición sin doble liberación, 403 ajeno y 409/410 según estado.
-- [ ] 5.3 (P2) Agregar timeouts, reintentos y circuit breaker a las llamadas de inventory hacia catalog (callbacks y reconciliación), con fallback y logs de correlación; verificar con WireMock los casos 5xx, timeout y recuperación.
+- [x] 5.1 (P2) Migración Flyway nueva para `alta_demanda` y `queue_jti`; validar el token de fila en la reserva (firma, expiración, evento, cliente) y exigirlo solo en eventos de alta demanda. Verificar 403 sin token/vencido/ajeno y reserva normal con token válido.
+- [x] 5.2 (P2) Implementar `DELETE /api/inventory/reservations/{id}` para cancelar una reserva propia, liberar asientos/cupo y responder de forma idempotente; verificar 204/200, repetición sin doble liberación, 403 ajeno y 409/410 según estado.
+- [x] 5.3 (P2) Agregar timeouts, reintentos y circuit breaker a las llamadas de inventory hacia catalog (callbacks y reconciliación), con fallback y logs de correlación; verificar con WireMock los casos 5xx, timeout y recuperación.
 - [ ] 5.4 (P2) Reconciliar disponibilidad y estado del evento con queue-service y catalog ante fallos parciales; verificar que una reserva confirmada descuente una sola vez, que una liberación repetida no aumente el cupo y que la prueba de no doble venta de 100 hilos siga verde. _Plan de evidencia multi-instancia en `docs/pruebas.md` §10: dos instancias contra la misma `inventory_db`._
 - [ ] 5.5 (P2) Actualizar OpenAPI, README y contrato de inventory-service; verificar Swagger UI, ejemplos de 403/409/410 y la integración con el flujo de fila.
 
