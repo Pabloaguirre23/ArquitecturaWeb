@@ -4,7 +4,7 @@ Servicio de catálogo de TicketYa: lugares, sectores, asientos, eventos, precios
 
 - **Puerto:** 8081
 - **Base:** `catalog_db` (PostgreSQL 16, puerto 5433)
-- **Responsable:** P1 — ver [`docs/equipo/compa-1.md`](../docs/equipo/compa-1.md)
+- **Responsable:** P1 — ver [`docs/equipo/entrega-2/p1-ivan.md`](../docs/equipo/entrega-2/p1-ivan.md)
 - **Contrato:** [`docs/api-contract.md`](../docs/api-contract.md), sección 3.
 - **OpenAPI:** [`../openapi/catalog-openapi.json`](../openapi/catalog-openapi.json) · Swagger UI en <http://localhost:8081/swagger-ui.html>
 
@@ -44,18 +44,24 @@ Un evento creado con `altaDemanda: true` (solo modificable en `BORRADOR`) dispar
 
 - **Publicar:** `POST /internal/events/{eventoId}` abre la fila.
 - **Cancelar:** `POST /internal/events/{eventoId}/close` con `{"motivo":"CANCELADO"}`.
-- **Agotar / volver a publicar:** el callback de disponibilidad cierra con `"AGOTADO"` o vuelve a abrir con `"FINALIZADO"` según corresponda; el scheduler de finalización cierra con `"FINALIZADO"`.
+- **Agotar / volver a publicar:** el callback de disponibilidad cierra con `"AGOTADO"` o vuelve a abrir la fila sin motivo cuando vuelve a haber disponibilidad; el scheduler de finalización cierra con `"FINALIZADO"`.
 - **Editar un evento ya publicado:** vuelve a abrir la fila (operación idempotente) como reintento explícito tras una caída de queue.
 
 El cliente `QueueRestClient` usa `X-Internal-Token` (y propaga `X-Correlation-Id` cuando está disponible), timeouts configurables y hasta 3 intentos con backoff ante timeouts, pérdida de conexión o 5xx; los 4xx no se reintentan. Si queue-service está caído, se registra un warning y la publicación, edición o cancelación **continúa igual**: la fila se reintenta en la próxima operación idempotente. Un evento normal (`altaDemanda: false`) nunca llama a queue-service.
 
 ## Caché, límite y endpoints internos (tareas 3.3-3.5)
 
-Las respuestas de lugares, búsqueda y detalle estático pasan por Redis con TTL configurable (`CATALOG_CACHE_TTL`) e informan la cabecera `X-Cache: HIT|MISS|BYPASS`. La disponibilidad y el mapa de asientos se consultan siempre a inventory y nunca se cachean. Publicar, editar, cancelar o cambiar precios invalida el detalle y las búsquedas afectadas; un Redis caído degrada a la base sin romper la consulta.
+Las respuestas de lugares, sectores, búsqueda y detalle estático pasan por Redis con TTL por caché: `CATALOG_CACHE_VENUE_TTL` (10m para lugares y sectores), `CATALOG_CACHE_EVENT_DETAIL_TTL` (2m) y `CATALOG_CACHE_SEARCH_TTL` (30s). La carga usa un lock por clave equivalente a `sync=true` e informa `X-Cache: HIT|MISS|BYPASS`. La disponibilidad y el mapa de asientos se consultan siempre a inventory y nunca se cachean. Publicar, editar, cancelar o cambiar precios invalida el detalle y las búsquedas afectadas; un Redis caído degrada a la base sin romper la consulta.
 
-`limitePorCliente` se configura al crear o editar el evento y viaja en el snapshot de inventory y en la respuesta de detalle. La reducción del límite con ventas ya registradas queda pendiente de contrato con orders/inventory (ver tarea 3.1).
+`limitePorCliente` se configura al crear o editar el evento (debe ser mayor a cero) y viaja en el snapshot de inventory y en la respuesta de detalle. La edición del valor ya está implementada; reducirlo por debajo del límite usado en compras existentes requiere una validación adicional con orders/inventory (ver tarea 3.1).
 
-Los endpoints bajo `/internal/**` no se exponen por el gateway y exigen `X-Internal-Token`: el reporte de un evento y los candidatos de recomendación solo devuelven eventos `PUBLICADO` o `AGOTADO`. El OpenAPI documenta el esquema de seguridad de ese header, la cabecera `X-Cache` en las respuestas cacheadas, los ejemplos de request y un esquema común `ProblemDetail` para todos los errores 4xx/5xx, con ejemplos de `VALIDATION_ERROR`, `EVENT_NOT_FOUND`, `EVENT_NOT_EDITABLE`, `INVENTORY_UNAVAILABLE` y `ORDERS_UNAVAILABLE` según el caso.
+Los endpoints bajo `/internal/**` no se exponen por el gateway y exigen `X-Internal-Token`: el reporte de un evento y los candidatos de recomendación solo devuelven eventos `PUBLICADO` o `AGOTADO`. El OpenAPI documenta el esquema de seguridad de ese header, la cabecera `X-Cache` en las respuestas cacheadas, los ejemplos de request y un esquema común `ProblemDetail` para todos los errores 4xx/5xx, con ejemplos de `VALIDATION_ERROR`, `VENUE_NOT_FOUND`, `EVENT_NOT_FOUND`, `EVENT_NOT_EDITABLE`, `EVENT_NOT_CANCELLABLE` e `INVENTORY_UNAVAILABLE` según el caso. Si orders no responde al cancelar, la operación responde `200` con `cancelacionPendiente: true` y el scheduler reintenta el aviso.
+
+## Outbox de eventos (tarea 3.2)
+
+Publicar, editar o cancelar un evento `PUBLICADO`/`AGOTADO` registra en la **misma transacción** una fila en `outbox_event`. El sobre conserva `eventId`, `type`, `occurredAt`, `correlationId`, `version` y `payload`; el ejemplo compartido con notification-service está en [`docs/ejemplos/evento-publicado.json`](../docs/ejemplos/evento-publicado.json). Los tipos publicados son `evento.publicado`, `evento.actualizado` y `evento.cancelado`, con routing key igual al `type` en el exchange topic `ticketya.events`.
+
+`OutboxPublisher` procesa lotes de `CATALOG_OUTBOX_BATCH_SIZE` cada `CATALOG_OUTBOX_PUBLISH_MS`. Si RabbitMQ falla, incrementa `attempts`, guarda `last_error` y reprograma el evento con backoff lineal (`CATALOG_OUTBOX_BACKOFF_SECONDS × attempts`). Al alcanzar `CATALOG_OUTBOX_MAX_ATTEMPTS` el evento pasa a `FAILED` y deja de reintentarse; el error queda registrado para diagnóstico sin revertir la operación de negocio. Los estados son `PENDING`, `PUBLISHED` y `FAILED`: `V6` crea la tabla y `V8__outbox_failed_status.sql` amplía el `CHECK` para habilitar `FAILED`. El `event_id` es único, de modo que un reintento no duplica el evento.
 
 ## Auditoría (tarea 9.2)
 
@@ -71,8 +77,9 @@ Tablas Flyway en [`src/main/resources/db/migration`](src/main/resources/db/migra
 - `evento` — estado `BORRADOR/PUBLICADO/AGOTADO/CANCELADO/FINALIZADO`, organizador, límite por cliente, `alta_demanda`, `inventario_version` y `cancelacion_pendiente` para el reintento del aviso a orders.
 - `evento_participante` y `evento_sector_precio` — participantes y precio por sector.
 - `audit_log` — bitácora de publicación, edición y cancelación con usuario, rol, resultado, detalle y correlación (`V7`).
+- `outbox_event` — eventos `PENDING`/`PUBLISHED`/`FAILED` con intentos, próximo intento, error y correlación (`V6`, `V8`).
 
-Las migraciones `V3` y `V4` agregan la cancelación pendiente y refuerzan en la base las reglas de `tipo` de evento y capacidad de sectores numerados. `V5` agrega `alta_demanda` e `inventario_version`, con backfill en `1` para eventos ya publicados o agotados. El ER validado está en [`docs/modelo-datos.md`](../docs/modelo-datos.md).
+Las migraciones `V3` y `V4` agregan la cancelación pendiente y refuerzan en la base las reglas de `tipo` de evento y capacidad de sectores numerados. `V5` agrega `alta_demanda` e `inventario_version`, con backfill en `1` para eventos ya publicados o agotados. `V8` habilita el estado `FAILED` en el outbox. El ER validado está en [`docs/modelo-datos.md`](../docs/modelo-datos.md).
 
 Al publicar, el servicio envía a inventory el snapshot del evento (sectores, precios, capacidad y asientos) por `POST /internal/events/{id}/inventory`. Si inventory falla, el evento sigue en `BORRADOR` y se responde `502 INVENTORY_UNAVAILABLE`.
 
@@ -97,7 +104,15 @@ La edición (`PUT /api/catalog/events/{eventoId}`) es parcial: actualiza solo lo
 | `QUEUE_READ_TIMEOUT_MS` | `3000` | Timeout de lectura contra queue |
 | `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | Caché de consultas |
 | `REDIS_TIMEOUT` | `1s` | Timeout del cliente Redis |
-| `CATALOG_CACHE_TTL` | `60s` | TTL de lugares, búsqueda y detalle estático |
+| `CATALOG_CACHE_VENUE_TTL` | `10m` | TTL de lugares y sectores |
+| `CATALOG_CACHE_EVENT_DETAIL_TTL` | `2m` | TTL del detalle estático de eventos |
+| `CATALOG_CACHE_SEARCH_TTL` | `30s` | TTL de la búsqueda de eventos |
+| `RABBITMQ_HOST` / `RABBITMQ_PORT` | `localhost` / `5672` | Broker del outbox |
+| `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | `ticketya` | Credenciales AMQP |
+| `CATALOG_OUTBOX_PUBLISH_MS` | `2000` | Intervalo del publicador de outbox |
+| `CATALOG_OUTBOX_BATCH_SIZE` | `50` | Eventos por lote |
+| `CATALOG_OUTBOX_MAX_ATTEMPTS` | `10` | Intentos antes de marcar `FAILED` |
+| `CATALOG_OUTBOX_BACKOFF_SECONDS` | `5` | Base del backoff lineal |
 | `CATALOG_SCHEDULER_FINALIZACION_MS` | `60000` | Intervalo del scheduler de estados |
 
 ## Ejecutar y probar
@@ -114,4 +129,4 @@ Swagger UI: <http://localhost:8081/swagger-ui.html> · OpenAPI: <http://localhos
 
 El OpenAPI exportado está en [`../openapi/catalog-openapi.json`](../openapi/catalog-openapi.json). Se regenera ejecutando `mvn -Dtest=OpenApiExportTest test`; el test escribe el archivo generado por springdoc en `openapi/catalog-openapi.json` de la raíz del repositorio y verifica los esquemas de seguridad internos y la cabecera `X-Cache`.
 
-Los tests unitarios y de controller no necesitan Docker. La validación de integración con PostgreSQL se corre levantando la base y los servicios (ver `docs/pruebas.md`). Verificación del Día 5: `mvn test` → 122 tests, 0 fallos, 6 omitidos por falta de Docker en el entorno local.
+Los tests unitarios y de controller no necesitan Docker. Los tests de integración con Testcontainers se omiten automáticamente si no hay Docker local; con Docker se validan PostgreSQL (incluido el estado `FAILED` del outbox) y Redis (ver `docs/pruebas.md`). Verificación del Día 7: `mvn test` → 132 tests, 0 fallos, 0 errores, 8 omitidos sin Docker en el entorno local.
