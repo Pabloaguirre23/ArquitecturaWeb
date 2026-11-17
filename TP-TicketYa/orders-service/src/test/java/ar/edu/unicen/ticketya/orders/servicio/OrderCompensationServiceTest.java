@@ -63,7 +63,7 @@ class OrderCompensationServiceTest {
     @Test
     void sinInventarioConfirmadoLiberaLaReservaYNoDevuelveItems() {
         when(sagaCompraService.iniciarCompensacion(ordenId, "PAGO_RECHAZADO")).thenReturn(false);
-        when(orderPersistenceService.prepararCompensacion(ordenId, EstadoOrden.RECHAZADA))
+        when(orderPersistenceService.prepararCompensacion(any(), any(), any()))
                 .thenReturn(preparada(null, null, null, null, List.of()));
 
         service.compensar(ordenId, EstadoOrden.RECHAZADA, "PAGO_RECHAZADO");
@@ -88,7 +88,7 @@ class OrderCompensationServiceTest {
                 new BigDecimal("15000.00"), reintegroId, false, List.of(item));
 
         when(sagaCompraService.iniciarCompensacion(ordenId, "ERROR_EMISION")).thenReturn(true);
-        when(orderPersistenceService.prepararCompensacion(ordenId, EstadoOrden.REINTEGRO_PENDIENTE))
+        when(orderPersistenceService.prepararCompensacion(any(), any(), any()))
                 .thenReturn(preparada);
         when(reintegroRepository.findById(reintegroId)).thenReturn(Optional.of(reintegro));
         when(pagoRepository.findById(pagoId)).thenReturn(Optional.of(pago));
@@ -112,7 +112,7 @@ class OrderCompensationServiceTest {
     @Test
     void siInventoryFallaLaSagaQuedaEnCompensandoParaReintentar() {
         when(sagaCompraService.iniciarCompensacion(ordenId, "ERROR_CONFIRMACION")).thenReturn(false);
-        when(orderPersistenceService.prepararCompensacion(ordenId, EstadoOrden.REINTEGRO_PENDIENTE))
+        when(orderPersistenceService.prepararCompensacion(any(), any(), any()))
                 .thenReturn(preparada(null, null, null, null, List.of()));
         doThrow(new RuntimeException("inventory caído"))
                 .when(inventoryClient).liberarReserva(eq(reservaId), anyString(), anyString());
@@ -127,7 +127,7 @@ class OrderCompensationServiceTest {
     void siLaPasarelaFallaElReintegroQuedaPendienteYLaSagaSeReintenta() {
         UUID reintegroId = UUID.randomUUID();
         when(sagaCompraService.iniciarCompensacion(ordenId, "ERROR_EMISION")).thenReturn(false);
-        when(orderPersistenceService.prepararCompensacion(ordenId, EstadoOrden.REINTEGRO_PENDIENTE))
+        when(orderPersistenceService.prepararCompensacion(any(), any(), any()))
                 .thenReturn(preparada(pagoId, new BigDecimal("15000.00"), reintegroId, false, List.of()));
         doThrow(new RuntimeException("pasarela caída"))
                 .when(paymentGateway).reintegrar(eq(pagoId), any(BigDecimal.class), anyString());
@@ -142,7 +142,7 @@ class OrderCompensationServiceTest {
     @Test
     void unReintegroYaAprobadoNoSeVuelveAPedir() {
         when(sagaCompraService.iniciarCompensacion(ordenId, "REINTENTO")).thenReturn(false);
-        when(orderPersistenceService.prepararCompensacion(ordenId, null))
+        when(orderPersistenceService.prepararCompensacion(any(), any(), any()))
                 .thenReturn(preparada(pagoId, new BigDecimal("15000.00"), UUID.randomUUID(),
                         true, List.of()));
 
@@ -155,7 +155,7 @@ class OrderCompensationServiceTest {
     @Test
     void siNoSePuedePrepararLaCompensacionLaSagaQuedaFallida() {
         when(sagaCompraService.iniciarCompensacion(ordenId, "ERROR_EMISION")).thenReturn(false);
-        when(orderPersistenceService.prepararCompensacion(ordenId, EstadoOrden.REINTEGRO_PENDIENTE))
+        when(orderPersistenceService.prepararCompensacion(any(), any(), any()))
                 .thenThrow(new IllegalStateException("No existe la orden " + ordenId));
 
         assertThatThrownBy(() -> service.compensar(ordenId,

@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> {
 
+    boolean existsByEventId(UUID eventId);
+
     @Query(value = """
             select * from outbox_event
             where status = 'PENDING' and next_attempt_at <= :now

@@ -4,6 +4,7 @@ import ar.edu.unicen.ticketya.orders.dominio.Entrada;
 import ar.edu.unicen.ticketya.orders.dominio.EstadoOrden;
 import ar.edu.unicen.ticketya.orders.dominio.Orden;
 import ar.edu.unicen.ticketya.orders.dominio.OrdenItem;
+import ar.edu.unicen.ticketya.orders.eventos.OrderDomainEvents;
 import ar.edu.unicen.ticketya.orders.repositorio.OrdenRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -22,12 +23,14 @@ public class OrderEmissionService {
     private final OrdenRepository ordenRepository;
     private final TicketService ticketService;
     private final SagaCompraService sagaCompraService;
+    private final OutboxService outboxService;
 
     public OrderEmissionService(OrdenRepository ordenRepository, TicketService ticketService,
-                                SagaCompraService sagaCompraService) {
+                                SagaCompraService sagaCompraService, OutboxService outboxService) {
         this.ordenRepository = ordenRepository;
         this.ticketService = ticketService;
         this.sagaCompraService = sagaCompraService;
+        this.outboxService = outboxService;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -38,6 +41,9 @@ public class OrderEmissionService {
         }
         orden.setEstado(EstadoOrden.PAGADA);
         ordenRepository.save(orden);
+        // Mismo commit que el estado PAGADA: no existe orden pagada sin su evento.
+        outboxService.registrar(OrderDomainEvents.ORDEN_PAGADA, orden.getId(),
+                OrderDomainEvents.ordenPagada(orden));
         sagaCompraService.completarEnTransaccion(orden.getId());
         return entradas;
     }

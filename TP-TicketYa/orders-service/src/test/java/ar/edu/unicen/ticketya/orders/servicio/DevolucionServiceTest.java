@@ -61,6 +61,8 @@ class DevolucionServiceTest {
     private InventoryClient inventoryClient;
     @Mock
     private PaymentGateway paymentGateway;
+    @Mock
+    private OutboxService outboxService;
 
     private DevolucionService service;
     private final UUID clienteId = UUID.randomUUID();
@@ -69,7 +71,7 @@ class DevolucionServiceTest {
     void setUp() {
         service = new DevolucionService(devolucionRepository, entradaRepository,
                 pagoRepository, ordenItemRepository, reintegroRepository,
-                inventoryClient, paymentGateway, CLOCK);
+                inventoryClient, paymentGateway, outboxService, CLOCK);
     }
 
     @Test
@@ -157,6 +159,7 @@ class DevolucionServiceTest {
         verify(inventoryClient).devolverItems(returnDtoCaptor.capture());
         assertThat(returnDtoCaptor.getValue().clienteId()).isEqualTo(entrada.getClienteId());
         verify(paymentGateway).reintegrar(eq(pago.getId()), eq(new BigDecimal("15000.00")), anyString());
+        verify(outboxService).registrar(eq("devolucion.aprobada"), eq(devolucion.getId()), any());
     }
 
     @Test

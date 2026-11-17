@@ -72,6 +72,8 @@ class OrderServiceTest {
     private SagaCompraService sagaCompraService;
     @Mock
     private OrderCompensationService orderCompensationService;
+    @Mock
+    private OutboxService outboxService;
 
     private OrderService orderService;
     private OrderPersistenceService orderPersistenceService;
@@ -85,8 +87,9 @@ class OrderServiceTest {
     void setUp() {
         orderPersistenceService = new OrderPersistenceService(
                 ordenRepository, ordenItemRepository, pagoRepository, reintegroRepository,
-                sagaCompraService);
-        orderEmissionService = new OrderEmissionService(ordenRepository, ticketService, sagaCompraService);
+                sagaCompraService, outboxService);
+        orderEmissionService = new OrderEmissionService(ordenRepository, ticketService,
+                sagaCompraService, outboxService);
         orderService = new OrderService(ordenRepository, ordenItemRepository, entradaRepository,
                 pagoRepository, reintegroRepository, inventoryClient, paymentGateway,
                 orderPersistenceService, orderEmissionService, orderCompensationService,
@@ -116,6 +119,7 @@ class OrderServiceTest {
                 eq(MedioPago.TARJETA), eq("APROBADO"),
                 eq(ClavesIdempotencia.paso(response.id(), PasoSaga.PAGO_APROBADO)));
         verify(ordenItemRepository).saveAll(any());
+        verify(outboxService).registrar(eq("orden.pagada"), eq(response.id()), any());
     }
 
     @Test

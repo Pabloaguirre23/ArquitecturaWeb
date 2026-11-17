@@ -3,6 +3,7 @@ package ar.edu.unicen.ticketya.orders.servicio;
 import ar.edu.unicen.ticketya.orders.dominio.EstadoOrden;
 import ar.edu.unicen.ticketya.orders.dominio.EstadoPago;
 import ar.edu.unicen.ticketya.orders.dominio.EstadoReintegro;
+import ar.edu.unicen.ticketya.orders.eventos.OrderDomainEvents;
 import ar.edu.unicen.ticketya.orders.dominio.Orden;
 import ar.edu.unicen.ticketya.orders.dominio.OrdenItem;
 import ar.edu.unicen.ticketya.orders.dominio.Pago;
@@ -34,17 +35,20 @@ public class OrderPersistenceService {
     private final PagoRepository pagoRepository;
     private final ReintegroRepository reintegroRepository;
     private final SagaCompraService sagaCompraService;
+    private final OutboxService outboxService;
 
     public OrderPersistenceService(OrdenRepository ordenRepository,
                                    OrdenItemRepository ordenItemRepository,
                                    PagoRepository pagoRepository,
                                    ReintegroRepository reintegroRepository,
-                                   SagaCompraService sagaCompraService) {
+                                   SagaCompraService sagaCompraService,
+                                   OutboxService outboxService) {
         this.ordenRepository = ordenRepository;
         this.ordenItemRepository = ordenItemRepository;
         this.pagoRepository = pagoRepository;
         this.reintegroRepository = reintegroRepository;
         this.sagaCompraService = sagaCompraService;
+        this.outboxService = outboxService;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -59,6 +63,13 @@ public class OrderPersistenceService {
         orden.setEventoId(reserva.eventoId());
         orden.setEventoNombre(reserva.eventoNombre());
         orden.setEventoFecha(reserva.eventoFecha());
+        // Snapshot de ADR-017: el payload de orden.pagada no consulta catalog después.
+        orden.setClienteEmail(reserva.clienteEmail());
+        orden.setEventoOrganizadorId(reserva.eventoOrganizadorId());
+        orden.setSectorNombre(reserva.sectorNombre());
+        orden.setEventoTipo(reserva.eventoTipo());
+        orden.setEventoArtistas(OrderDomainEvents.artistasJson(reserva.artistas()));
+        orden.setEventoCiudad(reserva.ciudad());
         orden.setEstado(EstadoOrden.PENDIENTE_PAGO);
         orden.setMedioPago(request.medioPago());
         orden.setTotal(total);
@@ -123,6 +134,17 @@ public class OrderPersistenceService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CompensacionPreparada prepararCompensacion(UUID ordenId, EstadoOrden estadoOrden) {
+        return prepararCompensacion(ordenId, estadoOrden, null);
+    }
+
+    /**
+     * Igual que {@link #prepararCompensacion(UUID, EstadoOrden)} pero registra
+     * `orden.reintegrada` en la misma transacción en que nace el reintegro. El
+     * evento se emite solo cuando hubo un pago aprobado que devolver.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public CompensacionPreparada prepararCompensacion(UUID ordenId, EstadoOrden estadoOrden,
+                                                      String motivo) {
         Orden orden = ordenRepository.findById(ordenId)
                 .orElseThrow(() -> new IllegalStateException("No existe la orden " + ordenId));
         if (estadoOrden != null) {
@@ -151,6 +173,8 @@ public class OrderPersistenceService {
                 reintegroId = reintegro.getId();
                 reintegroAprobado = reintegro.getEstado() == EstadoReintegro.APROBADO;
             }
+            outboxService.registrar(OrderDomainEvents.ORDEN_REINTEGRADA, ordenId,
+                    OrderDomainEvents.ordenReintegrada(orden, pago.getMonto(), motivo));
         }
 
         return new CompensacionPreparada(ordenId, orden.getReservaId(), orden.getEventoId(),

@@ -18,7 +18,21 @@ public record ReservationDto(
         String estado,
         OffsetDateTime expiresAt,
         List<Item> items,
-        BigDecimal total) {
+        BigDecimal total,
+        String clienteEmail,
+        UUID eventoOrganizadorId,
+        String sectorNombre,
+        String eventoTipo,
+        List<String> artistas,
+        String ciudad) {
+
+    /** Constructor de la respuesta de Entrega 1, sin el snapshot extendido. */
+    public ReservationDto(UUID id, UUID eventoId, String eventoNombre, OffsetDateTime eventoFecha,
+                          UUID clienteId, String estado, OffsetDateTime expiresAt,
+                          List<Item> items, BigDecimal total) {
+        this(id, eventoId, eventoNombre, eventoFecha, clienteId, estado, expiresAt, items, total,
+                null, null, null, null, null, null);
+    }
 
     public record Item(
             UUID sectorId,

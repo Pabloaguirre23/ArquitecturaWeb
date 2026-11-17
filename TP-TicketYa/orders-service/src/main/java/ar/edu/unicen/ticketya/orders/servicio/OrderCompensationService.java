@@ -75,7 +75,7 @@ public class OrderCompensationService {
 
         OrderPersistenceService.CompensacionPreparada preparada;
         try {
-            preparada = orderPersistenceService.prepararCompensacion(ordenId, estadoOrden);
+            preparada = orderPersistenceService.prepararCompensacion(ordenId, estadoOrden, motivo);
         } catch (IllegalStateException ex) {
             sagaCompraService.marcarFallida(ordenId, "No se pudo preparar la compensación: " + ex.getMessage());
             throw ex;
