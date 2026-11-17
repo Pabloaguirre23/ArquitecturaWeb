@@ -6,7 +6,7 @@ Servicio de preferencias, historial de compras y recomendaciones de TicketYa sob
 - **Base:** `recommendation_db` (MongoDB 7, puerto 27017)
 - **Responsable:** P5 — ver [`docs/equipo/entrega-2/p5-franco.md`](../docs/equipo/entrega-2/p5-franco.md)
 - **Contrato:** [`docs/api-contract.md`](../docs/api-contract.md), sección 6
-- **Estado:** Día 5 — tareas 1.7, 7.1–7.4 y 2.7. La 7.5 (eventos similares) está en el PR #10.
+- **Estado:** Día 5 — tareas 1.7, 7.1–7.5 y 2.7.
 
 ## Endpoints implementados
 
@@ -15,6 +15,7 @@ Servicio de preferencias, historial de compras y recomendaciones de TicketYa sob
 | GET | `/api/recommendations/preferences` | CLIENT | Preferencias del cliente autenticado |
 | PUT | `/api/recommendations/preferences` | CLIENT | Upsert idempotente de tipos, artistas y ciudad |
 | GET | `/api/recommendations` | CLIENT | Recomendaciones por preferencias, popularidad y co-compra |
+| GET | `/api/recommendations/events/{eventId}/similar` | CLIENT | Eventos similares por co-compra |
 | GET | `/internal/preferences/{clienteId}` | interno | Consulta para notification-service con `X-Internal-Token` |
 
 La identidad llega desde el gateway en `X-User-Id` y `X-User-Role`; el cliente final usa JWT contra el gateway (tareas 2.1–2.7). La ruta `/api/recommendations/**` se agrega al gateway en la tarea de P4; hasta entonces el servicio se prueba directo en el puerto 8084.
@@ -119,6 +120,42 @@ Reglas del ranking:
 - Cada ítem devuelve sus `motivos`; sin candidatos se responde `200` con lista vacía.
 - Si catalog no responde, se usa el snapshot `eventos_vistos` (fallback) y se registra la degradación en el log.
 - El cliente nuevo recibe los eventos populares de su ciudad o, si no declaró ciudad, los populares generales.
+
+### Eventos similares
+
+```bash
+curl http://localhost:8084/api/recommendations/events/d0000000-0000-4000-8000-000000000001/similar \
+  -H "X-User-Id: 33333333-3333-4333-8333-333333333333" \
+  -H "X-User-Role: CLIENT"
+```
+
+```json
+{
+  "eventoId": "d0000000-0000-4000-8000-000000000001",
+  "generadoEn": "2026-11-16T13:00:00Z",
+  "similares": [
+    {
+      "eventoId": "d0000000-0000-4000-8000-000000000002",
+      "nombre": "El Avaro — Teatro Universitario",
+      "tipo": "TEATRO",
+      "artistas": ["Compañía Teatral Tandil"],
+      "ciudad": "Tandil",
+      "fechaEvento": "2027-04-18T23:30:00Z",
+      "compradoresEnComun": 3
+    }
+  ]
+}
+```
+
+Reglas:
+
+- Se buscan los clientes que compraron el evento consultado y después los otros eventos que compraron esos clientes.
+- `compradoresEnComun` cuenta clientes distintos: una misma persona no suma dos veces aunque tenga varias órdenes del mismo evento.
+- Se excluyen el evento consultado, los que el cliente autenticado ya compró, los cancelados/finalizados y los pasados.
+- Se ordena por `compradoresEnComun` descendente; los empates se resuelven por fecha del evento y nombre.
+- La metadata sale del snapshot `eventos_vistos`; un evento sin snapshot no se muestra.
+- Sin otros compradores o sin candidatos elegibles: `200` con `similares: []`.
+- `400` si `eventId` no es UUID, `401` sin identidad y `403` para roles distintos de `CLIENT`.
 
 #### Contrato esperado de catalog (tarea 3.5)
 
@@ -232,7 +269,8 @@ El OpenAPI exportado está en [`../openapi/recommendation-openapi.json`](../open
 - `InternalPreferenceControllerTest`: token interno ausente, incorrecto y válido.
 - `HistorialServiceTest`: evento pagado, duplicado, reintegro, estado no pagado y eventId inválido.
 - `RecommendationServiceTest`: ranking por preferencias/popularidad/co-compra, exclusión de comprados y no elegibles, cliente nuevo, sin candidatos y fallback por catalog caído.
-- `RecommendationControllerTest`: `200`, `401`, `403` y lista vacía.
+- `SimilarEventsServiceTest`: co-compra ordenada por compradores en común, exclusión de lo ya comprado/no elegible y lista vacía sin otros compradores.
+- `RecommendationControllerTest`: `200`, `400`, `401`, `403` y lista vacía de recomendaciones y similares.
 - `CatalogoRestClientTest`: candidatos, timeout/5xx con reintentos y sin reintento de 4xx.
 - `RecommendationMongoIntegrationTest` (Testcontainers `mongo:7`): índices, seed, preferencias y registro idempotente del historial.
 - `RecommendationRabbitIntegrationTest` (Testcontainers `mongo:7` + `rabbitmq:3.13`): orden pagada consumida una vez, duplicado descartado y reintegro no registrado.

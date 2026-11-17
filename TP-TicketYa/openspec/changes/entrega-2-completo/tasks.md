@@ -65,7 +65,7 @@
 - [x] 7.2 (P5) Implementar `PUT`/`GET /api/recommendations/preferences` con validación de tipos, artistas y ciudad, upsert idempotente y acceso solo al propio cliente; verificar 200, 400, 403 y actualización sin duplicados. _Hecho el Día 2: 200/400/401/403 probados con MockMvc y curl, y upsert sin duplicados contra MongoDB real._
 - [x] 7.3 (P5) Consumir `orden.pagada` y registrar el historial de forma idempotente por `eventId`; verificar que un evento duplicado no duplique el historial y que una compra reintegrada no se registre. _Hecho el Día 3: listener RabbitMQ, upsert con índice único y test de Testcontainers con duplicado y reintegro._
 - [x] 7.4 (P5) Implementar recomendaciones por preferencias y co-compra, con motivos, exclusión de eventos no elegibles, fallback de populares y resiliencia ante catalog; verificar cliente con historial, cliente nuevo, sin candidatos y catalog caído. _Hecho el Día 3: ranking explicable, co-compra en dos consultas, fallback a `eventos_vistos` y tests unitarios/HTTP._
-- [ ] 7.5 (P5) Implementar `GET /api/recommendations/events/{eventId}/similar` y actualizar OpenAPI, README y contrato; verificar resultados ordenados por frecuencia y lista vacía cuando no hay datos.
+- [x] 7.5 (P5) Implementar `GET /api/recommendations/events/{eventId}/similar` y actualizar OpenAPI, README y contrato; verificar resultados ordenados por frecuencia y lista vacía cuando no hay datos. _Hecho el Día 4: co-compra con conteo de clientes distintos, exclusión de comprados/no elegibles, metadata del snapshot `eventos_vistos`, tests de servicio/HTTP y evidencia en `docs/evidencia/entrega-2-dia-4.txt`._
 
 ## 8. notification-service: eventos, reintentos y consulta
 

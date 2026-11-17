@@ -7,6 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import ar.edu.unicen.ticketya.recommendation.servicio.RecommendationService;
+import ar.edu.unicen.ticketya.recommendation.servicio.SimilarEventsService;
+import ar.edu.unicen.ticketya.recommendation.web.dto.EventoSimilarItem;
+import ar.edu.unicen.ticketya.recommendation.web.dto.EventosSimilaresResponse;
 import ar.edu.unicen.ticketya.recommendation.web.dto.RecomendacionItem;
 import ar.edu.unicen.ticketya.recommendation.web.dto.RecomendacionesResponse;
 import java.time.Instant;
@@ -30,6 +33,9 @@ class RecommendationControllerTest {
 
     @MockitoBean
     private RecommendationService recommendationService;
+
+    @MockitoBean
+    private SimilarEventsService similarEventsService;
 
     @Test
     void sinIdentidadDevuelve401() throws Exception {
@@ -86,5 +92,42 @@ class RecommendationControllerTest {
                         .header("X-User-Role", "CLIENT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.recomendaciones").isEmpty());
+    }
+
+    @Test
+    void devuelveEventosSimilaresOrdenadosPorCompradoresEnComun() throws Exception {
+        String objetivo = "d0000000-0000-4000-8000-000000000001";
+        String similar = "d0000000-0000-4000-8000-000000000002";
+        when(similarEventsService.similares(CLIENTE, UUID.fromString(objetivo)))
+                .thenReturn(new EventosSimilaresResponse(objetivo,
+                        Instant.parse("2026-11-16T12:00:00Z"),
+                        List.of(new EventoSimilarItem(similar, "El Avaro", "TEATRO",
+                                List.of("Compañía Teatral Tandil"), "Tandil",
+                                Instant.parse("2027-04-18T23:30:00Z"), 3))));
+
+        mockMvc.perform(get("/api/recommendations/events/{eventId}/similar", objetivo)
+                        .header("X-User-Id", CLIENTE_TEXTO)
+                        .header("X-User-Role", "CLIENT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eventoId").value(objetivo))
+                .andExpect(jsonPath("$.similares[0].eventoId").value(similar))
+                .andExpect(jsonPath("$.similares[0].compradoresEnComun").value(3));
+    }
+
+    @Test
+    void sinIdentidadEnSimilaresDevuelve401() throws Exception {
+        mockMvc.perform(get("/api/recommendations/events/{eventId}/similar",
+                        "d0000000-0000-4000-8000-000000000001"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void eventoIdInvalidoEnSimilaresDevuelve400() throws Exception {
+        mockMvc.perform(get("/api/recommendations/events/{eventId}/similar", "no-es-un-uuid")
+                        .header("X-User-Id", CLIENTE_TEXTO)
+                        .header("X-User-Role", "CLIENT"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 }

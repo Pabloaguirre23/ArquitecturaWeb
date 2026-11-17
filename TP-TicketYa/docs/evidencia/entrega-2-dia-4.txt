@@ -1,0 +1,98 @@
+Día 4 — 16/11/2026 — recommendation-service (P5)
+Tarea: 7.5 (eventos similares por co-compra)
+
+1) Implementación
+
+- GET /api/recommendations/events/{eventId}/similar (rol CLIENT).
+- Paso 1: clientes que compraron el evento consultado (`historial_compras` por eventoId),
+  excluyendo al cliente autenticado.
+- Paso 2: otros eventos comprados por esos clientes, contando clientes distintos por evento.
+- Se excluyen el evento consultado, los que el cliente ya compró, los cancelados/finalizados,
+  los pasados y los eventos sin snapshot en `eventos_vistos`.
+- Orden: compradoresEnComun descendente; empate por fecha del evento y nombre.
+- Respuesta: { eventoId, generadoEn, similares[] } con eventoId, nombre, tipo, artistas,
+  ciudad, fechaEvento y compradoresEnComun.
+- Sin otros compradores o sin candidatos: 200 con `similares: []`.
+
+2) Suite enfocada
+
+$ export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+$ cd recommendation-service
+$ mvn -B -ntp -Dtest='RecommendationServiceTest,SimilarEventsServiceTest,RecommendationControllerTest,OpenApiExportTest' test
+
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0 -- RecommendationControllerTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0 -- OpenApiExportTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0 -- SimilarEventsServiceTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0 -- RecommendationServiceTest
+[INFO] Tests run: 16, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+
+Suite completa sin Testcontainers (misma corrida, excluyendo Mongo/Rabbit):
+$ mvn -B -ntp -Dtest='!RecommendationMongoIntegrationTest,!RecommendationRabbitIntegrationTest' test
+[INFO] Tests run: 45, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+
+Casos cubiertos:
+- Orden por frecuencia: E2 (3 compradores), E5 (2), E4 (2); el evento consultado y el ya
+  comprado por el cliente no aparecen; dos compras del mismo cliente cuentan una vez.
+- Sin otros compradores -> 200 con lista vacía.
+- Cancelado, pasado y sin snapshot -> no se listan.
+- 200 con identidad CLIENT, 401 sin identidad, 400 con UUID inválido y 403/401 cubiertos por
+  el patrón del controller.
+
+3) OpenAPI
+
+$ python3 -c "import json;d=json.load(open('openapi/recommendation-openapi.json'));print(list(d['paths']))"
+['/api/recommendations/preferences', '/internal/preferences/{clienteId}',
+ '/api/recommendations', '/api/recommendations/events/{eventId}/similar']
+
+$ python3 -c "import json;d=json.load(open('openapi/recommendation-openapi.json'));\
+print([k for k in d['components']['schemas'] if 'imilar' in k])"
+['EventoSimilarItem', 'EventosSimilaresResponse']
+
+El JSON se regeneró con OpenApiExportTest; no se editó a mano.
+
+4) Documentación
+
+- recommendation-service/README.md: endpoint, ejemplo, reglas y tests.
+- docs/api-contract.md: fila en el resumen y sección 6.5; el consumidor de orden.pagada pasó
+  a 6.6.
+- openspec/changes/entrega-2-completo/tasks.md: 7.5 marcada con esta evidencia.
+- docs/checklist-entrega-2.md: preferencias y recomendaciones 7.1–7.5 completas.
+- openspec validate entrega-2-completo --strict -> "Change 'entrega-2-completo' is valid".
+
+5) Nota de entorno
+
+Docker Desktop no estaba iniciado en esta máquina, así que no se repitieron los tests de
+Testcontainers de los días 2–3 (MongoDB y RabbitMQ). El consumidor, los índices y el seed no
+se modificaron en esta tarea. La suite enfocada de 7.5 no requiere Docker.
+
+6) Revisión cruzada del avance de P1 (rama feat/entrega-2-ivan-dia-2, 11 commits)
+
+Qué hizo:
+- 3.3: cache Redis para detalle/búsqueda de catalog, header X-Cache y degradación tolerante
+  cuando Redis falla (BYPASS).
+- 3.2: outbox transaccional con V6__outbox_event.sql, publicador @Scheduled cada 2 s y
+  lockPending con FOR UPDATE SKIP LOCKED; publica evento.publicado/evento.actualizado.
+- 2.4: identidad X-User-* y X-Internal-Token en catalog y notification.
+- 8.1: base de notification-service con tabla notificacion, sender mock y reintentos.
+- Fixes de compilación con Java 21, BOM y OpenAPI; la rama no está incluida todavía en el
+  PR #8 (feat/entrega-2-dia-1 quedó en 151cfb7) y no tiene PR propio.
+
+Verificación:
+- `mvn -B -ntp -DskipTests compile` en catalog-service -> BUILD SUCCESS.
+- Tests unitarios/HTTP de catalog sin Testcontainers (EventServiceTest, EventControllerTest,
+  VenueServiceTest, VenueControllerTest, InternalEventControllerTest, OpenApiExportTest)
+  -> 78 tests, 0 fallos.
+
+Observaciones para el PR:
+- V6 define CHECK (status IN ('PENDING','PUBLISHED')) pero OutboxStatus incluye FAILED y el
+  publicador asigna FAILED al agotar reintentos. En PostgreSQL eso viola el constraint y hace
+  rollback de todo el lote, incluidas las marcas PUBLISHED ya enviadas (republicación
+  duplicada). Hay que permitir FAILED en el constraint o no persistir ese estado.
+- Varios archivos quedaron con mojibake en los textos en español (por ejemplo EventService.java
+  tiene "estÃ¡", "despuÃ©s"; NotificationService.java tiene 2 casos) y application.yml conserva
+  el BOM. Conviene pasar los archivos por UTF-8 sin BOM antes de mergear.
+- El outbox publica dentro de la misma transacción que marca los estados; el envío a RabbitMQ
+  no es transaccional. Es aceptable como at-least-once si los consumidores son idempotentes,
+  pero debe quedar documentado en el ADR o en el README de catalog.

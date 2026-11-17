@@ -125,6 +125,7 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 | GET | `/api/recommendations/preferences` | CLIENT | 200 | recommendation |
 | PUT | `/api/recommendations/preferences` | CLIENT | 200 | recommendation |
 | GET | `/api/recommendations` | CLIENT | 200 | recommendation |
+| GET | `/api/recommendations/events/{eventId}/similar` | CLIENT | 200 | recommendation |
 
 “Autenticado” significa `CLIENT`, `ORGANIZER` o `ADMIN`; el dueño del recurso se valida dentro del servicio.
 Los endpoints `/internal/**` no se listan porque no se exponen por el gateway.
@@ -842,7 +843,42 @@ Devuelve eventos publicados y futuros ordenados por afinidad. Excluye lo ya comp
 - Catalog caído o sin el endpoint interno de 3.5: se usa el snapshot `eventos_vistos` y se registra la degradación.
 - `401` sin identidad y `403` para roles distintos de `CLIENT`.
 
-### 6.5 Evento consumido — `orden.pagada`
+### 6.5 Eventos similares — `GET /api/recommendations/events/{eventId}/similar` (CLIENT)
+
+Devuelve los eventos que compraron otros clientes que también compraron el evento consultado
+(“quienes compraron este también compraron”), ordenados por cantidad de compradores en común.
+
+```bash
+curl http://localhost:8084/api/recommendations/events/d0000000-0000-4000-8000-000000000001/similar \
+  -H "X-User-Id: 33333333-3333-4333-8333-333333333333" \
+  -H "X-User-Role: CLIENT"
+```
+
+```json
+{
+  "eventoId": "d0000000-0000-4000-8000-000000000001",
+  "generadoEn": "2026-11-16T13:00:00Z",
+  "similares": [
+    {
+      "eventoId": "d0000000-0000-4000-8000-000000000002",
+      "nombre": "El Avaro — Teatro Universitario",
+      "tipo": "TEATRO",
+      "artistas": ["Compañía Teatral Tandil"],
+      "ciudad": "Tandil",
+      "fechaEvento": "2027-04-18T23:30:00Z",
+      "compradoresEnComun": 3
+    }
+  ]
+}
+```
+
+- `compradoresEnComun` cuenta clientes distintos: varias órdenes del mismo cliente cuentan una vez.
+- Se excluyen el evento consultado, los que el cliente ya compró, los cancelados/finalizados y los pasados.
+- La metadata sale del snapshot `eventos_vistos`; un evento sin snapshot no se lista.
+- Sin otros compradores o sin candidatos elegibles: `200` con `similares: []`.
+- `400 VALIDATION_ERROR` si `eventId` no es un UUID; `401` sin identidad y `403` para roles distintos de `CLIENT`.
+
+### 6.6 Evento consumido — `orden.pagada`
 
 recommendation-service consume el sobre de la tarea 1.5 desde `ticketya.events` con routing key `orden.pagada`:
 
