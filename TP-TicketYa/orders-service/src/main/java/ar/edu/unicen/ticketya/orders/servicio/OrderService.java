@@ -8,7 +8,9 @@ import ar.edu.unicen.ticketya.orders.dominio.EstadoReintegro;
 import ar.edu.unicen.ticketya.orders.dominio.Orden;
 import ar.edu.unicen.ticketya.orders.dominio.OrdenItem;
 import ar.edu.unicen.ticketya.orders.dominio.Pago;
+import ar.edu.unicen.ticketya.orders.dominio.PasoSaga;
 import ar.edu.unicen.ticketya.orders.dominio.Reintegro;
+import ar.edu.unicen.ticketya.orders.dominio.SagaCompra;
 import ar.edu.unicen.ticketya.orders.repositorio.EntradaRepository;
 import ar.edu.unicen.ticketya.orders.repositorio.OrdenItemRepository;
 import ar.edu.unicen.ticketya.orders.repositorio.OrdenRepository;
@@ -24,6 +26,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -34,6 +38,7 @@ import org.springframework.web.client.RestClientResponseException;
 public class OrderService {
 
     private static final List<String> TOKENS_VALIDOS = List.of("APROBADO", "RECHAZADO", "LENTO");
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OrdenRepository ordenRepository;
     private final OrdenItemRepository ordenItemRepository;
@@ -41,9 +46,12 @@ public class OrderService {
     private final PagoRepository pagoRepository;
     private final ReintegroRepository reintegroRepository;
     private final InventoryClient inventoryClient;
+    private final CatalogClient catalogClient;
     private final PaymentGateway paymentGateway;
     private final OrderPersistenceService orderPersistenceService;
     private final OrderEmissionService orderEmissionService;
+    private final OrderCompensationService orderCompensationService;
+    private final SagaCompraService sagaCompraService;
     private final IdempotencyService idempotencyService;
     private final Clock clock;
 
@@ -53,9 +61,12 @@ public class OrderService {
                         PagoRepository pagoRepository,
                         ReintegroRepository reintegroRepository,
                         InventoryClient inventoryClient,
+                        CatalogClient catalogClient,
                         PaymentGateway paymentGateway,
                         OrderPersistenceService orderPersistenceService,
                         OrderEmissionService orderEmissionService,
+                        OrderCompensationService orderCompensationService,
+                        SagaCompraService sagaCompraService,
                         IdempotencyService idempotencyService,
                         Clock clock) {
         this.ordenRepository = ordenRepository;
@@ -64,15 +75,19 @@ public class OrderService {
         this.pagoRepository = pagoRepository;
         this.reintegroRepository = reintegroRepository;
         this.inventoryClient = inventoryClient;
+        this.catalogClient = catalogClient;
         this.paymentGateway = paymentGateway;
         this.orderPersistenceService = orderPersistenceService;
         this.orderEmissionService = orderEmissionService;
+        this.orderCompensationService = orderCompensationService;
+        this.sagaCompraService = sagaCompraService;
         this.idempotencyService = idempotencyService;
         this.clock = clock;
     }
 
     /**
-     * Crea la orden, cobra y emite entradas (tareas 4.3 a 4.7).
+     * Crea la orden, cobra y emite entradas siguiendo la saga de compra (tareas
+     * 4.3 a 4.7 y 6.2).
      *
      * <p>La Idempotency-Key se reclama antes de tocar inventory. Si la compra
      * falla, el reclamo se libera para permitir un reintento limpio.</p>
@@ -112,10 +127,20 @@ public class OrderService {
         }
     }
 
+    /**
+     * Saga: RESERVA_VALIDADA → ORDEN_CREADA → PAGO_APROBADO →
+     * INVENTARIO_CONFIRMADO → ENTRADAS_EMITIDAS.
+     *
+     * <p>Cada comando externo usa una clave idempotente derivada de la orden y
+     * el paso. Si un paso posterior al pago falla, se compensa en orden inverso
+     * y la orden nunca queda PAGADA.</p>
+     */
     private OrderResponse ejecutarCompra(CrearOrdenRequest request, UUID clienteId) {
         ReservationDto reserva = consultarReserva(request.reservaId());
         validarReserva(reserva, clienteId);
+        reserva = enriquecerConCatalog(reserva);
 
+        // Paso RESERVA_VALIDADA cumplido. La orden y la saga nacen en una transacción corta.
         OrderPersistenceService.OrdenCreada creada =
                 orderPersistenceService.crearPendiente(reserva, clienteId, request);
         Orden orden = creada.orden();
@@ -125,77 +150,70 @@ public class OrderService {
 
         PaymentGateway.PaymentResult resultado;
         try {
-            resultado = paymentGateway.cobrar(orden.getId(), total, request.medioPago(), request.token());
+            resultado = paymentGateway.cobrar(orden.getId(), total, request.medioPago(), request.token(),
+                    ClavesIdempotencia.paso(orden.getId(), PasoSaga.PAGO_APROBADO));
         } catch (PaymentGatewayException ex) {
-            orden.setEstado(EstadoOrden.ERROR_PAGO);
-            pago.setEstado(EstadoPago.RECHAZADO);
-            ordenRepository.save(orden);
-            pagoRepository.save(pago);
-            liberarSinFallo(reserva.id(), "ERROR_PAGO");
+            orderPersistenceService.registrarPagoRechazado(orden.getId(), pago.getId(), EstadoOrden.ERROR_PAGO);
+            compensar(orden, items, EstadoOrden.ERROR_PAGO, "ERROR_PAGO");
             throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_GATEWAY_ERROR",
                     "La pasarela de pagos falló o no respondió a tiempo");
         }
 
-        pago.setExternalId(resultado.externalId());
         if (resultado.estado() == EstadoPago.RECHAZADO) {
-            orden.setEstado(EstadoOrden.RECHAZADA);
-            pago.setEstado(EstadoPago.RECHAZADO);
-            ordenRepository.save(orden);
-            pagoRepository.save(pago);
-            liberarSinFallo(reserva.id(), "PAGO_RECHAZADO");
-            return toResponse(orden, items, List.of());
+            orderPersistenceService.registrarPagoRechazado(orden.getId(), pago.getId(), EstadoOrden.RECHAZADA);
+            return compensar(orden, items, EstadoOrden.RECHAZADA, "PAGO_RECHAZADO");
         }
 
-        pago.setEstado(EstadoPago.APROBADO);
-        pagoRepository.save(pago);
+        // Paso PAGO_APROBADO: el cobro y el avance de la saga se confirman juntos.
+        orderPersistenceService.registrarPagoAprobado(orden.getId(), pago.getId(), resultado.externalId());
 
         try {
-            inventoryClient.confirmarReserva(reserva.id());
+            inventoryClient.confirmarReserva(reserva.id(),
+                    ClavesIdempotencia.paso(orden.getId(), PasoSaga.INVENTARIO_CONFIRMADO));
         } catch (RuntimeException ex) {
-            return compensar(orden, pago, items, reserva, false);
+            sagaCompraService.registrarError(orden.getId(), "Inventario: no se pudo confirmar la reserva");
+            return compensar(orden, items, EstadoOrden.REINTEGRO_PENDIENTE, "ERROR_CONFIRMACION");
         }
+        sagaCompraService.pasoCompletado(orden.getId(), PasoSaga.INVENTARIO_CONFIRMADO);
 
         try {
+            // La orden pasa a PAGADA en la misma transacción que emite las entradas.
             List<Entrada> entradas = orderEmissionService.marcarPagadaYEmitir(orden, items);
             return toResponse(orden, items, entradas);
         } catch (RuntimeException ex) {
-            return compensar(orden, pago, items, reserva, true);
+            sagaCompraService.registrarError(orden.getId(), "Emisión: no se pudieron emitir las entradas");
+            return compensar(orden, items, EstadoOrden.REINTEGRO_PENDIENTE, "ERROR_EMISION");
         }
     }
 
     /**
-     * Compensación (tarea 4.7): la orden nunca queda PAGADA. Se crea el reintegro
-     * pendiente y se intenta solicitarlo a la pasarela; si falla, queda REINTEGRO_PENDIENTE.
+     * Compensación (tareas 4.7 y 6.2): la orden nunca queda PAGADA. El servicio
+     * de compensación crea el reintegro pendiente, libera o devuelve los lugares
+     * y deja la saga en COMPENSADA o reintentable en COMPENSANDO.
      */
-    private OrderResponse compensar(Orden orden, Pago pago, List<OrdenItem> items,
-                                    ReservationDto reserva, boolean ventaConfirmada) {
-        orden.setEstado(EstadoOrden.REINTEGRO_PENDIENTE);
-        ordenRepository.save(orden);
-        if (ventaConfirmada) {
-            devolverSinFallo(reserva, items, pago.getId());
-        } else {
-            liberarSinFallo(reserva.id(), "ERROR_CONFIRMACION");
-        }
-        solicitarReintegroCompensacion(pago);
+    private OrderResponse compensar(Orden orden, List<OrdenItem> items, EstadoOrden estado, String motivo) {
+        orden.setEstado(estado);
+        orderCompensationService.compensar(orden.getId(), estado, motivo);
         return toResponse(orden, items, List.of());
     }
 
-    private void solicitarReintegroCompensacion(Pago pago) {
-        Reintegro reintegro = reintegroRepository.findByPagoId(pago.getId()).stream()
-                .filter(r -> r.getEntradaId() == null)
-                .findFirst()
-                .orElseGet(() -> reintegroRepository.save(
-                        new Reintegro(pago.getId(), null, pago.getMonto(), EstadoReintegro.PENDIENTE)));
-        if (reintegro.getEstado() != EstadoReintegro.APROBADO) {
-            try {
-                paymentGateway.reintegrar(pago.getId(), reintegro.getMonto());
-                reintegro.setEstado(EstadoReintegro.APROBADO);
-                reintegroRepository.save(reintegro);
-            } catch (RuntimeException ex) {
-                // Queda pendiente para reintento.
-            }
+    /**
+     * Enriquece el snapshot del evento con datos de catalog (tarea 6.3). Es
+     * best-effort: si catalog falla o no responde, se sigue con la reserva
+     * original para que la compra no se caiga por un servicio auxiliar.
+     */
+    private ReservationDto enriquecerConCatalog(ReservationDto reserva) {
+        if (reserva == null || reserva.eventoId() == null) {
+            return reserva;
         }
-        actualizarEstadoPago(pago);
+        try {
+            EventoSnapshot snapshot = catalogClient.obtenerEvento(reserva.eventoId());
+            return reserva.conSnapshot(snapshot);
+        } catch (RuntimeException ex) {
+            log.warn("No se pudo enriquecer el snapshot del evento {} desde catalog: {}",
+                    reserva.eventoId(), ex.getMessage());
+            return reserva;
+        }
     }
 
     private ReservationDto consultarReserva(UUID reservaId) {
@@ -275,7 +293,8 @@ public class OrderService {
                             new Reintegro(pago.getId(), entrada.getId(), monto, EstadoReintegro.PENDIENTE)));
             if (reintegro.getEstado() != EstadoReintegro.APROBADO) {
                 try {
-                    paymentGateway.reintegrar(pago.getId(), monto);
+                    paymentGateway.reintegrar(pago.getId(), monto,
+                            ClavesIdempotencia.reintegroEntrada(pago.getId(), entrada.getId()));
                     reintegro.setEstado(EstadoReintegro.APROBADO);
                     reintegroRepository.save(reintegro);
                 } catch (RuntimeException ex) {
@@ -307,29 +326,9 @@ public class OrderService {
         pagoRepository.save(pago);
     }
 
-    private void liberarSinFallo(UUID reservaId, String motivo) {
-        try {
-            inventoryClient.liberarReserva(reservaId, motivo);
-        } catch (RuntimeException ex) {
-            // La compensación es best-effort; inventory reintenta por su cuenta.
-        }
-    }
-
-    private void devolverSinFallo(ReservationDto reserva, List<OrdenItem> items, UUID referencia) {
-        List<ReturnDto.Item> devoluciones = items.stream()
-                .map(item -> new ReturnDto.Item(item.getSectorId(), item.getAsientoId(),
-                        item.getAsientoId() == null ? item.getCantidad() : 1))
-                .toList();
-        try {
-            inventoryClient.devolverItems(new ReturnDto(reserva.eventoId(), referencia, devoluciones,
-                    reserva.clienteId()));
-        } catch (RuntimeException ex) {
-            // La orden ya quedó en REINTEGRO_PENDIENTE; se puede reintentar.
-        }
-    }
-
     private OrderResponse toResponse(Orden orden, List<OrdenItem> items, List<Entrada> entradas) {
-        return OrderResponse.from(orden, items, entradas);
+        SagaCompra saga = sagaCompraService.buscar(orden.getId()).orElse(null);
+        return OrderResponse.from(orden, items, entradas, saga);
     }
 
     private void validarIdempotencyKey(String idempotencyKey) {

@@ -37,7 +37,10 @@ public class ReintegroRetryService {
         List<Reintegro> pendientes = reintegroRepository.findByEstado(EstadoReintegro.PENDIENTE);
         for (Reintegro reintegro : pendientes) {
             try {
-                paymentGateway.reintegrar(reintegro.getPagoId(), reintegro.getMonto());
+                String clave = reintegro.getEntradaId() == null
+                        ? ClavesIdempotencia.reintegroCompra(reintegro.getPagoId())
+                        : ClavesIdempotencia.reintegroEntrada(reintegro.getPagoId(), reintegro.getEntradaId());
+                paymentGateway.reintegrar(reintegro.getPagoId(), reintegro.getMonto(), clave);
                 reintegro.setEstado(EstadoReintegro.APROBADO);
                 reintegroRepository.save(reintegro);
                 actualizarEstadoPago(reintegro.getPagoId());

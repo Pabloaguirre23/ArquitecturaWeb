@@ -2,6 +2,8 @@ package ar.edu.unicen.ticketya.orders.servicio;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import ar.edu.unicen.ticketya.orders.dominio.Entrada;
@@ -61,5 +63,22 @@ class TicketServiceTest {
             assertThat(entrada.getEstado().name()).isEqualTo("VALIDA");
             assertThat(entrada.getClienteId()).isEqualTo(orden.getClienteId());
         });
+    }
+
+    @Test
+    void unReintentoNoDuplicaEntradasDeLaOrden() {
+        Orden orden = new Orden();
+        orden.setId(UUID.randomUUID());
+        Entrada existente = new Entrada();
+        existente.setId(UUID.randomUUID());
+        existente.setOrdenId(orden.getId());
+        when(entradaRepository.findByOrdenId(orden.getId())).thenReturn(List.of(existente));
+        OrdenItem item = new OrdenItem(orden.getId(), UUID.randomUUID(), UUID.randomUUID(), 1,
+                new BigDecimal("15000.00"), new BigDecimal("15000.00"));
+
+        List<Entrada> entradas = ticketService.emitir(orden, List.of(item));
+
+        assertThat(entradas).containsExactly(existente);
+        verify(entradaRepository, never()).saveAll(any());
     }
 }

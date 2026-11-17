@@ -1,15 +1,22 @@
 package ar.edu.unicen.ticketya.orders.web.dto;
 
 import ar.edu.unicen.ticketya.orders.dominio.EstadoOrden;
+import ar.edu.unicen.ticketya.orders.dominio.EstadoSaga;
 import ar.edu.unicen.ticketya.orders.dominio.MedioPago;
 import ar.edu.unicen.ticketya.orders.dominio.Orden;
 import ar.edu.unicen.ticketya.orders.dominio.OrdenItem;
+import ar.edu.unicen.ticketya.orders.dominio.PasoSaga;
+import ar.edu.unicen.ticketya.orders.dominio.SagaCompra;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Respuesta de una orden. Incluye el estado de la saga y el último paso
+ * completado para que el operador pueda ver el avance de la compra (tarea 6.2).
+ */
 public record OrderResponse(
         UUID id,
         UUID clienteId,
@@ -22,10 +29,18 @@ public record OrderResponse(
         BigDecimal total,
         List<Item> items,
         List<Entrada> entradas,
-        OffsetDateTime createdAt) {
+        OffsetDateTime createdAt,
+        EstadoSaga sagaEstado,
+        PasoSaga sagaPaso) {
 
     public static OrderResponse from(Orden orden, List<OrdenItem> items,
                                      List<ar.edu.unicen.ticketya.orders.dominio.Entrada> entradas) {
+        return from(orden, items, entradas, null);
+    }
+
+    public static OrderResponse from(Orden orden, List<OrdenItem> items,
+                                     List<ar.edu.unicen.ticketya.orders.dominio.Entrada> entradas,
+                                     SagaCompra saga) {
         List<Item> itemsResponse = items.stream()
                 .map(item -> new Item(item.getSectorId(), item.getAsientoId(),
                         item.getCantidad(), item.getPrecioUnitario(), item.getSubtotal()))
@@ -46,7 +61,9 @@ public record OrderResponse(
                 orden.getTotal(),
                 itemsResponse,
                 entradasResponse,
-                aArgentina(orden.getCreatedAt()));
+                aArgentina(orden.getCreatedAt()),
+                saga == null ? null : saga.getEstado(),
+                saga == null ? null : saga.getPaso());
     }
 
     private static OffsetDateTime aArgentina(OffsetDateTime fecha) {
