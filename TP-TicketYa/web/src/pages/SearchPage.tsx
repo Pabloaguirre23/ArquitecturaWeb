@@ -33,6 +33,7 @@ export function SearchPage() {
   const [data, setData] = useState<PageResponse<EventSummary> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [dateError, setDateError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -63,6 +64,11 @@ export function SearchPage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (filters.fechaDesde && filters.fechaHasta && filters.fechaDesde > filters.fechaHasta) {
+      setDateError('La fecha “Desde” no puede ser posterior a “Hasta”.')
+      return
+    }
+    setDateError(null)
     setQuery({
       q: filters.q.trim() || undefined,
       tipo: filters.tipo || undefined,
@@ -77,6 +83,9 @@ export function SearchPage() {
 
   function updateFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters((current) => ({ ...current, [key]: value }))
+    if (key === 'fechaDesde' || key === 'fechaHasta') {
+      setDateError(null)
+    }
   }
 
   function goToPage(page: number) {
@@ -145,6 +154,8 @@ export function SearchPage() {
               id="fechaDesde"
               type="date"
               value={filters.fechaDesde}
+              aria-invalid={Boolean(dateError)}
+              aria-describedby={dateError ? 'date-error' : undefined}
               onChange={(event) => updateFilter('fechaDesde', event.target.value)}
             />
           </div>
@@ -155,6 +166,8 @@ export function SearchPage() {
               id="fechaHasta"
               type="date"
               value={filters.fechaHasta}
+              aria-invalid={Boolean(dateError)}
+              aria-describedby={dateError ? 'date-error' : undefined}
               onChange={(event) => updateFilter('fechaHasta', event.target.value)}
             />
           </div>
@@ -177,6 +190,11 @@ export function SearchPage() {
             Buscar
           </button>
         </form>
+        {dateError && (
+          <p id="date-error" className="form-error filter-error" role="alert">
+            {dateError}
+          </p>
+        )}
       </section>
 
       <div className="results-head">
@@ -197,6 +215,7 @@ export function SearchPage() {
           actionLabel="Limpiar filtros"
           onAction={() => {
             setFilters(initialFilters)
+            setDateError(null)
             setQuery({ page: 0, size: 6, sort: 'FECHA_ASC' })
           }}
         />

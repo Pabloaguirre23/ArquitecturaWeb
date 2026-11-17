@@ -116,6 +116,17 @@ La verificación de teclado y responsive se registra en
 [`docs/evidencia/entrega-2-ui-accesibilidad.txt`](../docs/evidencia/entrega-2-ui-accesibilidad.txt).
 La prueba contra el backend real (5.2) sigue bloqueada hasta que el gateway tenga JWT (tarea 2.1).
 
+## Validaciones y QA
+
+- El buscador valida que “Desde” no sea posterior a “Hasta” antes de llamar a la API; el error
+  queda asociado a ambos campos con `aria-invalid`/`aria-describedby`.
+- La cantidad de lugares se puede borrar y editar libremente; al salir del campo se normaliza
+  al rango `[1, máximo]`.
+- La pantalla “Para vos” solo se muestra a usuarios `CLIENT`; los errores de preferencias se
+  limpian al editar.
+- La QA de interacción y responsive con Chrome headless está en
+  [`docs/evidencia/entrega-2-ui-qa.txt`](../docs/evidencia/entrega-2-ui-qa.txt).
+
 ## Estructura
 
 ```text

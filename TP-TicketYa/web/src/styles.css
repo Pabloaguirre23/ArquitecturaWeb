@@ -280,6 +280,10 @@ p {
   align-self: end;
 }
 
+.filter-error {
+  margin-top: 12px;
+}
+
 .field {
   display: grid;
   min-width: 0;
@@ -309,6 +313,11 @@ select:focus-visible {
   outline: 3px solid #8b7cff;
   outline-offset: 2px;
   border-color: var(--brand);
+}
+
+input[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: var(--danger);
 }
 
 .btn {

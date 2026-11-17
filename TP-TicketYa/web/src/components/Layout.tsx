@@ -25,7 +25,7 @@ export function Layout() {
             <NavLink to="/" end>
               Buscar
             </NavLink>
-            {isAuthenticated && <NavLink to="/para-vos">Para vos</NavLink>}
+            {isAuthenticated && user?.role === 'CLIENT' && <NavLink to="/para-vos">Para vos</NavLink>}
             {isAuthenticated && <NavLink to="/tickets">Mis entradas</NavLink>}
           </nav>
 

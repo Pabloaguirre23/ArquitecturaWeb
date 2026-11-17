@@ -71,6 +71,7 @@ export function RecommendationsPage() {
 
   function toggleTipo(valor: string) {
     setSaved(false)
+    setSaveError(null)
     setTipos((current) =>
       current.includes(valor)
         ? current.filter((tipo) => tipo !== valor)
@@ -157,6 +158,7 @@ export function RecommendationsPage() {
               onChange={(event) => {
                 setArtistas(event.target.value)
                 setSaved(false)
+                setSaveError(null)
               }}
             />
             <span className="hint">Separá los nombres con comas.</span>
@@ -173,6 +175,7 @@ export function RecommendationsPage() {
               onChange={(event) => {
                 setCiudad(event.target.value)
                 setSaved(false)
+                setSaveError(null)
               }}
             />
           </div>
