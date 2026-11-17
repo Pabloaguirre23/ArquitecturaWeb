@@ -49,6 +49,15 @@ class RecommendationControllerTest {
     }
 
     @Test
+    void conIdentidadInvalidaDevuelve401() throws Exception {
+        mockMvc.perform(get("/api/recommendations")
+                        .header("X-User-Id", "no-es-un-uuid")
+                        .header("X-User-Role", "CLIENT"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
     void devuelveLasRecomendacionesDelCliente() throws Exception {
         when(recommendationService.recomendar(CLIENTE)).thenReturn(new RecomendacionesResponse(
                 CLIENTE_TEXTO,

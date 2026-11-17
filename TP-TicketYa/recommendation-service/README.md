@@ -6,7 +6,7 @@ Servicio de preferencias, historial de compras y recomendaciones de TicketYa sob
 - **Base:** `recommendation_db` (MongoDB 7, puerto 27017)
 - **Responsable:** P5 — ver [`docs/equipo/entrega-2/p5-franco.md`](../docs/equipo/entrega-2/p5-franco.md)
 - **Contrato:** [`docs/api-contract.md`](../docs/api-contract.md), sección 6
-- **Estado:** Día 3 — tareas 1.7, 7.1, 7.2, 7.3 y 7.4. Queda 7.5 (eventos similares).
+- **Estado:** Día 5 — tareas 1.7, 7.1–7.4 y 2.7. La 7.5 (eventos similares) está en el PR #10.
 
 ## Endpoints implementados
 
@@ -18,6 +18,14 @@ Servicio de preferencias, historial de compras y recomendaciones de TicketYa sob
 | GET | `/internal/preferences/{clienteId}` | interno | Consulta para notification-service con `X-Internal-Token` |
 
 La identidad llega desde el gateway en `X-User-Id` y `X-User-Role`; el cliente final usa JWT contra el gateway (tareas 2.1–2.7). La ruta `/api/recommendations/**` se agrega al gateway en la tarea de P4; hasta entonces el servicio se prueba directo en el puerto 8084.
+
+### Seguridad (tarea 2.7)
+
+- Los tres endpoints públicos de recommendation exigen `X-User-Id` y `X-User-Role: CLIENT`.
+- Sin identidad o con un UUID inválido responden `401 UNAUTHORIZED`; con otro rol, `403 FORBIDDEN`.
+- `GET` siempre devuelve los datos del `X-User-Id`; `PUT` rechaza con `403 NOT_PREFERENCE_OWNER` un `clienteId` del body que no coincida.
+- `GET /internal/preferences/{clienteId}` exige `X-Internal-Token` y no se expone por el gateway.
+- La matriz completa y la evidencia están en [`docs/seguridad.md`](../docs/seguridad.md).
 
 ### Consultar preferencias
 
