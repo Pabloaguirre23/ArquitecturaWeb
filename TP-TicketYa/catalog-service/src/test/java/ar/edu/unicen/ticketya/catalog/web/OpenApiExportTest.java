@@ -62,11 +62,25 @@ class OpenApiExportTest {
         assertThat(documento.at("/components/schemas/ProblemDetail").isMissingNode()).isFalse();
         assertThat(documento.at("/components/securitySchemes/X-User-Id").isMissingNode()).isFalse();
         assertThat(documento.at("/components/securitySchemes/X-User-Role").isMissingNode()).isFalse();
+        assertThat(documento.at("/components/securitySchemes/X-Internal-Token").isMissingNode()).isFalse();
+        assertThat(documento.at("/components/securitySchemes/X-Correlation-Id").isMissingNode()).isFalse();
         assertThat(documento.at("/paths/~1internal~1events~1{eventoId}~1availability/patch")
                 .isMissingNode()).isFalse();
         assertThat(documento.at("/paths/~1internal~1events~1{eventoId}~1report/get")
                 .isMissingNode()).isFalse();
         assertThat(documento.at("/paths/~1internal~1recommendations~1candidates/get")
+                .isMissingNode()).isFalse();
+        assertThat(documento.at("/paths/~1internal~1events~1{eventoId}~1report/get/security/0/X-Internal-Token")
+                .isMissingNode()).isFalse();
+        assertThat(documento.at("/paths/~1internal~1events~1{eventoId}~1availability/patch/security/0/X-Internal-Token")
+                .isMissingNode()).isFalse();
+        assertThat(documento.at("/paths/~1api~1catalog~1events/get/responses/200/headers/X-Cache")
+                .isMissingNode()).isFalse();
+        assertThat(documento.at("/paths/~1api~1catalog~1events~1{eventoId}/get/responses/200/headers/X-Cache")
+                .isMissingNode()).isFalse();
+        assertThat(documento.at("/paths/~1api~1catalog~1venues/get/responses/200/headers/X-Cache")
+                .isMissingNode()).isFalse();
+        assertThat(documento.at("/paths/~1api~1catalog~1venues~1{venueId}/get/responses/200/headers/X-Cache")
                 .isMissingNode()).isFalse();
         assertThat(documento.at("/paths/~1api~1catalog~1events/post/responses/400/content/"
                         + "application~1problem+json/schema/$ref").asText())

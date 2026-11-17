@@ -6,6 +6,7 @@ import ar.edu.unicen.ticketya.catalog.web.dto.EventoCandidatoResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.EventoReporteResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal")
 @Tag(name = "Interno", description = "Endpoints entre servicios; no se exponen por el gateway")
+@SecurityRequirement(name = "X-Internal-Token")
 public class InternalCatalogController {
 
     private final EventService eventService;

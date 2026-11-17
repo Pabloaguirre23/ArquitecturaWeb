@@ -8,6 +8,8 @@ import ar.edu.unicen.ticketya.catalog.web.dto.LugarResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.PageResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.SectorResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -53,7 +55,9 @@ public class VenueController {
 
     @GetMapping
     @Operation(summary = "Listar lugares", description = "Listado paginado de lugares.")
-    @ApiResponse(responseCode = "200", description = "Página de lugares")
+    @ApiResponse(responseCode = "200", description = "Página de lugares",
+            headers = @Header(name = "X-Cache", description = "HIT, MISS o BYPASS",
+                    schema = @Schema(type = "string", example = "HIT")))
     public PageResponse<LugarResponse> listar(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -66,7 +70,9 @@ public class VenueController {
 
     @GetMapping("/{venueId}")
     @Operation(summary = "Obtener un lugar")
-    @ApiResponse(responseCode = "200", description = "Detalle del lugar")
+    @ApiResponse(responseCode = "200", description = "Detalle del lugar",
+            headers = @Header(name = "X-Cache", description = "HIT, MISS o BYPASS",
+                    schema = @Schema(type = "string", example = "MISS")))
     @ApiResponse(responseCode = "404", description = "El lugar no existe (VENUE_NOT_FOUND)")
     public LugarResponse obtener(@PathVariable UUID venueId, HttpServletRequest request) {
         CatalogCacheService.CacheResult<LugarResponse> result = venueService.obtenerLugarCacheable(venueId);

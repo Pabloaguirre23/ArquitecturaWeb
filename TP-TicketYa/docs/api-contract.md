@@ -104,6 +104,7 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 | POST | `/api/catalog/venues/{venueId}/sectors` | ADMIN | 201 | catalog |
 | GET | `/api/catalog/venues/{venueId}/sectors` | público | 200 | catalog |
 | POST | `/api/catalog/events` | ORGANIZER | 201 | catalog |
+| PUT | `/api/catalog/events/{eventoId}` | ORGANIZER | 200 | catalog |
 | PUT | `/api/catalog/events/{eventoId}/prices/{sectorId}` | ORGANIZER | 200 | catalog |
 | POST | `/api/catalog/events/{eventoId}/publish` | ORGANIZER | 200 | catalog |
 | POST | `/api/catalog/events/{eventoId}/cancel` | ADMIN | 200 | catalog |
@@ -132,6 +133,8 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 Los endpoints `/internal/**` no se listan porque no se exponen por el gateway.
 
 ## 3. catalog-service
+
+OpenAPI: [`../openapi/catalog-openapi.json`](../openapi/catalog-openapi.json). Swagger UI en `http://localhost:8081/swagger-ui.html`. El documento incluye los esquemas `X-User-Id`, `X-User-Role`, `X-Correlation-Id` y `X-Internal-Token`, la cabecera `X-Cache` en las consultas cacheadas y ejemplos de `ProblemDetail`.
 
 ### 3.1 Crear lugar — `POST /api/catalog/venues` (ADMIN)
 
@@ -239,6 +242,8 @@ Errores: `400 VALIDATION_ERROR` (capacidad ≤ 0, sector numerado sin filas, cap
 
 Errores: `400 VALIDATION_ERROR` (fecha pasada, tipo inválido, límite ≤ 0, participantes vacío), `403`, `404 VENUE_NOT_FOUND`.
 
+`altaDemanda: true` marca el evento para fila virtual: al publicarse, catalog abre la fila en queue-service (ver 3.14). `limitePorCliente` se configura aquí y viaja en el snapshot y en el detalle; la reducción del límite una vez registradas ventas queda pendiente de contrato con orders/inventory (tarea 3.1).
+
 ### 3.6.1 Editar evento — `PUT /api/catalog/events/{eventoId}` (ORGANIZER)
 
 Edición parcial: solo se actualizan los campos enviados. Se puede usar en `BORRADOR`, `PUBLICADO` y `AGOTADO`; un evento `CANCELADO` o `FINALIZADO` responde `409`.
@@ -254,7 +259,7 @@ Edición parcial: solo se actualizan los campos enviados. Se puede usar en `BORR
 }
 ```
 
-**200** con `EventResponse`. Si el evento está `PUBLICADO` o `AGOTADO`, catalog envía el snapshot completo a inventory con `version` incrementada y el nuevo `altaDemanda`.
+**200** con `EventResponse`. Si el evento está `PUBLICADO` o `AGOTADO`, catalog envía el snapshot completo a inventory con `version` incrementada y el nuevo `altaDemanda`, publica `evento.actualizado` mediante el outbox, invalida el detalle y las búsquedas cacheadas y vuelve a abrir la fila si es de alta demanda (idempotente).
 
 Reglas:
 
@@ -282,9 +287,9 @@ Errores: `400 SECTOR_NOT_FROM_VENUE`, `400 INVALID_PRICE` (precio negativo), `40
 
 ### 3.8 Publicar evento — `POST /api/catalog/events/{eventoId}/publish` (ORGANIZER)
 
-Sin cuerpo. **200** `EventResponse` con `estado: "PUBLICADO"`.
+Sin cuerpo. **200** `EventResponse` con `estado: "PUBLICADO"`. Si `altaDemanda` es `true`, catalog registra `evento.publicado` en el outbox y abre la fila en queue-service (ver 3.14).
 
-Errores: `403 NOT_EVENT_OWNER`, `404 EVENT_NOT_FOUND`, `409 EVENT_NOT_EDITABLE` (no está en `BORRADOR`), `409 EVENT_INCOMPLETE` (algún sector sin precio), `502 INVENTORY_UNAVAILABLE` (inventory no confirmó; el evento queda `BORRADOR`).
+Errores: `403 NOT_EVENT_OWNER`, `404 EVENT_NOT_FOUND`, `409 EVENT_NOT_EDITABLE` (no está en `BORRADOR`), `409 EVENT_INCOMPLETE` (algún sector sin precio), `502 INVENTORY_UNAVAILABLE` (inventory no confirmó; el evento queda `BORRADOR`). Un fallo de queue no modifica la respuesta: se registra un warning y la apertura se reintenta en una edición posterior.
 
 ### 3.9 Cancelar evento — `POST /api/catalog/events/{eventoId}/cancel` (ADMIN)
 
@@ -298,7 +303,7 @@ Sin cuerpo. **200**
 }
 ```
 
-Catalog cierra primero la venta en inventory con `PATCH /internal/events/{eventoId}/state` y recién después avisa a orders. Si inventory falla, no se avisa a orders y `cancelacionPendiente` queda en `true`; el scheduler reintenta ambos avisos en orden. Si orders falla después de cerrar la venta, también queda pendiente.
+Catalog cierra primero la venta en inventory con `PATCH /internal/events/{eventoId}/state` y recién después avisa a orders. Si inventory falla, no se avisa a orders y `cancelacionPendiente` queda en `true`; el scheduler reintenta ambos avisos en orden. Si orders falla después de cerrar la venta, también queda pendiente. Para eventos de alta demanda también se cierra la fila con motivo `CANCELADO` (ver 3.14); un fallo de queue no revierte la cancelación.
 
 Errores: `404 EVENT_NOT_FOUND`, `409 EVENT_NOT_CANCELLABLE` (ya cancelado o finalizado). Un fallo de inventory/orders no cambia el 200: se refleja en `cancelacionPendiente`.
 
@@ -343,7 +348,7 @@ Solo devuelve eventos en `PUBLICADO` o `AGOTADO`. Los caracteres `%`, `_` y `\` 
 }
 ```
 
-Errores: `400 INVALID_DATE_RANGE` (`fechaDesde` posterior a `fechaHasta`), `400 INVALID_SORT`.
+Errores: `400 INVALID_DATE_RANGE` (`fechaDesde` posterior a `fechaHasta`), `400 INVALID_SORT`. La respuesta incluye `X-Cache: HIT|MISS|BYPASS` según el estado de la caché de Redis; el TTL se configura con `CATALOG_CACHE_TTL` y la búsqueda se invalida al publicar, editar, cancelar o cambiar precios.
 
 ### 3.11 Detalle de evento — `GET /api/catalog/events/{eventoId}` (público)
 
@@ -377,7 +382,7 @@ Errores: `400 INVALID_DATE_RANGE` (`fechaDesde` posterior a `fechaHasta`), `400 
 }
 ```
 
-`disponibles` se consulta a inventory en el momento. Errores: `404 EVENT_NOT_FOUND` (inexistente o en `BORRADOR`), `503 INVENTORY_UNAVAILABLE`.
+`disponibles` se consulta a inventory en el momento. La respuesta informa `X-Cache: HIT|MISS|BYPASS` para la parte estática del detalle; la disponibilidad y los asientos nunca se cachean. Errores: `404 EVENT_NOT_FOUND` (inexistente o en `BORRADOR`), `503 INVENTORY_UNAVAILABLE`.
 
 ### 3.12 Interno — `PATCH /internal/events/{eventoId}/availability`
 
@@ -387,7 +392,29 @@ Llamado por inventory cuando la disponibilidad llega a 0 o vuelve a ser positiva
 { "agotado": true }
 ```
 
-**204**. Idempotente. `404 EVENT_NOT_FOUND` si el evento no existe en catalog.
+**204**. Idempotente. `404 EVENT_NOT_FOUND` si el evento no existe en catalog. Con `agotado: true` se cierra la fila del evento de alta demanda (motivo `AGOTADO`); con `false` se vuelve a abrir. El scheduler de finalización cierra la fila con motivo `FINALIZADO`. Un fallo de queue no altera el `204`.
+
+### 3.13 Interno — reporte y candidatos (X-Internal-Token)
+
+No se exponen por el gateway. Requieren `X-Internal-Token`; sin él o con un valor inválido responden `401 UNAUTHORIZED`.
+
+| Método | Ruta | Respuesta |
+|---|---|---|
+| GET | `/internal/events/{eventoId}/report` | `200` con `eventoId`, `nombre`, `organizadorId`, `lugarId`, `lugarNombre`, `ciudad`, `fecha`, `estado`, `participantes[]` y `sectores[]` (capacidad, precios y disponibles) |
+| GET | `/internal/recommendations/candidates?tipo=&artista=&ciudad=&fechaDesde=&fechaHasta=&size=20` | `200` con `eventoId`, `nombre`, `tipo`, `artistas[]`, `ciudad`, `fechaEvento`, `estado` y `altaDemanda` |
+
+Ambos solo consideran eventos `PUBLICADO` o `AGOTADO`. Errores: `400 VALIDATION_ERROR` (filtros inválidos), `401 UNAUTHORIZED`, `404 EVENT_NOT_FOUND` (reporte). Los filtros son opcionales y combinables; `size` limita la cantidad de candidatos devueltos.
+
+### 3.14 Integración de catalog con queue-service (tarea 3.6)
+
+Catalog consume estos endpoints internos de queue-service (no pública nuevos endpoints):
+
+| Método | Ruta | Cuándo | Cuerpo |
+|---|---|---|---|
+| POST | `/internal/events/{eventoId}` | Publicar, editar un evento ya publicado o volver de `AGOTADO` | — |
+| POST | `/internal/events/{eventoId}/close` | Cancelar (`CANCELADO`), agotar (`AGOTADO`) o finalizar (`FINALIZADO`) | `{"motivo":"CANCELADO"}` |
+
+Ambas llamadas envían `X-Internal-Token` y propagan `X-Correlation-Id` cuando está disponible (origen: `QUEUE_INTERNAL_TOKEN`, por defecto el mismo valor que `INTERNAL_TOKEN`). Usan `QUEUE_CONNECT_TIMEOUT_MS` (default 2000) y `QUEUE_READ_TIMEOUT_MS` (default 3000) y hasta 3 intentos con backoff ante timeout, pérdida de conexión o 5xx; los 4xx no se reintentan. Solo se invocan si `altaDemanda: true`: un evento normal nunca llama a queue. Si queue-service está caído, catalog registra un warning y continúa la operación (fallback); la apertura/cierre se reintenta en la siguiente operación idempotente o con el scheduler. El contrato de la fila está en [`fila-virtual/spec.md`](../openspec/changes/entrega-2-completo/specs/fila-virtual/spec.md).
 
 ## 4. inventory-service
 

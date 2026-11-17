@@ -77,6 +77,8 @@ class EventServiceTest {
     @Mock
     private OrdersClient ordersClient;
     @Mock
+    private QueueClient queueClient;
+    @Mock
     private CatalogCacheService catalogCacheService;
     @Mock
     private OutboxService outboxService;
@@ -90,7 +92,7 @@ class EventServiceTest {
                 .thenAnswer(inv -> new CatalogCacheService.CacheResult<>(((Supplier<?>) inv.getArgument(2)).get(), "BYPASS"));
         eventService = new EventService(eventoRepository, lugarRepository, sectorRepository,
                 asientoRepository, participanteRepository, precioRepository, inventoryClient,
-                ordersClient, clock, catalogCacheService, outboxService);
+                ordersClient, queueClient, clock, catalogCacheService, outboxService);
     }
 
     @Test
@@ -804,6 +806,99 @@ class EventServiceTest {
                     assertThat(ex.getStatus().value()).isEqualTo(503);
                     assertThat(ex.getCode()).isEqualTo("INVENTORY_UNAVAILABLE");
                 });
+    }
+
+    @Test
+    void publicarUnEventoDeAltaDemandaAbreLaFila() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        evento.setAltaDemanda(true);
+        prepararPublicacion(evento);
+
+        eventService.publicar(evento.getId(), evento.getOrganizadorId());
+
+        verify(queueClient).abrir(evento.getId());
+    }
+
+    @Test
+    void publicarUnEventoNormalNoAbreLaFila() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        prepararPublicacion(evento);
+
+        eventService.publicar(evento.getId(), evento.getOrganizadorId());
+
+        verify(queueClient, never()).abrir(any());
+        verify(queueClient, never()).cerrar(any(), org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void unFalloDeQueueNoImpidePublicarElEvento() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        evento.setAltaDemanda(true);
+        prepararPublicacion(evento);
+        doThrow(new RuntimeException("queue caído")).when(queueClient).abrir(evento.getId());
+
+        EventoResponse response = eventService.publicar(evento.getId(), evento.getOrganizadorId());
+
+        assertThat(response.estado()).isEqualTo(EstadoEvento.PUBLICADO);
+        verify(queueClient).abrir(evento.getId());
+    }
+
+    @Test
+    void cancelarUnEventoDeAltaDemandaCierraLaFila() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        evento.setEstado(EstadoEvento.PUBLICADO);
+        evento.setAltaDemanda(true);
+        when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        eventService.cancelar(evento.getId());
+
+        verify(queueClient).cerrar(evento.getId(), "CANCELADO");
+    }
+
+    @Test
+    void agotarYVolverAPublicarCierraYReabreLaFila() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        evento.setEstado(EstadoEvento.PUBLICADO);
+        evento.setAltaDemanda(true);
+        when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
+
+        eventService.actualizarDisponibilidad(evento.getId(), true);
+        verify(queueClient).cerrar(evento.getId(), "AGOTADO");
+
+        eventService.actualizarDisponibilidad(evento.getId(), false);
+        verify(queueClient).abrir(evento.getId());
+    }
+
+    @Test
+    void elOutboxDeEventoPublicadoIncluyeArtistasCiudadYFechaParaFavoritos() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        prepararPublicacion(evento);
+        when(participanteRepository.findByEventoIdOrderByNombreAsc(evento.getId()))
+                .thenReturn(List.of(new ar.edu.unicen.ticketya.catalog.dominio.EventoParticipante(
+                        evento.getId(), "Artista A")));
+
+        eventService.publicar(evento.getId(), evento.getOrganizadorId());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(outboxService).register(eq("evento.publicado"), eq(evento.getId()), isNull(), payload.capture());
+        assertThat(payload.getValue())
+                .containsEntry("artistas", List.of("Artista A"))
+                .containsEntry("ciudad", "Tandil")
+                .containsEntry("fechaEvento", evento.getFecha().toInstant());
+    }
+
+    private void prepararPublicacion(Evento evento) {
+        Sector sector = sector(evento.getLugarId(), "Platea");
+        EventoSectorPrecio precio = new EventoSectorPrecio(evento.getId(), sector.getId(), new BigDecimal("15000"));
+        when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
+        when(sectorRepository.findByLugarIdOrderByNombreAsc(evento.getLugarId())).thenReturn(List.of(sector));
+        when(precioRepository.findByEventoId(evento.getId())).thenReturn(List.of(precio));
+        when(asientoRepository.findBySectorIdOrderByFilaAscNumeroAsc(sector.getId())).thenReturn(List.of());
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(lugarRepository.findById(evento.getLugarId()))
+                .thenReturn(Optional.of(lugar(evento.getLugarId(), "Estadio", "Tandil")));
     }
 
     private Evento evento(UUID organizadorId, UUID lugarId) {

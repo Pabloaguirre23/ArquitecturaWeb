@@ -72,6 +72,7 @@ public class EventService {
     private final EventoSectorPrecioRepository precioRepository;
     private final InventoryClient inventoryClient;
     private final OrdersClient ordersClient;
+    private final QueueClient queueClient;
     private final Clock clock;
     private final CatalogCacheService catalogCacheService;
     private final OutboxService outboxService;
@@ -84,6 +85,7 @@ public class EventService {
                         EventoSectorPrecioRepository precioRepository,
                         InventoryClient inventoryClient,
                         OrdersClient ordersClient,
+                        QueueClient queueClient,
                         Clock clock,
                         CatalogCacheService catalogCacheService,
                         OutboxService outboxService) {
@@ -95,6 +97,7 @@ public class EventService {
         this.precioRepository = precioRepository;
         this.inventoryClient = inventoryClient;
         this.ordersClient = ordersClient;
+        this.queueClient = queueClient;
         this.clock = clock;
         this.catalogCacheService = catalogCacheService;
         this.outboxService = outboxService;
@@ -194,6 +197,7 @@ public class EventService {
         Lugar lugar = lugarRepository.findById(evento.getLugarId()).orElseThrow();
         registrarEventoOutbox(CatalogEvents.EVENTO_PUBLICADO, evento);
         invalidarCachesEvento(eventoId);
+        abrirFilaSiCorresponde(evento);
         return EventoResponse.from(evento, lugar.getNombre(), lugar.getCiudad(),
                 participanteRepository.findByEventoIdOrderByNombreAsc(eventoId).stream()
                         .map(EventoParticipante::getNombre).toList(),
@@ -304,6 +308,7 @@ public class EventService {
                 .orElseThrow(() -> ApiException.notFound("VENUE_NOT_FOUND", "No existe el lugar del evento"));
         if (publicado) {
             registrarEventoOutbox(CatalogEvents.EVENTO_ACTUALIZADO, evento);
+            abrirFilaSiCorresponde(evento);
         }
         invalidarCachesEvento(eventoId);
         return EventoResponse.from(evento, lugar.getNombre(), lugar.getCiudad(),
@@ -417,6 +422,7 @@ public class EventService {
         evento = eventoRepository.save(evento);
         registrarEventoOutbox(CatalogEvents.EVENTO_CANCELADO, evento);
         invalidarCachesEvento(eventoId);
+        cerrarFilaSiCorresponde(evento, "CANCELADO");
         return new CancelacionResponse(evento.getId(), evento.getEstado(), evento.isCancelacionPendiente());
     }
 
@@ -444,6 +450,11 @@ public class EventService {
         }
         eventoRepository.save(evento);
         invalidarCachesEvento(eventoId);
+        if (agotado) {
+            cerrarFilaSiCorresponde(evento, "AGOTADO");
+        } else {
+            abrirFilaSiCorresponde(evento);
+        }
     }
 
     @Transactional
@@ -455,6 +466,7 @@ public class EventService {
             try {
                 inventoryClient.actualizarEstado(evento.getId(), "FINALIZADO");
                 evento.setEstado(EstadoEvento.FINALIZADO);
+                cerrarFilaSiCorresponde(evento, "FINALIZADO");
                 cerrados.add(evento);
             } catch (HttpClientErrorException ex) {
                 int status = ex.getStatusCode().value();
@@ -462,6 +474,7 @@ public class EventService {
                     log.warn("Inventory ya estaba terminal o no tenÃ­a el evento {}; se finaliza en catÃ¡logo igual",
                             evento.getId(), ex);
                     evento.setEstado(EstadoEvento.FINALIZADO);
+                    cerrarFilaSiCorresponde(evento, "FINALIZADO");
                     cerrados.add(evento);
                 } else {
                     log.warn("Inventory rechazÃ³ la finalizaciÃ³n del evento {}; queda {} para reintentar",
@@ -511,6 +524,7 @@ public class EventService {
                 }
             }
             if (ok) {
+                cerrarFilaSiCorresponde(evento, "CANCELADO");
                 evento.setCancelacionPendiente(false);
                 eventoRepository.save(evento);
                 reintentadas++;
@@ -776,8 +790,46 @@ public class EventService {
         payload.put("lugarId", evento.getLugarId());
         payload.put("organizadorId", evento.getOrganizadorId());
         payload.put("fecha", evento.getFecha());
+        // El sobre de docs/eventos.md exige estos campos: notification-service los usa
+        // para buscar clientes con artista favorito en la ciudad del evento (8.3).
+        payload.put("artistas", participanteRepository.findByEventoIdOrderByNombreAsc(evento.getId())
+                .stream().map(EventoParticipante::getNombre).toList());
+        payload.put("ciudad", lugarRepository.findById(evento.getLugarId())
+                .map(Lugar::getCiudad).orElse(null));
+        payload.put("fechaEvento", evento.getFecha() == null ? null : evento.getFecha().toInstant());
         payload.put("estado", evento.getEstado() == null ? null : evento.getEstado().name());
         outboxService.register(type, evento.getId(), null, payload);
+    }
+
+    /**
+     * Abre la fila solo para eventos de alta demanda. La apertura es idempotente,
+     * así que también sirve como reintento al editar un evento ya publicado o al
+     * volver de AGOTADO a PUBLICADO.
+     */
+    private void abrirFilaSiCorresponde(Evento evento) {
+        if (!evento.isAltaDemanda()) {
+            return;
+        }
+        try {
+            queueClient.abrir(evento.getId());
+        } catch (RuntimeException ex) {
+            // Fallback: queue-service caído no puede impedir la publicación ni la edición.
+            log.warn("No se pudo abrir la fila del evento {}; la operación continúa y se reintentará en la próxima edición",
+                    evento.getId(), ex);
+        }
+    }
+
+    /** Cierra la fila de un evento de alta demanda; un fallo nunca revierte la operación. */
+    private void cerrarFilaSiCorresponde(Evento evento, String motivo) {
+        if (!evento.isAltaDemanda()) {
+            return;
+        }
+        try {
+            queueClient.cerrar(evento.getId(), motivo);
+        } catch (RuntimeException ex) {
+            log.warn("No se pudo cerrar la fila del evento {} (motivo {}); se reintentará con el evento",
+                    evento.getId(), motivo, ex);
+        }
     }
 
 }

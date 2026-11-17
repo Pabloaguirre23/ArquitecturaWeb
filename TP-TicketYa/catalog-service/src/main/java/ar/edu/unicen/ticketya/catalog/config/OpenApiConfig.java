@@ -35,9 +35,13 @@ public class OpenApiConfig {
                         .title("TicketYa - catalog-service")
                         .version("1.0.0")
                         .description("""
-                                Catálogo de lugares, sectores, asientos, eventos, precios, publicación, estados y búsqueda.
-                                Los endpoints públicos se consumen a través del gateway en /api/catalog/**.
-                                La identidad se propaga con los headers X-User-Id y X-User-Role.
+                                Catálogo de lugares, sectores, asientos, eventos, precios, publicación, edición,
+                                alta demanda, búsqueda cacheada y endpoints internos de reporte y recomendación.
+                                Los endpoints públicos se consumen a través del gateway en /api/catalog/**; los de
+                                /internal/** requieren X-Internal-Token y no se exponen por el gateway.
+                                La identidad se propaga con X-User-Id, X-User-Role y X-Correlation-Id.
+                                Las respuestas cacheadas informan X-Cache: HIT, MISS o BYPASS; la disponibilidad
+                                y los asientos nunca se cachean.
                                 Todos los errores usan RFC 7807 (application/problem+json) con los campos code y errors[].
                                 """)
                         .license(new License().name("Uso académico - UNICEN")))
@@ -51,7 +55,17 @@ public class OpenApiConfig {
                                 .type(SecurityScheme.Type.APIKEY)
                                 .in(SecurityScheme.In.HEADER)
                                 .name("X-User-Role")
-                                .description("Rol del usuario: ADMIN, ORGANIZER o CUSTOMER")));
+                                .description("Rol del usuario: ADMIN, ORGANIZER o CUSTOMER"))
+                        .addSecuritySchemes("X-Internal-Token", new SecurityScheme()
+                                .type(SecurityScheme.Type.APIKEY)
+                                .in(SecurityScheme.In.HEADER)
+                                .name("X-Internal-Token")
+                                .description("Token compartido entre servicios; obligatorio en /internal/**"))
+                        .addSecuritySchemes("X-Correlation-Id", new SecurityScheme()
+                                .type(SecurityScheme.Type.APIKEY)
+                                .in(SecurityScheme.In.HEADER)
+                                .name("X-Correlation-Id")
+                                .description("Identificador de correlación propagado por el gateway")));
     }
 
     @Bean

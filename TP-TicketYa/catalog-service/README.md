@@ -6,6 +6,7 @@ Servicio de catálogo de TicketYa: lugares, sectores, asientos, eventos, precios
 - **Base:** `catalog_db` (PostgreSQL 16, puerto 5433)
 - **Responsable:** P1 — ver [`docs/equipo/compa-1.md`](../docs/equipo/compa-1.md)
 - **Contrato:** [`docs/api-contract.md`](../docs/api-contract.md), sección 3.
+- **OpenAPI:** [`../openapi/catalog-openapi.json`](../openapi/catalog-openapi.json) · Swagger UI en <http://localhost:8081/swagger-ui.html>
 
 ## Endpoints implementados
 
@@ -24,6 +25,8 @@ Servicio de catálogo de TicketYa: lugares, sectores, asientos, eventos, precios
 | GET | `/api/catalog/events` | público | Busca eventos publicados o agotados con filtros, orden y paginación |
 | GET | `/api/catalog/events/{eventoId}` | público | Detalle con disponibilidad consultada a inventory |
 | PATCH | `/internal/events/{eventoId}/availability` | interno | Callback de inventory: `AGOTADO` ↔ `PUBLICADO` |
+| GET | `/internal/events/{eventoId}/report` | interno | Datos de reporte del evento (organizador, sectores, precios) |
+| GET | `/internal/recommendations/candidates` | interno | Candidatos a recomendación por ciudad, tipo, artista y fechas |
 
 Al cancelar y al finalizar, catalog avisa a inventory con `PATCH /internal/events/{eventoId}/state` (`{"estado":"CANCELADO"}` o `{"estado":"FINALIZADO"}`); ese endpoint lo expone inventory y es idempotente.
 
@@ -35,7 +38,24 @@ La integración con inventory usa timeout corto (`INVENTORY_CONNECT_TIMEOUT_MS`/
 
 La cancelación avisa a orders con timeout corto (`ORDERS_CONNECT_TIMEOUT_MS`/`ORDERS_READ_TIMEOUT_MS`) y a inventory con `PATCH /internal/events/{eventoId}/state`. Como ambos avisos son idempotentes, si alguno falla o demora el evento queda `CANCELADO` con `cancelacionPendiente: true` y el scheduler reintenta los dos; esto es la base de la que dependen las devoluciones y la cancelación masiva de entradas.
 
-El OpenAPI documenta la identidad (`X-User-Id`, `X-User-Role`), los ejemplos de request y un esquema común `ProblemDetail` para todos los errores 4xx/5xx, con ejemplos de `VALIDATION_ERROR`, `EVENT_NOT_FOUND`, `EVENT_NOT_EDITABLE`, `INVENTORY_UNAVAILABLE` y `ORDERS_UNAVAILABLE` según el caso.
+## Alta demanda y fila virtual (tarea 3.6)
+
+Un evento creado con `altaDemanda: true` (solo modificable en `BORRADOR`) dispara la integración con queue-service:
+
+- **Publicar:** `POST /internal/events/{eventoId}` abre la fila.
+- **Cancelar:** `POST /internal/events/{eventoId}/close` con `{"motivo":"CANCELADO"}`.
+- **Agotar / volver a publicar:** el callback de disponibilidad cierra con `"AGOTADO"` o vuelve a abrir con `"FINALIZADO"` según corresponda; el scheduler de finalización cierra con `"FINALIZADO"`.
+- **Editar un evento ya publicado:** vuelve a abrir la fila (operación idempotente) como reintento explícito tras una caída de queue.
+
+El cliente `QueueRestClient` usa `X-Internal-Token` (y propaga `X-Correlation-Id` cuando está disponible), timeouts configurables y hasta 3 intentos con backoff ante timeouts, pérdida de conexión o 5xx; los 4xx no se reintentan. Si queue-service está caído, se registra un warning y la publicación, edición o cancelación **continúa igual**: la fila se reintenta en la próxima operación idempotente. Un evento normal (`altaDemanda: false`) nunca llama a queue-service.
+
+## Caché, límite y endpoints internos (tareas 3.3-3.5)
+
+Las respuestas de lugares, búsqueda y detalle estático pasan por Redis con TTL configurable (`CATALOG_CACHE_TTL`) e informan la cabecera `X-Cache: HIT|MISS|BYPASS`. La disponibilidad y el mapa de asientos se consultan siempre a inventory y nunca se cachean. Publicar, editar, cancelar o cambiar precios invalida el detalle y las búsquedas afectadas; un Redis caído degrada a la base sin romper la consulta.
+
+`limitePorCliente` se configura al crear o editar el evento y viaja en el snapshot de inventory y en la respuesta de detalle. La reducción del límite con ventas ya registradas queda pendiente de contrato con orders/inventory (ver tarea 3.1).
+
+Los endpoints bajo `/internal/**` no se exponen por el gateway y exigen `X-Internal-Token`: el reporte de un evento y los candidatos de recomendación solo devuelven eventos `PUBLICADO` o `AGOTADO`. El OpenAPI documenta el esquema de seguridad de ese header, la cabecera `X-Cache` en las respuestas cacheadas, los ejemplos de request y un esquema común `ProblemDetail` para todos los errores 4xx/5xx, con ejemplos de `VALIDATION_ERROR`, `EVENT_NOT_FOUND`, `EVENT_NOT_EDITABLE`, `INVENTORY_UNAVAILABLE` y `ORDERS_UNAVAILABLE` según el caso.
 
 ## Auditoría (tarea 9.2)
 
@@ -71,6 +91,13 @@ La edición (`PUT /api/catalog/events/{eventoId}`) es parcial: actualiza solo lo
 | `ORDERS_URL` | `http://localhost:8083` | Cliente interno hacia orders |
 | `ORDERS_CONNECT_TIMEOUT_MS` | `1000` | Timeout de conexión contra orders |
 | `ORDERS_READ_TIMEOUT_MS` | `2000` | Timeout de lectura contra orders |
+| `QUEUE_URL` | `http://localhost:8086` | Cliente interno hacia queue-service |
+| `QUEUE_INTERNAL_TOKEN` | `INTERNAL_TOKEN` (`ticketya-internal-dev`) | Token compartido para `/internal/**` de queue |
+| `QUEUE_CONNECT_TIMEOUT_MS` | `2000` | Timeout de conexión contra queue |
+| `QUEUE_READ_TIMEOUT_MS` | `3000` | Timeout de lectura contra queue |
+| `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | Caché de consultas |
+| `REDIS_TIMEOUT` | `1s` | Timeout del cliente Redis |
+| `CATALOG_CACHE_TTL` | `60s` | TTL de lugares, búsqueda y detalle estático |
 | `CATALOG_SCHEDULER_FINALIZACION_MS` | `60000` | Intervalo del scheduler de estados |
 
 ## Ejecutar y probar
@@ -85,6 +112,6 @@ curl http://localhost:8081/actuator/health
 
 Swagger UI: <http://localhost:8081/swagger-ui.html> · OpenAPI: <http://localhost:8081/v3/api-docs>
 
-El OpenAPI exportado está en [`../openapi/catalog-openapi.json`](../openapi/catalog-openapi.json). Se regenera ejecutando `mvn -Dtest=OpenApiExportTest test`; el test escribe el archivo generado por springdoc en `openapi/catalog-openapi.json` de la raíz del repositorio.
+El OpenAPI exportado está en [`../openapi/catalog-openapi.json`](../openapi/catalog-openapi.json). Se regenera ejecutando `mvn -Dtest=OpenApiExportTest test`; el test escribe el archivo generado por springdoc en `openapi/catalog-openapi.json` de la raíz del repositorio y verifica los esquemas de seguridad internos y la cabecera `X-Cache`.
 
-Los tests unitarios y de controller no necesitan Docker. La validación de integración con PostgreSQL se corre levantando la base y los servicios (ver `docs/pruebas.md`).
+Los tests unitarios y de controller no necesitan Docker. La validación de integración con PostgreSQL se corre levantando la base y los servicios (ver `docs/pruebas.md`). Verificación del Día 5: `mvn test` → 122 tests, 0 fallos, 6 omitidos por falta de Docker en el entorno local.

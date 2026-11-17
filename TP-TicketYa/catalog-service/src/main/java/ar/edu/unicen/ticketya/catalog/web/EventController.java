@@ -15,6 +15,8 @@ import ar.edu.unicen.ticketya.catalog.web.dto.PrecioRequest;
 import ar.edu.unicen.ticketya.catalog.web.dto.PrecioResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -70,8 +72,9 @@ public class EventController {
 
     @PutMapping("/{eventoId}")
     @Operation(summary = "Editar un evento",
-            description = "Actualiza solo los campos enviados. Si el evento estÃ¡ publicado o agotado, "
-                    + "refresca el snapshot de inventory con una versiÃ³n nueva.")
+            description = "Actualiza solo los campos enviados. Si el evento está publicado o agotado, "
+                    + "refresca el snapshot de inventory con una versión nueva y reintenta abrir la fila "
+                    + "de alta demanda (operación idempotente). Invalida el detalle y las búsquedas cacheadas.")
     @ApiResponse(responseCode = "200", description = "Evento actualizado")
     @ApiResponse(responseCode = "400", description = "Datos invÃ¡lidos o fecha pasada (VALIDATION_ERROR)")
     @ApiResponse(responseCode = "401", description = "Falta identidad (UNAUTHORIZED)")
@@ -115,7 +118,8 @@ public class EventController {
 
     @PostMapping("/{eventoId}/publish")
     @Operation(summary = "Publicar un evento",
-            description = "EnvÃ­a el snapshot a inventory de forma idempotente. Si inventory falla, el evento sigue en BORRADOR.")
+            description = "Envía el snapshot a inventory de forma idempotente y abre la fila si el evento es de alta demanda. "
+                    + "Si inventory falla, el evento sigue en BORRADOR; si falla queue, la publicación continúa.")
     @ApiResponse(responseCode = "200", description = "Evento publicado")
     @ApiResponse(responseCode = "401", description = "Falta identidad (UNAUTHORIZED)")
     @ApiResponse(responseCode = "403", description = "Rol insuficiente o evento de otro organizador (FORBIDDEN, NOT_EVENT_OWNER)")
@@ -136,7 +140,8 @@ public class EventController {
 
     @PostMapping("/{eventoId}/cancel")
     @Operation(summary = "Cancelar un evento",
-            description = "Requiere ADMIN. Si orders no responde, responde 200 con cancelacionPendiente=true.")
+            description = "Requiere ADMIN. Cierra la fila de alta demanda y avisa a inventory y orders. "
+                    + "Si orders no responde, responde 200 con cancelacionPendiente=true.")
     @ApiResponse(responseCode = "200", description = "Evento cancelado")
     @ApiResponse(responseCode = "401", description = "Falta identidad (UNAUTHORIZED)")
     @ApiResponse(responseCode = "403", description = "Rol insuficiente (FORBIDDEN)")
@@ -158,7 +163,9 @@ public class EventController {
     @GetMapping
     @Operation(summary = "Buscar eventos",
             description = "Solo devuelve eventos PUBLICADO o AGOTADO. Los filtros se combinan entre sí.")
-    @ApiResponse(responseCode = "200", description = "Página de eventos")
+    @ApiResponse(responseCode = "200", description = "Página de eventos",
+            headers = @Header(name = "X-Cache", description = "HIT, MISS o BYPASS",
+                    schema = @Schema(type = "string", example = "HIT")))
     @ApiResponse(responseCode = "400", description = "Rango de fechas inválido (INVALID_DATE_RANGE) u orden inválido (INVALID_SORT)")
     public PageResponse<EventoBusquedaResponse> buscar(
             @Parameter(description = "Tipo de evento") @RequestParam(required = false) TipoEvento tipo,
@@ -186,7 +193,9 @@ public class EventController {
     @GetMapping("/{eventoId}")
     @Operation(summary = "Detalle de un evento",
             description = "Incluye sectores, precios y disponibilidad consultada a inventory. Un evento BORRADOR responde 404.")
-    @ApiResponse(responseCode = "200", description = "Detalle del evento")
+    @ApiResponse(responseCode = "200", description = "Detalle del evento (la disponibilidad se consulta siempre)",
+            headers = @Header(name = "X-Cache", description = "Estado de la caché del detalle estático",
+                    schema = @Schema(type = "string", example = "MISS")))
     @ApiResponse(responseCode = "404", description = "El evento no existe o no es visible (EVENT_NOT_FOUND)")
     @ApiResponse(responseCode = "503", description = "No se pudo consultar inventory (INVENTORY_UNAVAILABLE)")
     public EventoDetalleResponse detalle(@PathVariable UUID eventoId, HttpServletRequest request) {
