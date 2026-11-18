@@ -7,11 +7,11 @@ P4 en la tarea 2.8.
 
 ## recommendation-service
 
-El gateway **validará** el JWT y descartará los encabezados `X-User-*` que mande el cliente
-(tareas 2.1–2.3, todavía pendientes al cierre de este documento). Mientras tanto, el servicio
-exige `X-User-Id` y `X-User-Role` como defensa en profundidad: no acepta que un cliente declare
-otro `clienteId` ni que un rol distinto de `CLIENT` use los endpoints públicos. La validación
-del JWT en el borde no debe marcarse como hecha hasta que 2.1–2.3 estén integradas.
+El gateway valida el JWT (HS256) y descarta los encabezados `X-User-*` y `X-User-Id` que mande el
+cliente: la identidad que llega al servicio sale solo de los claims del token (tareas 2.1 y 2.2,
+ver la sección "api-gateway"). El servicio mantiene la exigencia de `X-User-Id` y `X-User-Role` como
+defensa en profundidad: no acepta que un cliente declare otro `clienteId` ni que un rol distinto de
+`CLIENT` use los endpoints públicos.
 
 | Endpoint | Sin identidad | ORGANIZER / ADMIN | CLIENT dueño | CLIENT con datos de otro |
 |---|---|---|---|---|
@@ -75,8 +75,47 @@ Abrir la fila ya lo exigía.
 | `GET /api/queue/events/{id}/position` | `401` | `403 FORBIDDEN` | `200` si está en la fila | n/a |
 | `GET /internal/reservations/{id}` | n/a | n/a | n/a | `401` sin `X-Internal-Token` o con uno inválido; `200` con el token |
 
-## Pendiente de P4 (tarea 2.8)
+## api-gateway (tareas 2.1 y 2.2)
 
-- Filas de catalog, orders y notification.
-- Verificación de que el gateway elimina `X-User-*` y `X-Internal-Token` del tráfico externo.
-- Matriz de roles en `docs/api-contract.md` y evidencia de `401/403/200` por endpoint.
+`POST /api/auth/login` lo atiende el propio gateway (no es una ruta proxy). Devuelve un JWT HS256
+con `sub` (UUID), `role` y `email`. Los usuarios son **demo y en memoria** (4 roles, contraseña
+`demo`). Es una simplificación respecto de `auth_db` y el ADR-016: no hay base de usuarios ni alta de cuentas.
+
+Para el resto de las rutas, el filtro del gateway aplica estas reglas:
+
+1. Siempre borra `X-User-Id`, `X-User-Role`, `X-User-Email` y `X-Internal-Token` que traiga el cliente.
+2. Las lecturas públicas pasan sin token.
+3. Cualquier otra ruta exige `Authorization: Bearer <jwt>`: sin token o con token inválido o vencido → `401`.
+4. Si el rol del token no está habilitado para la ruta → `403`. Una ruta que no figura en la
+   tabla de reglas también da `403` (default-deny).
+5. Con token válido y rol habilitado, el gateway agrega `X-User-Id`, `X-User-Role` y `X-User-Email`
+   tomados del JWT.
+6. `/internal/**` no tiene ruta en el gateway: devuelve `404`.
+
+| Endpoint | Sin token | Rol no habilitado | Rol habilitado |
+|---|---|---|---|
+| `POST /api/catalog/venues` y `/venues/{id}/sectors` | `401` | `403` | ADMIN |
+| `POST/PUT /api/catalog/events`, `PUT .../prices/{sectorId}`, `POST .../publish` | `401` | `403` | ORGANIZER |
+| `POST /api/catalog/events/{id}/cancel` | `401` | `403` | ADMIN |
+| `GET /api/catalog/**` (lecturas) | pasa | n/a | público |
+| `POST /api/orders`, `GET /api/orders/**`, devoluciones | `401` | `403` | autenticado |
+| `POST /api/orders/returns/{id}/approve` y `/reject` | `401` | `403` | ADMIN |
+| `POST /api/orders/access/validate` | `401` | `403` | ACCESS_STAFF o ADMIN |
+| `GET /api/notifications` y `/{id}` | `401` | `403` | CLIENT |
+
+Las filas de inventory, queue y recommendation están en las secciones de arriba.
+
+## Evidencia del gateway (18/11/2026)
+
+- Manual, con solo el gateway levantado: `docs/evidencia/entrega-2-p4-jwt.txt`
+  (`401` sin token, token inválido y `X-User-*` sin token; login `401`/`400`/`200`;
+  `403` con rol equivocado; `403` con `X-User-Role: ADMIN` falsificado; `404` en `/internal/**`).
+- Automática: `mvn test` en `api-gateway`, 46 tests en verde (`JwtServiceTest`,
+  `AuthControllerTest`, `IdentityHeaderFilterTest`, `GatewayRoutingTest`, `GatewayRevisionTest`,
+  `HeaderPropagationTest`). `HeaderPropagationTest` comprueba con un servidor simulado que el servicio
+  recibe los `X-User-*` del JWT y no los falsificados.
+
+## Pendiente
+
+- Verificar el `200` de punta a punta con los servicios reales levantados por el compose.
+- Evidencia de `401/403/200` de las filas de catalog y orders contra los servicios reales.
