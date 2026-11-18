@@ -20,17 +20,21 @@ public class InventoryRestClient implements InventoryClient {
     static final Duration ESPERA_BASE = Duration.ofMillis(100);
 
     private final RestClient restClient;
+    private final String internalToken;
 
     public InventoryRestClient(RestClient.Builder builder,
                                @Value("${inventory.url:http://localhost:8082}") String baseUrl,
                                @Value("${inventory.timeout.connect-ms:2000}") int connectTimeoutMs,
-                               @Value("${inventory.timeout.read-ms:3000}") int readTimeoutMs) {
+                               @Value("${inventory.timeout.read-ms:3000}") int readTimeoutMs,
+                               @Value("${inventory.internal-token:${INTERNAL_TOKEN:ticketya-internal-dev}}")
+                               String internalToken) {
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(connectTimeoutMs))
                 .build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(Duration.ofMillis(readTimeoutMs));
         this.restClient = builder.baseUrl(baseUrl).requestFactory(requestFactory).build();
+        this.internalToken = internalToken;
     }
 
     @Override
@@ -38,6 +42,7 @@ public class InventoryRestClient implements InventoryClient {
         conReintentos(() -> {
             restClient.post()
                     .uri("/internal/events/{eventoId}/inventory", snapshot.eventoId())
+                    .header("X-Internal-Token", internalToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(snapshot)
                     .retrieve()
@@ -51,6 +56,7 @@ public class InventoryRestClient implements InventoryClient {
         conReintentos(() -> {
             restClient.patch()
                     .uri("/internal/events/{eventoId}/state", eventoId)
+                    .header("X-Internal-Token", internalToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("estado", estado))
                     .retrieve()
