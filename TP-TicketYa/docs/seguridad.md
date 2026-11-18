@@ -1,8 +1,9 @@
 # Seguridad — matriz de acceso
 
 Este documento centraliza la matriz endpoint × rol y la evidencia de `401/403/200`.
-La sección de `recommendation-service` corresponde a la tarea **2.7** (P5). Las filas de
-catalog, inventory, orders, queue y notification las completa P4 en la tarea 2.8.
+La sección de `recommendation-service` corresponde a la tarea **2.7** (P5). Inventory y queue
+corresponden a la tarea **2.5** (P2). Las filas de catalog, orders y notification las completa
+P4 en la tarea 2.8.
 
 ## recommendation-service
 
@@ -59,8 +60,23 @@ mvn -B -ntp -Dtest='PreferenceControllerTest,RecommendationControllerTest,Intern
 El OpenAPI del servicio declara `bearerAuth`, `X-User-Id`, `X-User-Role` y
 `X-Internal-Token`; se regenera con `OpenApiExportTest`.
 
+## inventory-service y queue-service
+
+El gateway deja pasar solo `CLIENT` a reservar, consultar y cancelar, y a entrar o consultar la fila.
+El servicio repite esa regla. Los endpoints `/internal/**` de inventory exigen `X-Internal-Token`.
+Abrir la fila ya lo exigía.
+
+| Endpoint | Sin identidad | ORGANIZER | CLIENT | Sin token interno |
+|---|---|---|---|---|
+| `POST /api/inventory/reservations` | `401` | `403 FORBIDDEN` | sigue a la reserva | n/a |
+| `GET /api/inventory/reservations/{id}` | `401` | `403 FORBIDDEN` | `200` si es el dueño | n/a |
+| `DELETE /api/inventory/reservations/{id}` | `401` | `403 FORBIDDEN` | `204` si es el dueño y está vigente | n/a |
+| `POST /api/queue/events/{id}/join` | `401` | `403 FORBIDDEN` | `201` o `200` | n/a |
+| `GET /api/queue/events/{id}/position` | `401` | `403 FORBIDDEN` | `200` si está en la fila | n/a |
+| `GET /internal/reservations/{id}` | n/a | n/a | n/a | `401` sin `X-Internal-Token` o con uno inválido; `200` con el token |
+
 ## Pendiente de P4 (tarea 2.8)
 
-- Filas de catalog, inventory, orders, queue y notification.
+- Filas de catalog, orders y notification.
 - Verificación de que el gateway elimina `X-User-*` y `X-Internal-Token` del tráfico externo.
 - Matriz de roles en `docs/api-contract.md` y evidencia de `401/403/200` por endpoint.
