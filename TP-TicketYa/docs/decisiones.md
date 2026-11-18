@@ -184,3 +184,25 @@ transversales de la Entrega 2: patrones del enunciado, gateway reactivo, payload
   registry (sobredimensionado para el TP); no versionar (rompe consumidores en silencio).
 - **Consecuencias:** P4 congela 1.5; P1/P3 implementan productores contra el mismo documento;
   P5 mantiene el test del fixture. Los errores van a DLQ y no se reencolan infinitamente.
+
+## ADR-019 — Fila virtual con Redis y token de compra firmado
+
+- **Contexto:** los eventos de alta demanda necesitan un orden de llegada justo, posición
+  consultable y habilitación por tandas, con picos de miles de clientes haciendo polling. La
+  reserva no puede depender de una llamada sincrónica a queue-service en el camino crítico.
+- **Decisión:** queue-service usa Redis 7 como almacén primario (`waiting` como sorted set,
+  `state` como hash, `seq` como contador y `admitted` para la tanda) y scripts Lua para que
+  ingreso, posición y habilitación sean atómicos. La habilitación emite un JWT HS256 con
+  `eventId`, `sub`, `jti`, `exp` y `type=QUEUE`, válido 5 minutos. Inventory valida firma,
+  expiración, evento y cliente en local con la misma clave compartida y guarda el `jti` en la
+  reserva; no consulta queue-service para reservar. La fila se abre y cierra por endpoints
+  internos que catalog llama desde su outbox, con fallback si queue está caído.
+- **Alternativas:** tabla SQL con `SELECT ... FOR UPDATE` (más contención y escrituras por
+  cada polling); contador en memoria (no sirve con varias instancias); Redis Streams o
+  WebSockets (más complejidad para un cliente que ya hace polling cada 2–5 segundos);
+  validar el token contra queue en cada reserva (agrega un punto de fallo sincrónico).
+- **Consecuencias:** la fila es eventualmente consistente con catalog: si queue está caído al
+  publicar, el evento se publica igual y la apertura se reintenta en la próxima edición. Un
+  token ya emitido sigue válido hasta su `exp` aunque la fila se cierre; inventory rechaza la
+  reserva por el estado del evento. Redis necesita AOF y una política de reinicio documentada;
+  si pierde los datos, la fila responde `409 QUEUE_NOT_OPEN` y no se emiten tokens nuevos.
