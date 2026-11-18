@@ -23,6 +23,14 @@ spring:
           uri: ${QUEUE_URL:http://localhost:8086}
           predicates:
             - Path=/api/queue/**
+        - id: recommendation-service
+          uri: ${RECOMMENDATION_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/recommendations/**
+        - id: notification-service
+          uri: ${NOTIFICATION_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/notifications/**
 
 management:
   endpoints:

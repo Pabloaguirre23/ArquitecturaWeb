@@ -34,11 +34,14 @@ class GatewayRoutingTest {
                 .collectMap(Route::getId, Route::getUri)
                 .block();
 
-        assertThat(rutas).containsKeys("catalog-service", "inventory-service", "orders-service", "queue-service");
+        assertThat(rutas).containsKeys("catalog-service", "inventory-service", "orders-service", "queue-service",
+                "recommendation-service", "notification-service");
         assertThat(rutas.get("catalog-service").getPort()).isEqualTo(8081);
         assertThat(rutas.get("inventory-service").getPort()).isEqualTo(8082);
         assertThat(rutas.get("orders-service").getPort()).isEqualTo(8083);
         assertThat(rutas.get("queue-service").getPort()).isEqualTo(8086);
+        assertThat(rutas.get("recommendation-service").getPort()).isEqualTo(8084);
+        assertThat(rutas.get("notification-service").getPort()).isEqualTo(8085);
     }
 
     @Test
@@ -107,6 +110,40 @@ class GatewayRoutingTest {
     @Test
     void reservarSinIdentidadDevuelve401() {
         client.post().uri("/api/inventory/reservations")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("UNAUTHORIZED");
+    }
+
+    @Test
+    void unOrganizadorNoConsultaRecomendacionesNiNotificaciones() {
+        client.get().uri("/api/recommendations")
+                .header("X-User-Id", ORGANIZER)
+                .header("X-User-Role", "ORGANIZER")
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FORBIDDEN");
+
+        client.get().uri("/api/notifications")
+                .header("X-User-Id", ORGANIZER)
+                .header("X-User-Role", "ORGANIZER")
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FORBIDDEN");
+    }
+
+    @Test
+    void recomendacionesYNotificacionesSinIdentidadDevuelven401() {
+        client.get().uri("/api/recommendations")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("UNAUTHORIZED");
+
+        client.get().uri("/api/notifications")
                 .exchange()
                 .expectStatus().isUnauthorized()
                 .expectBody()

@@ -76,7 +76,13 @@ public class IdentityHeaderFilter implements org.springframework.cloud.gateway.f
             rule(HttpMethod.POST, "/api/orders/returns/" + ID + "/approve", ADMIN_ONLY),
             rule(HttpMethod.POST, "/api/orders/returns/" + ID + "/reject", ADMIN_ONLY),
             rule(HttpMethod.POST, "/api/queue/events/" + ID + "/join", CLIENT_ONLY),
-            rule(HttpMethod.GET, "/api/queue/events/" + ID + "/position", CLIENT_ONLY));
+            rule(HttpMethod.GET, "/api/queue/events/" + ID + "/position", CLIENT_ONLY),
+            rule(HttpMethod.GET, "/api/recommendations", CLIENT_ONLY),
+            rule(HttpMethod.GET, "/api/recommendations/preferences", CLIENT_ONLY),
+            rule(HttpMethod.PUT, "/api/recommendations/preferences", CLIENT_ONLY),
+            rule(HttpMethod.GET, "/api/recommendations/events/" + ID + "/similar", CLIENT_ONLY),
+            rule(HttpMethod.GET, "/api/notifications", CLIENT_ONLY),
+            rule(HttpMethod.GET, "/api/notifications/" + ID, CLIENT_ONLY));
 
     private final ObjectMapper objectMapper;
 

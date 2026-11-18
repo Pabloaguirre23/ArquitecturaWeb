@@ -1,55 +1,41 @@
 # integration-tests
 
-Pruebas end-to-end de TicketYa contra el **gateway** y los servicios levantados con Maven
-sobre las bases de `docker-compose.dev.yml`. Es el módulo de la tarea **10.1** (P5).
+Pruebas end-to-end de TicketYa contra el **gateway** y los servicios reales. Es el módulo de
+la tarea **10.1** (P5). No usa mocks de servicios: valida el flujo por el puerto 8080.
 
-No usa mocks de servicios: el objetivo es validar el flujo real, por el puerto 8080.
+## Estado (Día 6 — 18/11/2026)
 
-## Estado (Día 5 — 17/11/2026)
-
-| Flujo | Estado | Depende de |
+| Flujo | Clase / test | Estado |
 |---|---|---|
-| Gateway → búsqueda de catalog | **Primer flujo implementado** (`GatewayCatalogIT`) | gateway + catalog + catalog-db |
-| Login → búsqueda | Parcial: la búsqueda ya está; el login con JWT todavía no existe | 2.1–2.3 (P4) |
-| Fila → reserva | Pendiente de integrar los PRs de queue e inventory | 4.1–4.3, 5.1 (P2) |
-| Compra → QR | Pendiente de la suite de orders/inventory | 6.x (P3) |
-| Acceso QR | Pendiente del endpoint de validación de QR | 6.4 (P3) |
-| Compra → recomendación/notificación | Pendiente del consumidor de notificaciones y del flujo completo | 7.3, 8.2 (P5/P1) |
+| Gateway → salud y búsqueda pública de catalog | `GatewayCatalogIT` | Implementado |
+| Identidad → búsqueda y 401/403 | `TicketYaE2EIT.laBusquedaPublicaNoRequiereIdentidad`, `laIdentidadEsObligatoriaEnLosEndpointsProtegidos` | Implementado con identidad por headers (el login JWT de 2.1 todavía no está) |
+| Fila → reserva de alta demanda | `TicketYaE2EIT.laFilaHabilitaLaReservaDeUnEventoDeAltaDemanda` | Implementado |
+| Compra → QR e idempotencia | `TicketYaE2EIT.laCompraGeneraUnaEntradaConQrYEsIdempotente` | Implementado |
+| Acceso QR con un solo uso | `TicketYaE2EIT.elPersonalDeAccesoValidaElQrUnaSolaVez` | Se omite mientras 6.4 no esté expuesta |
+| Compra → notificación y recomendaciones | `TicketYaE2EIT.laCompraAlimentaNotificacionesYRecomendaciones` | Implementado |
 
-El test se salta automáticamente si no se define `TICKETYA_E2E=true`, para que un
-`mvn test` sin entorno no falle.
+Los tests se saltan si no se define `TICKETYA_E2E=true`, para que un `mvn test` sin entorno
+no falle.
 
-## Cómo correr el primer flujo
+## Cómo correr la suite completa
 
-### 1. Base de catalog
+### 1. Compose integral
+
+Desde `TP-TicketYa`, con tandas cortas para no esperar 30 segundos:
 
 ```bash
-cd TP-TicketYa
-docker compose -f docker-compose.dev.yml up -d catalog-db
+QUEUE_BATCH_SIZE=1 QUEUE_INTERVAL_SECONDS=2 QUEUE_SCHEDULER_MS=500 \
+  docker compose up -d --build
 ```
 
-### 2. Catalog y gateway
-
-En dos terminales (Java 21):
+Esperar los healthchecks:
 
 ```bash
-cd TP-TicketYa/catalog-service
-mvn -B -ntp spring-boot:run
-```
-
-```bash
-cd TP-TicketYa/api-gateway
-mvn -B -ntp spring-boot:run
-```
-
-Esperar:
-
-```bash
-curl -fsS http://localhost:8081/actuator/health
 curl -fsS http://localhost:8080/actuator/health
+for p in 8081 8082 8083 8084 8085 8086; do curl -fsS "http://localhost:$p/actuator/health"; done
 ```
 
-### 3. Suite de integración
+### 2. Suite
 
 ```bash
 cd TP-TicketYa/integration-tests
@@ -62,20 +48,29 @@ Variables:
 |---|---|---|
 | `TICKETYA_E2E` | `false` | `true` habilita los tests de integración |
 | `TICKETYA_GATEWAY_URL` | `http://localhost:8080` | URL del gateway |
+| `TICKETYA_E2E_TIMEOUT_MS` | `45000` | Espera máxima de la fila y de los consumidores asíncronos |
 
-Resultado esperado del primer flujo:
+Resultado esperado con las siete piezas arriba:
 
 ```text
-Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 8, Failures: 0, Errors: 0, Skipped: 1
 BUILD SUCCESS
 ```
 
-## Próximos pasos
+El omitido es el acceso QR: la tarea 6.4 todavía no expone
+`POST /api/orders/access/validate` y el rol `ACCESS_STAFF` no está en la matriz del gateway.
 
-1. Cuando P4 cierre 2.1–2.3, agregar `LoginIT` y reemplazar los headers de identidad por JWT.
-2. Cuando se integren los PRs de queue, agregar `QueueReservationIT`: abrir fila, ingresar,
-   esperar tanda, reservar con `X-Queue-Token`.
-3. Cuando orders/inventory estén integrados, agregar `PurchaseQrIT` y `AccessQrIT`.
-4. Cuando notification/recommendation estén integrados, agregar `PurchaseEventsIT`:
-   publicar `orden.pagada` y verificar historial + notificación.
-5. Agregar estos tests al compose integral (9.6) y al CI (9.7) cuando existan.
+## Qué crea el escenario
+
+`TicketYaE2EIT` arma un lugar, un sector numerado y un evento de alta demanda con fechas
+futuras, publica el evento y reserva con el token de fila. Después compra con
+`Idempotency-Key` y verifica que la notificación `orden.pagada` llegue por RabbitMQ y que
+recommendation responda por el gateway. Todo se crea con nombres únicos por corrida; las
+bases del compose se pueden reutilizar entre ejecuciones.
+
+## Pendientes
+
+1. Cuando P4 cierre 2.1–2.3, reemplazar los headers `X-User-*` por JWT en `TicketYaE2EIT`.
+2. Cuando P3 cierre 6.4, quitar la omisión del acceso QR y agregar `ACCESS_STAFF` al gateway.
+3. Cuando orders exponga reportes (6.5), agregar el flujo de reporte por evento.
+4. Llevar esta suite al workflow de CI con `docker compose` cuando 9.7 lo permita.
