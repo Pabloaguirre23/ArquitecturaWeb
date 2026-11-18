@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
@@ -13,13 +14,16 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import ar.edu.unicen.ticketya.catalog.config.CacheConfig;
 import ar.edu.unicen.ticketya.catalog.dominio.EstadoEvento;
 import ar.edu.unicen.ticketya.catalog.dominio.Evento;
+import ar.edu.unicen.ticketya.catalog.dominio.EventoParticipante;
 import ar.edu.unicen.ticketya.catalog.dominio.EventoSectorPrecio;
 import ar.edu.unicen.ticketya.catalog.dominio.Lugar;
 import ar.edu.unicen.ticketya.catalog.dominio.Sector;
 import ar.edu.unicen.ticketya.catalog.dominio.TipoEvento;
 import ar.edu.unicen.ticketya.catalog.dominio.TipoSector;
+import ar.edu.unicen.ticketya.catalog.eventos.CatalogEvents;
 import ar.edu.unicen.ticketya.catalog.repositorio.AsientoRepository;
 import ar.edu.unicen.ticketya.catalog.repositorio.EventoParticipanteRepository;
 import ar.edu.unicen.ticketya.catalog.repositorio.EventoRepository;
@@ -34,14 +38,17 @@ import ar.edu.unicen.ticketya.catalog.web.dto.EventoBusquedaResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.EventoResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.PageResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.PrecioRequest;
+import ar.edu.unicen.ticketya.catalog.web.dto.SectorDetalleResponse;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -74,15 +81,23 @@ class EventServiceTest {
     private OrdersClient ordersClient;
     @Mock
     private QueueClient queueClient;
+    @Mock
+    private CatalogCacheService catalogCacheService;
+    @Mock
+    private OutboxService outboxService;
+
 
     private EventService eventService;
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-03T12:00:00Z"), ZONA);
 
     @BeforeEach
     void setUp() {
+        lenient().when(catalogCacheService.getOrLoad(any(), any(), org.mockito.ArgumentMatchers.<Supplier<Object>>any()))
+                .thenAnswer(inv -> new CatalogCacheService.CacheResult<>(((Supplier<?>) inv.getArgument(2)).get(), "BYPASS"));
         eventService = new EventService(eventoRepository, lugarRepository, sectorRepository,
                 asientoRepository, participanteRepository, precioRepository, inventoryClient,
-                ordersClient, queueClient, clock);
+                ordersClient, queueClient, clock, catalogCacheService, outboxService);
+
     }
 
     @Test
@@ -158,6 +173,42 @@ class EventServiceTest {
         assertThat(snapshot.getValue().version()).isEqualTo(1L);
         assertThat(snapshot.getValue().altaDemanda()).isTrue();
         verify(queueClient).abrir(evento.getId());
+    }
+
+    @Test
+    void publicarRegistraElOutboxConElPayloadDelContratoYLaCorrelacion() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID(), "Festival",
+                OffsetDateTime.parse("2027-03-15T00:00:00Z"), EstadoEvento.BORRADOR);
+        Sector sector = sector(evento.getLugarId(), "Platea");
+        EventoSectorPrecio precio = new EventoSectorPrecio(evento.getId(), sector.getId(), new BigDecimal("15000"));
+        Lugar lugar = lugar(evento.getLugarId(), "Estadio", "Tandil");
+        String correlationId = "5d1f2e3a-4b6c-4d8e-9f01-2a3b4c5d6e7f";
+
+        when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
+        when(sectorRepository.findByLugarIdOrderByNombreAsc(evento.getLugarId())).thenReturn(List.of(sector));
+        when(precioRepository.findByEventoId(evento.getId())).thenReturn(List.of(precio));
+        when(asientoRepository.findBySectorIdOrderByFilaAscNumeroAsc(sector.getId())).thenReturn(List.of());
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(lugarRepository.findById(evento.getLugarId())).thenReturn(Optional.of(lugar));
+        when(participanteRepository.findByEventoIdOrderByNombreAsc(evento.getId())).thenReturn(List.of(
+                new EventoParticipante(evento.getId(), "Los Piojos"),
+                new EventoParticipante(evento.getId(), "Callejeros")));
+
+        eventService.publicar(evento.getId(), evento.getOrganizadorId(), correlationId);
+
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(outboxService).register(eq(CatalogEvents.EVENTO_PUBLICADO), eq(evento.getId()),
+                eq(correlationId), payload.capture());
+        assertThat(payload.getValue()).containsEntry("eventoId", evento.getId().toString())
+                .containsEntry("nombre", "Festival")
+                .containsEntry("tipo", "RECITAL")
+                .containsEntry("artistas", List.of("Los Piojos", "Callejeros"))
+                .containsEntry("ciudad", "Tandil")
+                .containsEntry("fechaEvento", "2027-03-15T00:00:00Z")
+                .containsEntry("organizadorId", evento.getOrganizadorId().toString())
+                .containsEntry("estado", "PUBLICADO")
+                .doesNotContainKey("fecha")
+                .doesNotContainKey("lugarId");
     }
 
     @Test
@@ -373,6 +424,35 @@ class EventServiceTest {
                     assertThat(ex.getStatus().value()).isEqualTo(400);
                     assertThat(ex.getCode()).isEqualTo("INVALID_PRICE");
                 });
+    }
+
+    @Test
+    void asignarPrecioInvalidaElDetalleYLasBusquedas() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        Sector sector = sector(evento.getLugarId(), "Platea");
+        when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
+        when(sectorRepository.findById(sector.getId())).thenReturn(Optional.of(sector));
+        when(precioRepository.findByEventoIdAndSectorId(evento.getId(), sector.getId()))
+                .thenReturn(Optional.empty());
+        when(precioRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        eventService.asignarPrecio(evento.getId(), sector.getId(),
+                new PrecioRequest(new BigDecimal("100")), evento.getOrganizadorId());
+
+        verify(catalogCacheService).evictEventCaches(evento.getId());
+    }
+
+    @Test
+    void losCandidatosSoloConsideranEventosPublicadosOAgotados() {
+        when(eventoRepository.buscarCandidatos(any(), anyBoolean(), any(), anyBoolean(), any(), any(), any(), any()))
+                .thenReturn(List.of());
+
+        eventService.candidatos(null, null, null, null, null, 20);
+
+        ArgumentCaptor<java.util.Collection> estados = ArgumentCaptor.forClass(java.util.Collection.class);
+        verify(eventoRepository).buscarCandidatos(estados.capture(), eq(false), eq(TipoEvento.OTRO),
+                eq(false), eq("%"), eq("%"), any(), any());
+        assertThat(estados.getValue()).containsExactlyInAnyOrder(EstadoEvento.PUBLICADO, EstadoEvento.AGOTADO);
     }
 
     @Test
@@ -733,6 +813,27 @@ class EventServiceTest {
     }
 
     @Test
+    void laDisponibilidadSeConsultaSiempreAunqueElDetalleEstaticoEsteCacheado() {
+        UUID eventoId = UUID.randomUUID();
+        UUID sectorId = UUID.randomUUID();
+        EventoDetalleEstatico estatico = new EventoDetalleEstatico(eventoId, "Recital", null,
+                TipoEvento.RECITAL, UUID.randomUUID(), "Estadio", "Tandil", UUID.randomUUID(),
+                OffsetDateTime.parse("2027-01-15T21:00:00-03:00"), EstadoEvento.PUBLICADO, 4, false,
+                List.of("Artista"),
+                List.of(new EventoDetalleEstatico.SectorEstatico(sectorId, "Platea", TipoSector.NUMERADO,
+                        new BigDecimal("100"), 50)));
+        org.mockito.Mockito.doReturn(new CatalogCacheService.CacheResult<>(estatico, "HIT"))
+                .when(catalogCacheService).getOrLoad(eq(CacheConfig.EVENT_DETAIL_STATIC), eq(eventoId), any());
+        when(inventoryClient.obtenerDisponibilidad(eventoId)).thenReturn(Map.of(sectorId, 7));
+
+        eventService.detalleCacheable(eventoId);
+        var detalle = eventService.detalleCacheable(eventoId).value();
+
+        verify(inventoryClient, times(2)).obtenerDisponibilidad(eventoId);
+        assertThat(detalle.sectores()).extracting(SectorDetalleResponse::disponibles).containsExactly(7);
+    }
+
+    @Test
     void elDetalleDevuelve503SiInventoryNoResponde() {
         Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
         evento.setEstado(EstadoEvento.PUBLICADO);
@@ -742,11 +843,106 @@ class EventServiceTest {
         when(inventoryClient.obtenerDisponibilidad(evento.getId()))
                 .thenThrow(new RuntimeException("inventory caído"));
 
-        assertThatThrownBy(() -> eventService.detalle(evento.getId()))
+        assertThatThrownBy(() -> eventService.detalleCacheable(evento.getId()).value())
                 .isInstanceOfSatisfying(ApiException.class, ex -> {
                     assertThat(ex.getStatus().value()).isEqualTo(503);
                     assertThat(ex.getCode()).isEqualTo("INVENTORY_UNAVAILABLE");
                 });
+    }
+
+    @Test
+    void publicarUnEventoDeAltaDemandaAbreLaFila() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        evento.setAltaDemanda(true);
+        prepararPublicacion(evento);
+
+        eventService.publicar(evento.getId(), evento.getOrganizadorId());
+
+        verify(queueClient).abrir(evento.getId());
+    }
+
+    @Test
+    void publicarUnEventoNormalNoAbreLaFila() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        prepararPublicacion(evento);
+
+        eventService.publicar(evento.getId(), evento.getOrganizadorId());
+
+        verify(queueClient, never()).abrir(any());
+        verify(queueClient, never()).cerrar(any(), org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void unFalloDeQueueNoImpidePublicarElEvento() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        evento.setAltaDemanda(true);
+        prepararPublicacion(evento);
+        doThrow(new RuntimeException("queue caído")).when(queueClient).abrir(evento.getId());
+
+        EventoResponse response = eventService.publicar(evento.getId(), evento.getOrganizadorId());
+
+        assertThat(response.estado()).isEqualTo(EstadoEvento.PUBLICADO);
+        verify(queueClient).abrir(evento.getId());
+    }
+
+    @Test
+    void cancelarUnEventoDeAltaDemandaCierraLaFila() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        evento.setEstado(EstadoEvento.PUBLICADO);
+        evento.setAltaDemanda(true);
+        when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        eventService.cancelar(evento.getId());
+
+        verify(queueClient).cerrar(evento.getId(), "CANCELADO");
+    }
+
+    @Test
+    void agotarYVolverAPublicarCierraYReabreLaFila() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        evento.setEstado(EstadoEvento.PUBLICADO);
+        evento.setAltaDemanda(true);
+        when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
+
+        eventService.actualizarDisponibilidad(evento.getId(), true);
+        verify(queueClient).cerrar(evento.getId(), "AGOTADO");
+
+        eventService.actualizarDisponibilidad(evento.getId(), false);
+        verify(queueClient).abrir(evento.getId());
+    }
+
+    @Test
+    void elOutboxDeEventoPublicadoIncluyeArtistasCiudadYFechaParaFavoritos() {
+        Evento evento = evento(UUID.randomUUID(), UUID.randomUUID());
+        prepararPublicacion(evento);
+        when(participanteRepository.findByEventoIdOrderByNombreAsc(evento.getId()))
+                .thenReturn(List.of(new ar.edu.unicen.ticketya.catalog.dominio.EventoParticipante(
+                        evento.getId(), "Artista A")));
+
+        eventService.publicar(evento.getId(), evento.getOrganizadorId());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(outboxService).register(eq("evento.publicado"), eq(evento.getId()), anyString(), payload.capture());
+        assertThat(payload.getValue())
+                .containsEntry("artistas", List.of("Artista A"))
+                .containsEntry("ciudad", "Tandil")
+                .containsEntry("fechaEvento", evento.getFecha().toInstant().toString())
+                .doesNotContainKey("lugarId")
+                .doesNotContainKey("fecha");
+    }
+
+    private void prepararPublicacion(Evento evento) {
+        Sector sector = sector(evento.getLugarId(), "Platea");
+        EventoSectorPrecio precio = new EventoSectorPrecio(evento.getId(), sector.getId(), new BigDecimal("15000"));
+        when(eventoRepository.findById(evento.getId())).thenReturn(Optional.of(evento));
+        when(sectorRepository.findByLugarIdOrderByNombreAsc(evento.getLugarId())).thenReturn(List.of(sector));
+        when(precioRepository.findByEventoId(evento.getId())).thenReturn(List.of(precio));
+        when(asientoRepository.findBySectorIdOrderByFilaAscNumeroAsc(sector.getId())).thenReturn(List.of());
+        when(eventoRepository.save(any(Evento.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(lugarRepository.findById(evento.getLugarId()))
+                .thenReturn(Optional.of(lugar(evento.getLugarId(), "Estadio", "Tandil")));
     }
 
     private Evento evento(UUID organizadorId, UUID lugarId) {

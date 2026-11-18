@@ -5,18 +5,28 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
+/**
+ * Cliente REST hacia los endpoints internos de queue-service.
+ *
+ * <p>Usa timeouts cortos y hasta tres intentos ante fallos transitorios (5xx,
+ * timeout o pérdida de conexión). Los 4xx no se reintentan: son definitivos.
+ * Quien llama decide cómo degradar si la fila no está disponible.</p>
+ */
 @Component
 public class QueueRestClient implements QueueClient {
 
     static final int MAX_INTENTOS = 3;
     static final Duration ESPERA_BASE = Duration.ofMillis(100);
+    static final String CORRELATION_MDC_KEY = "correlationId";
 
     private final RestClient restClient;
     private final String internalToken;
@@ -40,7 +50,7 @@ public class QueueRestClient implements QueueClient {
         conReintentos(() -> {
             restClient.post()
                     .uri("/internal/events/{eventoId}", eventoId)
-                    .header("X-Internal-Token", internalToken)
+                    .headers(this::propagarHeaders)
                     .retrieve()
                     .toBodilessEntity();
             return null;
@@ -52,7 +62,7 @@ public class QueueRestClient implements QueueClient {
         conReintentos(() -> {
             restClient.post()
                     .uri("/internal/events/{eventoId}/close", eventoId)
-                    .header("X-Internal-Token", internalToken)
+                    .headers(this::propagarHeaders)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("motivo", motivo))
                     .retrieve()
@@ -60,6 +70,15 @@ public class QueueRestClient implements QueueClient {
             return null;
         });
     }
+
+    private void propagarHeaders(HttpHeaders headers) {
+        headers.set("X-Internal-Token", internalToken);
+        String correlationId = MDC.get(CORRELATION_MDC_KEY);
+        if (correlationId != null && !correlationId.isBlank()) {
+            headers.set("X-Correlation-Id", correlationId);
+        }
+    }
+
 
     private <T> T conReintentos(Supplier<T> operacion) {
         RuntimeException ultimo = null;
