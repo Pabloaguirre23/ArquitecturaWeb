@@ -11,13 +11,13 @@ Servicio de disponibilidad, reservas temporales y no doble venta de TicketYa.
 
 | Método | Ruta | Rol | Descripción |
 |---|---|---|---|
-| POST | `/internal/events/{eventoId}/inventory` | interno | Alta/actualización idempotente del snapshot de catalog |
+| POST | `/internal/events/{eventoId}/inventory` | interno | Alta/actualización idempotente del snapshot de catalog. Exige `X-Internal-Token` |
 | PATCH | `/internal/events/{eventoId}/state` | interno | Catalog avisa `CANCELADO` o `FINALIZADO`. Idempotente, 204 |
 | GET | `/api/inventory/events/{eventoId}/availability` | público | Disponibilidad por sector |
 | GET | `/api/inventory/events/{eventoId}/seats?sectorId=` | público | Mapa de asientos |
-| POST | `/api/inventory/reservations` | autenticado | Reserva atómica de asientos numerados y zonas |
-| GET | `/api/inventory/reservations/{reservaId}` | dueño | Consulta de una reserva |
-| DELETE | `/api/inventory/reservations/{reservaId}` | dueño | Cancela una reserva vigente y libera los lugares. Repetir responde 204 |
+| POST | `/api/inventory/reservations` | CLIENT | Reserva atómica de asientos numerados y zonas. Otro rol responde 403 |
+| GET | `/api/inventory/reservations/{reservaId}` | CLIENT dueño | Consulta de una reserva. Otro rol responde 403 |
+| DELETE | `/api/inventory/reservations/{reservaId}` | CLIENT dueño | Cancela una reserva vigente y libera los lugares. Repetir responde 204. Otro rol responde 403 |
 | GET | `/internal/reservations/{reservaId}` | interno | Reserva para orders, con nombre/fecha del evento |
 | POST | `/internal/reservations/{reservaId}/confirm` | interno | Confirma la venta. Repetir una confirmada devuelve 200 |
 | POST | `/internal/reservations/{reservaId}/release` | interno | Libera la reserva si el pago se rechazó. Idempotente, 204 |
@@ -61,6 +61,7 @@ Límite por cliente, vencimiento, confirmación/liberación y devolución corres
 | `QUEUE_CONNECT_TIMEOUT_MS` | `2000` | Timeout de conexión hacia queue |
 | `QUEUE_READ_TIMEOUT_MS` | `2000` | Timeout de lectura hacia queue |
 | `QUEUE_TOKEN_SECRET` | `ticketya-queue-dev-secret-key-32b` | Secreto HS256 del token de fila. Mínimo 32 bytes. El mismo que queue |
+| `INTERNAL_TOKEN` | `ticketya-internal-dev` | Token de los endpoints `/internal/**` |
 
 El pool de desarrollo tiene 20 conexiones, `connection-timeout` de 3 s y `lock_timeout` de 3 s en PostgreSQL. Si una reserva no consigue el lock, falla rápido en vez de quedar colgada. El detector de conexiones perdidas avisa a los 10 s.
 

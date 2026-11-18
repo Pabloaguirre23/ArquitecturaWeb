@@ -121,7 +121,7 @@ public class InventoryController {
                     content = @Content(mediaType = "application/problem+json",
                             schema = @Schema(implementation = Problema.class),
                             examples = @ExampleObject(name = "UNAUTHORIZED", value = Ejemplos.NO_AUTENTICADO))),
-            @ApiResponse(responseCode = "403", description = "El evento de alta demanda exige un token de fila válido",
+            @ApiResponse(responseCode = "403", description = "El rol no es CLIENT, o el evento exige un token de fila válido",
                     content = @Content(mediaType = "application/problem+json",
                             schema = @Schema(implementation = Problema.class),
                             examples = {
@@ -168,6 +168,7 @@ public class InventoryController {
                     schema = @Schema(type = "string"))
             @RequestHeader(value = "X-Queue-Token", required = false) String queueToken) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
+        identity.requireRole("CLIENT");
         ReservationResponse response = reservaService.reservar(request, identity.userId(), queueToken);
         return ResponseEntity.created(URI.create("/api/inventory/reservations/" + response.id())).body(response);
     }
@@ -175,7 +176,8 @@ public class InventoryController {
     @GetMapping("/reservations/{reservaId}")
     @Operation(summary = "Consultar una reserva propia",
             description = """
-                    Solo el dueño. Si la reserva venció, la respuesta es 200 con estado VENCIDA: \
+                    Solo el cliente dueño. Un rol distinto de CLIENT responde 403. \
+                    Si la reserva venció, la respuesta es 200 con estado VENCIDA: \
                     410 RESERVATION_EXPIRED se usa al confirmar o pagar, no en esta consulta.
                     """)
     @ApiResponses({
@@ -187,7 +189,7 @@ public class InventoryController {
                     content = @Content(mediaType = "application/problem+json",
                             schema = @Schema(implementation = Problema.class),
                             examples = @ExampleObject(name = "UNAUTHORIZED", value = Ejemplos.NO_AUTENTICADO))),
-            @ApiResponse(responseCode = "403", description = "La reserva es de otro cliente",
+            @ApiResponse(responseCode = "403", description = "El rol no es CLIENT o la reserva es de otro cliente",
                     content = @Content(mediaType = "application/problem+json",
                             schema = @Schema(implementation = Problema.class),
                             examples = @ExampleObject(name = "NOT_RESERVATION_OWNER", value = Ejemplos.AJENA))),
@@ -205,6 +207,7 @@ public class InventoryController {
                     schema = @Schema(type = "string"), example = "CLIENT")
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
+        identity.requireRole("CLIENT");
         return reservaService.obtener(reservaId, identity.userId());
     }
 
@@ -213,7 +216,8 @@ public class InventoryController {
             description = """
                     Solo el dueño, y solo si sigue VIGENTE. Libera asientos y cupo. \
                     Repetir la cancelación responde 204 sin liberar otra vez. \
-                    Una reserva de otro cliente responde 403. Una confirmada responde 409. Una vencida responde 410.
+                    Un rol distinto de CLIENT responde 403. Una reserva de otro cliente responde 403. \
+                    Una confirmada responde 409. Una vencida responde 410.
                     """)
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Cancelada, o ya estaba cancelada"),
@@ -221,7 +225,7 @@ public class InventoryController {
                     content = @Content(mediaType = "application/problem+json",
                             schema = @Schema(implementation = Problema.class),
                             examples = @ExampleObject(name = "UNAUTHORIZED", value = Ejemplos.NO_AUTENTICADO))),
-            @ApiResponse(responseCode = "403", description = "La reserva es de otro cliente",
+            @ApiResponse(responseCode = "403", description = "El rol no es CLIENT o la reserva es de otro cliente",
                     content = @Content(mediaType = "application/problem+json",
                             schema = @Schema(implementation = Problema.class),
                             examples = @ExampleObject(name = "NOT_RESERVATION_OWNER", value = Ejemplos.AJENA))),
@@ -247,6 +251,7 @@ public class InventoryController {
                     schema = @Schema(type = "string"), example = "CLIENT")
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
+        identity.requireRole("CLIENT");
         reservaService.cancelar(reservaId, identity.userId());
         return ResponseEntity.noContent().build();
     }

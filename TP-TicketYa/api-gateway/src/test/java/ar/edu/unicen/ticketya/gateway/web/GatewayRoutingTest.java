@@ -75,6 +75,17 @@ class GatewayRoutingTest {
     }
 
     @Test
+    void unOrganizadorNoReserva() {
+        client.post().uri("/api/inventory/reservations")
+                .header("X-User-Id", ORGANIZER)
+                .header("X-User-Role", "ORGANIZER")
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FORBIDDEN");
+    }
+
+    @Test
     void unOrganizadorNoEntraALaFila() {
         client.post().uri("/api/queue/events/" + UUID_CUALQUIERA + "/join")
                 .header("X-User-Id", ORGANIZER)
