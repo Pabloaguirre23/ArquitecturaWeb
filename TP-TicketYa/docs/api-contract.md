@@ -104,6 +104,7 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 | POST | `/api/catalog/venues/{venueId}/sectors` | ADMIN | 201 | catalog |
 | GET | `/api/catalog/venues/{venueId}/sectors` | público | 200 | catalog |
 | POST | `/api/catalog/events` | ORGANIZER | 201 | catalog |
+| PUT | `/api/catalog/events/{eventoId}` | ORGANIZER | 200 | catalog |
 | PUT | `/api/catalog/events/{eventoId}/prices/{sectorId}` | ORGANIZER | 200 | catalog |
 | POST | `/api/catalog/events/{eventoId}/publish` | ORGANIZER | 200 | catalog |
 | POST | `/api/catalog/events/{eventoId}/cancel` | ADMIN | 200 | catalog |
@@ -125,6 +126,8 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 | GET | `/api/recommendations/preferences` | CLIENT | 200 | recommendation |
 | PUT | `/api/recommendations/preferences` | CLIENT | 200 | recommendation |
 | GET | `/api/recommendations` | CLIENT | 200 | recommendation |
+| GET | `/api/notifications` | CLIENT | 200 | notification |
+| GET | `/api/notifications/{notificacionId}` | CLIENT (dueño) | 200 | notification |
 | GET | `/api/recommendations/events/{eventId}/similar` | CLIENT | 200 | recommendation |
 | POST | `/api/queue/events/{eventoId}/join` | CLIENT | 201/200 | queue |
 | GET | `/api/queue/events/{eventoId}/position` | CLIENT | 200 | queue |
@@ -133,6 +136,8 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 Los endpoints `/internal/**` no se listan porque no se exponen por el gateway.
 
 ## 3. catalog-service
+
+OpenAPI: [`../openapi/catalog-openapi.json`](../openapi/catalog-openapi.json). Swagger UI en `http://localhost:8081/swagger-ui.html`. El documento incluye los esquemas `X-User-Id`, `X-User-Role`, `X-Correlation-Id` y `X-Internal-Token`, la cabecera `X-Cache` en las consultas cacheadas y ejemplos de `ProblemDetail`. La publicación de eventos de dominio se describe en [3.15](#315-eventos-de-dominio-y-outbox-tarea-32).
 
 ### 3.1 Crear lugar — `POST /api/catalog/venues` (ADMIN)
 
@@ -240,6 +245,8 @@ Errores: `400 VALIDATION_ERROR` (capacidad ≤ 0, sector numerado sin filas, cap
 
 Errores: `400 VALIDATION_ERROR` (fecha pasada, tipo inválido, límite ≤ 0, participantes vacío), `403`, `404 VENUE_NOT_FOUND`.
 
+`altaDemanda: true` marca el evento para fila virtual: al publicarse, catalog abre la fila en queue-service (ver 3.14). `limitePorCliente` se configura aquí y viaja en el snapshot y en el detalle; la reducción del límite una vez registradas ventas queda pendiente de contrato con orders/inventory (tarea 3.1).
+
 ### 3.6.1 Editar evento — `PUT /api/catalog/events/{eventoId}` (ORGANIZER)
 
 Edición parcial: solo se actualizan los campos enviados. Se puede usar en `BORRADOR`, `PUBLICADO` y `AGOTADO`; un evento `CANCELADO` o `FINALIZADO` responde `409`.
@@ -255,7 +262,7 @@ Edición parcial: solo se actualizan los campos enviados. Se puede usar en `BORR
 }
 ```
 
-**200** con `EventResponse`. Si el evento está `PUBLICADO` o `AGOTADO`, catalog envía el snapshot completo a inventory con `version` incrementada y el nuevo `altaDemanda`.
+**200** con `EventResponse`. Si el evento está `PUBLICADO` o `AGOTADO`, catalog envía el snapshot completo a inventory con `version` incrementada y el nuevo `altaDemanda`, publica `evento.actualizado` mediante el outbox, invalida el detalle y las búsquedas cacheadas y vuelve a abrir la fila si es de alta demanda (idempotente).
 
 Reglas:
 
@@ -283,9 +290,9 @@ Errores: `400 SECTOR_NOT_FROM_VENUE`, `400 INVALID_PRICE` (precio negativo), `40
 
 ### 3.8 Publicar evento — `POST /api/catalog/events/{eventoId}/publish` (ORGANIZER)
 
-Sin cuerpo. **200** `EventResponse` con `estado: "PUBLICADO"`.
+Sin cuerpo. **200** `EventResponse` con `estado: "PUBLICADO"`. Si `altaDemanda` es `true`, catalog registra `evento.publicado` en el outbox y abre la fila en queue-service (ver 3.14).
 
-Errores: `403 NOT_EVENT_OWNER`, `404 EVENT_NOT_FOUND`, `409 EVENT_NOT_EDITABLE` (no está en `BORRADOR`), `409 EVENT_INCOMPLETE` (algún sector sin precio), `502 INVENTORY_UNAVAILABLE` (inventory no confirmó; el evento queda `BORRADOR`).
+Errores: `403 NOT_EVENT_OWNER`, `404 EVENT_NOT_FOUND`, `409 EVENT_NOT_EDITABLE` (no está en `BORRADOR`), `409 EVENT_INCOMPLETE` (algún sector sin precio), `502 INVENTORY_UNAVAILABLE` (inventory no confirmó; el evento queda `BORRADOR`). Un fallo de queue no modifica la respuesta: se registra un warning y la apertura se reintenta en una edición posterior.
 
 ### 3.9 Cancelar evento — `POST /api/catalog/events/{eventoId}/cancel` (ADMIN)
 
@@ -299,7 +306,7 @@ Sin cuerpo. **200**
 }
 ```
 
-Catalog cierra primero la venta en inventory con `PATCH /internal/events/{eventoId}/state` y recién después avisa a orders. Si inventory falla, no se avisa a orders y `cancelacionPendiente` queda en `true`; el scheduler reintenta ambos avisos en orden. Si orders falla después de cerrar la venta, también queda pendiente.
+Catalog cierra primero la venta en inventory con `PATCH /internal/events/{eventoId}/state` y recién después avisa a orders. Si inventory falla, no se avisa a orders y `cancelacionPendiente` queda en `true`; el scheduler reintenta ambos avisos en orden. Si orders falla después de cerrar la venta, también queda pendiente. Para eventos de alta demanda también se cierra la fila con motivo `CANCELADO` (ver 3.14); un fallo de queue no revierte la cancelación.
 
 Errores: `404 EVENT_NOT_FOUND`, `409 EVENT_NOT_CANCELLABLE` (ya cancelado o finalizado). Un fallo de inventory/orders no cambia el 200: se refleja en `cancelacionPendiente`.
 
@@ -344,7 +351,7 @@ Solo devuelve eventos en `PUBLICADO` o `AGOTADO`. Los caracteres `%`, `_` y `\` 
 }
 ```
 
-Errores: `400 INVALID_DATE_RANGE` (`fechaDesde` posterior a `fechaHasta`), `400 INVALID_SORT`.
+Errores: `400 INVALID_DATE_RANGE` (`fechaDesde` posterior a `fechaHasta`), `400 INVALID_SORT`. La respuesta incluye `X-Cache: HIT|MISS|BYPASS` según el estado de la caché de Redis; el TTL se configura con `CATALOG_CACHE_SEARCH_TTL` (default `30s`) y la búsqueda se invalida al publicar, editar, cancelar o cambiar precios.
 
 ### 3.11 Detalle de evento — `GET /api/catalog/events/{eventoId}` (público)
 
@@ -378,7 +385,7 @@ Errores: `400 INVALID_DATE_RANGE` (`fechaDesde` posterior a `fechaHasta`), `400 
 }
 ```
 
-`disponibles` se consulta a inventory en el momento. Errores: `404 EVENT_NOT_FOUND` (inexistente o en `BORRADOR`), `503 INVENTORY_UNAVAILABLE`.
+`disponibles` se consulta a inventory en el momento. La respuesta informa `X-Cache: HIT|MISS|BYPASS` para la parte estática del detalle; la disponibilidad y los asientos nunca se cachean. Errores: `404 EVENT_NOT_FOUND` (inexistente o en `BORRADOR`), `503 INVENTORY_UNAVAILABLE`.
 
 ### 3.12 Interno — `PATCH /internal/events/{eventoId}/availability`
 
@@ -388,7 +395,52 @@ Llamado por inventory cuando la disponibilidad llega a 0 o vuelve a ser positiva
 { "agotado": true }
 ```
 
-**204**. Idempotente. `404 EVENT_NOT_FOUND` si el evento no existe en catalog.
+**204**. Idempotente. `404 EVENT_NOT_FOUND` si el evento no existe en catalog. Con `agotado: true` se cierra la fila del evento de alta demanda (motivo `AGOTADO`); con `false` se vuelve a abrir. El scheduler de finalización cierra la fila con motivo `FINALIZADO`. Un fallo de queue no altera el `204`.
+
+### 3.13 Interno — reporte y candidatos (X-Internal-Token)
+
+No se exponen por el gateway. Requieren `X-Internal-Token`; sin él o con un valor inválido responden `401 UNAUTHORIZED`.
+
+| Método | Ruta | Respuesta |
+|---|---|---|
+| GET | `/internal/events/{eventoId}/report` | `200` con `eventoId`, `nombre`, `organizadorId`, `lugarId`, `lugarNombre`, `ciudad`, `fecha`, `estado`, `participantes[]` y `sectores[]` (capacidad, precios y disponibles) |
+| GET | `/internal/recommendations/candidates?tipo=&artista=&ciudad=&fechaDesde=&fechaHasta=&size=20` | `200` con `eventoId`, `nombre`, `tipo`, `artistas[]`, `ciudad`, `fechaEvento`, `estado` y `altaDemanda` |
+
+Ambos solo consideran eventos `PUBLICADO` o `AGOTADO`. Errores: `400 VALIDATION_ERROR` (filtros inválidos), `401 UNAUTHORIZED`, `404 EVENT_NOT_FOUND` (reporte). Los filtros son opcionales y combinables; `size` limita la cantidad de candidatos devueltos.
+
+### 3.14 Integración de catalog con queue-service (tarea 3.6)
+
+Catalog consume estos endpoints internos de queue-service (no pública nuevos endpoints):
+
+| Método | Ruta | Cuándo | Cuerpo |
+|---|---|---|---|
+| POST | `/internal/events/{eventoId}` | Publicar, editar un evento ya publicado o volver de `AGOTADO` | — |
+| POST | `/internal/events/{eventoId}/close` | Cancelar (`CANCELADO`), agotar (`AGOTADO`) o finalizar (`FINALIZADO`) | `{"motivo":"CANCELADO"}` |
+
+Ambas llamadas envían `X-Internal-Token` y propagan `X-Correlation-Id` cuando está disponible (origen: `QUEUE_INTERNAL_TOKEN`, por defecto el mismo valor que `INTERNAL_TOKEN`). Usan `QUEUE_CONNECT_TIMEOUT_MS` (default 2000) y `QUEUE_READ_TIMEOUT_MS` (default 3000) y hasta 3 intentos con backoff ante timeout, pérdida de conexión o 5xx; los 4xx no se reintentan. Solo se invocan si `altaDemanda: true`: un evento normal nunca llama a queue. Si queue-service está caído, catalog registra un warning y continúa la operación (fallback); la apertura/cierre se reintenta en la siguiente operación idempotente o con el scheduler. El contrato de la fila está en [`fila-virtual/spec.md`](../openspec/changes/entrega-2-completo/specs/fila-virtual/spec.md).
+
+### 3.15 Eventos de dominio y outbox (tarea 3.2)
+
+Catalog publica `evento.publicado`, `evento.actualizado` y `evento.cancelado` en el exchange topic `ticketya.events`, usando el `type` como routing key. Cada mensaje se escribe primero en `outbox_event` dentro de la transacción que cambia el evento, con este sobre:
+
+```json
+{
+  "eventId": "e0000000-0000-4000-8000-000000000002",
+  "type": "evento.publicado",
+  "occurredAt": "2026-11-16T12:00:00Z",
+  "correlationId": "5d1f2e3a-4b6c-4d8e-9f01-2a3b4c5d6e7f",
+  "version": 1,
+  "payload": { "eventoId": "d0000000-0000-4000-8000-000000000001" }
+}
+```
+
+El ejemplo completo del payload publicado está en [`ejemplos/evento-publicado.json`](../docs/ejemplos/evento-publicado.json) y es el mismo que consume notification-service (§8). `eventId` es único y `correlationId` preserva la cabecera `X-Correlation-Id` de la petición que originó el cambio.
+
+El publicador procesa `CATALOG_OUTBOX_BATCH_SIZE` eventos (default `50`) cada `CATALOG_OUTBOX_PUBLISH_MS` (default `2000`). Ante un fallo de RabbitMQ incrementa `attempts`, persiste `last_error` y reprograma con backoff lineal de `CATALOG_OUTBOX_BACKOFF_SECONDS × attempts` (base default `5`). Tras `CATALOG_OUTBOX_MAX_ATTEMPTS` (default `10`) el evento pasa a `FAILED` y no se reintenta; la operación de negocio ya confirmada no se revierte. Los estados `PENDING`, `PUBLISHED` y `FAILED` están definidos por `V6__outbox_event.sql` y `V8__outbox_failed_status.sql`.
+
+### 3.16 Auditoría (tarea 9.2)
+
+Publicar, editar y cancelar un evento escriben una fila en `audit_log` (`V7__audit_log.sql`) con `evento_id`, `accion` (`PUBLICAR_EVENTO`, `EDITAR_EVENTO`, `CANCELAR_EVENTO`), usuario, rol, `resultado` (`EXITOSO`/`RECHAZADO`), detalle y `correlation_id` (propagado desde `X-Correlation-Id`). La escritura es best-effort y corre fuera de la transacción de negocio: si la bitácora falla se registra un warning y la operación principal no se revierte. Las peticiones sin identidad se rechazan antes de auditar.
 
 ## 4. inventory-service
 
@@ -886,6 +938,21 @@ curl http://localhost:8084/internal/preferences/33333333-3333-4333-8333-33333333
   -H "X-Internal-Token: ticketya-internal-dev"
 ```
 
+### 6.3.1 Interno propuesto — `GET /internal/preferences?artista={artista}&ciudad={ciudad}` (X-Internal-Token)
+
+Lo consume notification-service (8.3) para encontrar clientes que tienen un artista favorito en la ciudad de un `evento.publicado`. Devuelve `200` con la lista de coincidencias y `[]` si no hay ninguna; `401 UNAUTHORIZED` sin token. Compara artistas sin distinguir mayúsculas y ciudad exacta (recortando espacios). No se expone por el gateway.
+
+```json
+[
+  {
+    "clienteId": "33333333-3333-4333-8333-333333333333",
+    "clienteEmail": "cliente@example.com"
+  }
+]
+```
+
+`clienteEmail` es opcional; notification-service usa su sender mock si no viene. **Pendiente de implementación en recommendation-service (P5).** Mientras no exista, notification-service degrada a lista vacía y registra un warning, sin bloquear la publicación del evento.
+
 ### 6.4 Recomendaciones — `GET /api/recommendations` (CLIENT)
 
 Devuelve eventos publicados y futuros ordenados por afinidad. Excluye lo ya comprado, lo cancelado y lo pasado. Cada ítem incluye los motivos y el puntaje usado para ordenar.
@@ -983,11 +1050,11 @@ El historial es idempotente por `(eventId, clienteId, eventoId)`. Un evento dupl
 
 El contrato canónico del sobre y de todos los payloads está en [`eventos.md`](eventos.md), con el fixture [`ejemplos/orden-pagada.json`](ejemplos/orden-pagada.json). orders debe publicar `eventoTipo`, `artistas` y `ciudad` desde el snapshot de la orden (ADR-017 y migración 6.1); no se acepta que recommendation los consulte a catalog al consumir.
 
-## 6.1 queue-service
+## 7. queue-service
 
 No hay WebSockets. El cliente hace polling de `GET /api/queue/events/{eventoId}/position` cada 2 a 5 segundos. La habilitación es por tandas: cada `intervaloSegundos` (30 por defecto) salen los primeros `batchSize` clientes (50 por defecto), en orden de llegada. Abrir y cerrar son internos y no pasan por el gateway.
 
-### 6.1.1 Abrir — `POST /internal/events/{eventoId}`
+### 7.1 Abrir — `POST /internal/events/{eventoId}`
 
 Lo llama catalog al publicar un evento de alta demanda. Header `X-Internal-Token`. Sin cuerpo.
 
@@ -997,7 +1064,7 @@ Lo llama catalog al publicar un evento de alta demanda. Header `X-Internal-Token
 { "eventoId": "11111111-1111-4111-8111-111111111111", "estado": "ABIERTA", "batchSize": 50, "intervaloSegundos": 30 }
 ```
 
-### 6.1.2 Ingresar — `POST /api/queue/events/{eventoId}/join` (CLIENT)
+### 7.2 Ingresar — `POST /api/queue/events/{eventoId}/join` (CLIENT)
 
 Headers `X-User-Id` y `X-User-Role`.
 
@@ -1015,7 +1082,7 @@ Headers `X-User-Id` y `X-User-Role`.
 
 Errores: `401 UNAUTHORIZED`, `409 QUEUE_NOT_OPEN` (el evento no tiene fila), `409 QUEUE_CLOSED` (la fila ya no admite ingresos).
 
-### 6.1.3 Posición — `GET /api/queue/events/{eventoId}/position` (CLIENT)
+### 7.3 Posición — `GET /api/queue/events/{eventoId}/position` (CLIENT)
 
 Misma identidad que el ingreso. Es el request que el cliente repite.
 
@@ -1025,13 +1092,54 @@ Misma identidad que el ingreso. Es el request que el cliente repite.
 
 **404** `NOT_IN_QUEUE` si nunca ingresó o si el token ya venció.
 
-### 6.1.4 Cerrar — `POST /internal/events/{eventoId}/close`
+### 7.4 Cerrar — `POST /internal/events/{eventoId}/close`
 
 Header `X-Internal-Token`. Cuerpo `{ "motivo": "CANCELADO" | "FINALIZADO" | "AGOTADO" }`.
 
 **200** al cerrar y al repetir el cierre. El motivo original se conserva. **404** si la fila nunca se abrió. **400** si el motivo no es uno de esos tres.
 
-## 7. Flujo de compra de punta a punta
+## 8. notification-service
+
+OpenAPI: [`../openapi/notification-openapi.json`](../openapi/notification-openapi.json). Swagger UI en `http://localhost:8085/swagger-ui.html`. El documento incluye los esquemas `bearerAuth`, `X-User-Id`, `X-User-Role` y `X-Correlation-Id`, además de `ProblemDetail` con ejemplos para `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOTIFICATION_FORBIDDEN` y `NOTIFICATION_NOT_FOUND`.
+
+Los estados `PENDIENTE`, `ENVIADA` y `FALLIDA` reflejan el ciclo de envío. El primer envío ocurre al consumir el evento; si falla, la notificación queda `PENDIENTE` con `proximoReintento` calculado con backoff lineal (`NOTIFICATION_BACKOFF_SECONDS × intentos`). `reenviarPendientes()` reintenta cada `NOTIFICATION_RETRY_POLL_MS` (default `10000`) y tras `NOTIFICATION_MAX_ATTEMPTS` (default `3`) la marca `FALLIDA`. Una notificación ya enviada o fallida no se reenvía.
+
+### 8.1 Listar mis notificaciones — `GET /api/notifications` (CLIENT)
+
+Devuelve solo las notificaciones del cliente autenticado (`X-User-Id`), ordenadas por `createdAt` descendente. Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100) y `estado` opcional (`PENDIENTE`, `ENVIADA` o `FALLIDA`).
+
+```json
+{
+  "content": [
+    {
+      "id": "a0000000-0000-4000-8000-000000000001",
+      "eventoId": "d0000000-0000-4000-8000-000000000001",
+      "tipo": "orden.pagada",
+      "asunto": "Compra confirmada",
+      "contenido": "Tu compra para Festival de Rock Tandil 2027 quedó confirmada.",
+      "estado": "ENVIADA",
+      "intentos": 1,
+      "proximoReintento": null,
+      "createdAt": "2026-11-15T12:00:00-03:00",
+      "enviadaAt": "2026-11-15T12:00:01-03:00"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+- `401 UNAUTHORIZED` sin identidad y `403 FORBIDDEN` para roles distintos de `CLIENT`.
+- Un `estado` desconocido responde `400 VALIDATION_ERROR`.
+
+### 8.2 Detalle de notificación — `GET /api/notifications/{notificacionId}` (CLIENT dueño)
+
+**200** con el mismo objeto de 8.1. Una notificación de otro cliente responde `403 NOTIFICATION_FORBIDDEN`; una inexistente, `404 NOTIFICATION_NOT_FOUND`. Un `notificacionId` con formato UUID inválido responde `400 VALIDATION_ERROR` con `errors[0].field = "notificacionId"`.
+
+## 9. Flujo de compra de punta a punta
+
 
 ```bash
 GATEWAY=http://localhost:8080
@@ -1068,7 +1176,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
   -d '{"motivo":"No puedo asistir"}'
 ```
 
-## 8. Catálogo de errores
+## 10. Catálogo de errores
 
 | HTTP | `code` | Cuándo |
 |---|---|---|
@@ -1089,6 +1197,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 403 | `ORDER_NOT_OWNER` | La orden es de otro cliente |
 | 403 | `NOT_TICKET_OWNER` | La entrada es de otro cliente |
 | 403 | `NOT_PREFERENCE_OWNER` | Las preferencias son de otro cliente |
+| 403 | `NOTIFICATION_FORBIDDEN` | La notificación es de otro cliente |
 | 404 | `VENUE_NOT_FOUND` | Lugar inexistente |
 | 404 | `SECTOR_NOT_FOUND` | Sector inexistente |
 | 404 | `EVENT_NOT_FOUND` | Evento inexistente o no visible |
@@ -1096,6 +1205,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 404 | `ORDER_NOT_FOUND` | Orden inexistente |
 | 404 | `TICKET_NOT_FOUND` | Entrada inexistente |
 | 404 | `RETURN_NOT_FOUND` | Devolución inexistente |
+| 404 | `NOTIFICATION_NOT_FOUND` | Notificación inexistente |
 | 404 | `NOT_IN_QUEUE` | El cliente no ingresó a esa fila o su token de fila venció |
 | 404 | `NOT_FOUND` | Ruta inexistente |
 | 405 | `METHOD_NOT_ALLOWED` | Método HTTP no permitido |
@@ -1105,6 +1215,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 409 | `EVENT_INCOMPLETE` | Faltan precios para publicar |
 | 409 | `EVENT_NOT_CANCELLABLE` | Evento finalizado o ya cancelado |
 | 409 | `EVENT_NOT_ON_SALE` | Evento cancelado/finalizado al reservar |
+| 409 | `SECTOR_ALREADY_EXISTS` | Ya existe un sector con ese nombre en el lugar |
 | 409 | `EVENT_FINISHED` | La fecha del evento ya pasó al reservar |
 | 409 | `RESERVATION_NOT_CANCELLABLE` | La reserva confirmada no se cancela: hay que devolverla |
 | 409 | `SEAT_NOT_AVAILABLE` | Asiento reservado o vendido |
@@ -1119,12 +1230,11 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 422 | `IDEMPOTENCY_KEY_REUSED` | Misma `Idempotency-Key` con cuerpo distinto |
 | 422 | `RETURN_WINDOW_CLOSED` | Faltan 72 h o menos para el evento |
 | 502 | `INVENTORY_UNAVAILABLE` | catalog/orders no pudo hablar con inventory |
-| 502 | `ORDERS_UNAVAILABLE` | catalog no pudo avisar la cancelación a orders |
 | 502 | `PAYMENT_GATEWAY_ERROR` | La pasarela mock falló o expiró |
 | 503 | `INVENTORY_UNAVAILABLE` | No se pudo obtener disponibilidad en el detalle |
 | 500 | `INTERNAL_ERROR` | Error inesperado; no expone stacktrace |
 
-## 9. Reglas de cambio
+## 11. Reglas de cambio
 
 1. Un endpoint nuevo o un cambio de payload empieza por el spec de OpenSpec y este documento.
 2. El PR actualiza el OpenAPI y el README del servicio en el mismo commit.

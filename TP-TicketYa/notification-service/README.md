@@ -6,16 +6,47 @@ Servicio de notificaciones de TicketYa con **PostgreSQL** y **RabbitMQ**.
 - **Base:** `notification_db` (PostgreSQL 16, puerto 5436)
 - **Broker:** RabbitMQ 3.13 (puerto 5672, consola 15672)
 - **Responsable:** P1 — ver [`docs/equipo/entrega-2/p1-ivan.md`](../docs/equipo/entrega-2/p1-ivan.md)
-- **Estado:** Día 1 — tarea 1.8 (esqueleto). La tabla `notificacion`, los consumidores y la consulta se agregan en las tareas 8.1–8.4.
+- **Estado:** estabilización Día 7 — tareas 8.4 y 9.2 verificadas y documentadas; la auditoría de catálogo se cubre en [`catalog-service/README.md`](../catalog-service/README.md#auditoría-tarea-92).
 
 ## Alcance actual
 
 Este esqueleto incluye Spring Boot 3.5, Java 21, Web, Validation, Actuator, springdoc, Spring Data JPA, Spring AMQP, Flyway y PostgreSQL.
 
 - `GET /actuator/health` reporta el estado de PostgreSQL (`db`) y RabbitMQ (`rabbit`).
-- Swagger UI: <http://localhost:8085/swagger-ui.html> · OpenAPI: <http://localhost:8085/v3/api-docs>
-- Los errores de futuros endpoints usan RFC 7807 con `code` y `errors[]`.
-- La migración `V1__init.sql` solo inicializa Flyway; la tabla de notificaciones corresponde a la tarea 8.1.
+- Swagger UI: <http://localhost:8085/swagger-ui.html> — OpenAPI: <http://localhost:8085/v3/api-docs>
+- Documento exportado: [`../openapi/notification-openapi.json`](../openapi/notification-openapi.json), generado por `OpenApiExportTest` en el mismo commit que el código.
+- Los errores usan RFC 7807 (`application/problem+json`) con `code` y `errors[]`; el OpenAPI incluye el esquema `ProblemDetail` y ejemplos para 400, 401, 403 y 404.
+- Migraciones Flyway: `V1__init.sql`, `V2__notificacion.sql` (tabla `notificacion`, estados, idempotencia por `event_id+tipo+destinatario_id`) y `V3__comprador_evento.sql` (proyección de compradores para avisos de evento).
+
+### Envío, reintentos y scheduler (tarea 8.1)
+
+`crearYEnviar` deduplica por `eventId + tipo + destinatarioId` e intenta el envío de inmediato. Un éxito deja la notificación `ENVIADA` con `enviadaAt`; un fallo incrementa `intentos`, guarda `ultimoError` y la deja `PENDIENTE` con `proximoReintento`. El backoff es lineal: `NOTIFICATION_BACKOFF_SECONDS × intentos` (30s, 60s, ... con los defaults). Al alcanzar `NOTIFICATION_MAX_ATTEMPTS` (default `3`) pasa a `FALLIDA` y no se reintenta más.
+
+`SchedulingConfig` habilita `@EnableScheduling` y `NotificationService.reenviarPendientes()` corre cada `NOTIFICATION_RETRY_POLL_MS` (default `10000`). En cada tick procesa las notificaciones `PENDIENTE` cuyo `proximoReintento` ya venció; si un envío falla se reprograma con el mismo backoff y si llega al máximo de intentos se marca `FALLIDA`. El scheduler es idempotente: una notificación `ENVIADA` o `FALLIDA` no vuelve a enviarse.
+
+Estos estados son los que expone la consulta de 8.4 (`PENDIENTE`, `ENVIADA`, `FALLIDA`) y están descritos en [`docs/api-contract.md` §8](../docs/api-contract.md#8-notification-service).
+
+### Consumo de `orden.pagada` (tarea 8.2)
+
+- Cola durable `notification.order` enlazada al exchange topic `ticketya.events` con routing key `orden.pagada`; DLX `ticketya.events.dlx` y DLQ `notification.order.dlq`.
+- `OrdenPagadaListener` valida el sobre y el payload (`estado=PAGADA`), arma la notificación y delega en `NotificationService`, que deduplica por `eventId+tipo+destinatarioId` y aplica los reintentos de envío.
+- Errores transitorios (por ejemplo PostgreSQL caído) se reintentan con backoff (3 intentos) y luego se rechazan sin reencolar hacia `notification.order.dlq`; los mensajes inválidos se rechazan y también terminan en la DLQ.
+- El payload puede incluir `clienteEmail` de forma opcional. Si falta, el sender mock usa `cliente-<uuid>@ticketya.local` para poder registrar el envío en desarrollo; un sender real requiere el email.
+
+### Avisos de cancelación, cambio y artista favorito (tarea 8.3)
+
+- `orden.pagada` también alimenta la proyección local `comprador_evento` (evento, cliente, email y snapshot de nombre/fecha/ciudad).
+- `notification.event` recibe `evento.cancelado` y `evento.actualizado`; se avisa a cada comprador de la proyección con idempotencia por `eventId+tipo+destinatario` y el cambio incluye el dato anterior y el nuevo.
+- `notification.favorite` recibe `evento.publicado`; notification-service consulta `GET /internal/preferences?artista=&ciudad=` por cada artista y deduplica clientes.
+- Si recommendation-service no responde o el endpoint de búsqueda todavía no existe, se registra un warning y no se generan avisos de favoritos: la publicación del evento no se bloquea. El contrato propuesto está en `docs/api-contract.md` §6.3.1.
+- La proyección solo conoce compras consumidas desde este servicio; no reemplaza un historial previo de orders.
+
+### Consulta de notificaciones propias (tarea 8.4)
+
+- `GET /api/notifications?page=0&size=20&estado=PENDIENTE` devuelve solo las notificaciones del `X-User-Id`, ordenadas por fecha de creación descendente, con estado, intentos y fechas de envío.
+- `GET /api/notifications/{id}` devuelve una notificación propia; la de otro cliente responde `403 NOTIFICATION_FORBIDDEN` y una inexistente `404 NOTIFICATION_NOT_FOUND`.
+- Solo el rol `CLIENT` puede consultar; sin identidad responde `401` y con otro rol `403`. `size` se recorta a 100 y el filtro de estado inválido responde `400 VALIDATION_ERROR`.
+- El contrato está en [`docs/api-contract.md` §8](../docs/api-contract.md#8-notification-service); la descripción se publica en `/v3/api-docs` y se exporta a [`openapi/notification-openapi.json`](../openapi/notification-openapi.json).
 
 ## Variables de entorno
 
@@ -29,6 +60,20 @@ Este esqueleto incluye Spring Boot 3.5, Java 21, Web, Validation, Actuator, spri
 | `RABBITMQ_PORT` | `5672` | Puerto AMQP |
 | `RABBITMQ_USER` | `ticketya` | Usuario de RabbitMQ |
 | `RABBITMQ_PASSWORD` | `ticketya` | Password de RabbitMQ |
+| `NOTIFICATION_MAX_ATTEMPTS` | `3` | Intentos máximos de envío antes de `FALLIDA` |
+| `NOTIFICATION_BACKOFF_SECONDS` | `30` | Base del backoff lineal entre reintentos |
+| `NOTIFICATION_RETRY_POLL_MS` | `10000` | Intervalo del scheduler `reenviarPendientes()` |
+| `NOTIFICATION_QUEUE` | `notification.order` | Cola de consumo de eventos de compra |
+| `NOTIFICATION_QUEUE_DLQ` | `notification.order.dlq` | Cola de mensajes rechazados |
+| `NOTIFICATION_EVENT_QUEUE` | `notification.event` | Cola de cancelaciones y cambios |
+| `NOTIFICATION_EVENT_DLQ` | `notification.event.dlq` | DLQ de cancelaciones y cambios |
+| `NOTIFICATION_FAVORITE_QUEUE` | `notification.favorite` | Cola de eventos publicados |
+| `NOTIFICATION_FAVORITE_DLQ` | `notification.favorite.dlq` | DLQ de eventos publicados |
+| `RECOMMENDATION_URL` | `http://localhost:8084` | Base URL para búsqueda de preferencias |
+| `PREFERENCES_CONNECT_TIMEOUT` | `2s` | Timeout de conexión a preferencias |
+| `PREFERENCES_READ_TIMEOUT` | `3s` | Timeout de lectura de preferencias |
+| `NOTIFICATION_CONSUMER_MAX_ATTEMPTS` | `3` | Reintentos del listener antes de la DLQ |
+| `NOTIFICATION_MOCK_EMAIL_DOMAIN` | `ticketya.local` | Dominio del email sintético del sender mock |
 
 ## Ejecutar y probar
 
@@ -50,3 +95,17 @@ La respuesta debe incluir `"status":"UP"` y los componentes `db` y `rabbit` en `
 ### Tests
 
 - `NotificationServiceApplicationTests` (Testcontainers PostgreSQL + RabbitMQ): arranca el contexto y verifica que `/actuator/health` reporte base y broker conectados. Se omite si Docker no está corriendo.
+- `NotificationServiceTest`: envío exitoso/fallido, reintento con backoff, fallo definitivo, idempotencia por evento+tipo+destinatario y scheduler `reenviarPendientes()` hasta `ENVIADA` o `FALLIDA`.
+- `OrdenPagadaEventContractTest`: deserializa el fixture compartido `docs/ejemplos/orden-pagada.json`.
+- `EventoPublicadoEventContractTest`: deserializa el fixture compartido `docs/ejemplos/evento-publicado.json` producido por catalog.
+- `OrdenPagadaListenerTest`: mapeo a notificación, email del payload/fallback mock y rechazo a DLQ de mensajes inválidos.
+- `RabbitConfigTest`: colas durables con DLX/DLQ y bindings de `notification.order`, `notification.event` y `notification.favorite`.
+- `CompradorEventoServiceTest`: proyección de compradores y snapshot del evento.
+- `EventoNotificacionListenerTest`: cancelación/cambio a todos los compradores, sin compradores y mensajes inválidos.
+- `EventoPublicadoListenerTest`: deduplicación por cliente entre artistas y no coincidencia.
+- `PreferenceClientTest`: búsqueda interna con token y degradación a lista vacía ante 5xx.
+- `ConsultaNotificacionServiceTest`: solo propias, orden por fecha descendente, filtro por estado, recorte de tamaño y 403/404 del detalle.
+- `NotificacionControllerTest`: 401, 403 por rol o notificación ajena, 200 con estado/intentos/paginación, 400 por estado inválido y 400/404 en el detalle (UUID inválido e inexistente).
+- `OpenApiExportTest`: valida los dos paths de `/api/notifications`, headers obligatorios, campos anulables, detalles/instancias RFC 7807 y exporta `openapi/notification-openapi.json`.
+
+Última verificación (Día 7): `mvn test` → 51 tests, 0 fallos, 0 errores, 1 omitido por falta de Docker. El `OpenApiExportTest` deja `openapi/notification-openapi.json` sin cambios entre corridas (salida determinista).
