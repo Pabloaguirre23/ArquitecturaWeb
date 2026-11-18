@@ -57,7 +57,7 @@ inventory:
 
 queue:
   url: ${QUEUE_URL:http://localhost:8086}
-  internal-token: ${INTERNAL_TOKEN:ticketya-internal-dev}
+  internal-token: ${QUEUE_INTERNAL_TOKEN:${INTERNAL_TOKEN:ticketya-internal-dev}}
   timeout:
     connect-ms: ${QUEUE_CONNECT_TIMEOUT_MS:2000}
     read-ms: ${QUEUE_READ_TIMEOUT_MS:3000}
@@ -67,13 +67,6 @@ orders:
   timeout:
     connect-ms: ${ORDERS_CONNECT_TIMEOUT_MS:1000}
     read-ms: ${ORDERS_READ_TIMEOUT_MS:2000}
-
-queue:
-  url: ${QUEUE_URL:http://localhost:8086}
-  internal-token: ${QUEUE_INTERNAL_TOKEN:${INTERNAL_TOKEN:ticketya-internal-dev}}
-  timeout:
-    connect-ms: ${QUEUE_CONNECT_TIMEOUT_MS:2000}
-    read-ms: ${QUEUE_READ_TIMEOUT_MS:3000}
 
 catalog:
   scheduler:
