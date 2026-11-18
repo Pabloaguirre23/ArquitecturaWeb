@@ -24,7 +24,7 @@ Este esqueleto incluye Spring Boot 3.5, Java 21, Web, Validation, Actuator, spri
 
 `SchedulingConfig` habilita `@EnableScheduling` y `NotificationService.reenviarPendientes()` corre cada `NOTIFICATION_RETRY_POLL_MS` (default `10000`). En cada tick procesa las notificaciones `PENDIENTE` cuyo `proximoReintento` ya venció; si un envío falla se reprograma con el mismo backoff y si llega al máximo de intentos se marca `FALLIDA`. El scheduler es idempotente: una notificación `ENVIADA` o `FALLIDA` no vuelve a enviarse.
 
-Estos estados son los que expone la consulta de 8.4 (`PENDIENTE`, `ENVIADA`, `FALLIDA`) y están descritos en [`docs/api-contract.md` §7](../docs/api-contract.md#7-notification-service).
+Estos estados son los que expone la consulta de 8.4 (`PENDIENTE`, `ENVIADA`, `FALLIDA`) y están descritos en [`docs/api-contract.md` §8](../docs/api-contract.md#8-notification-service).
 
 ### Consumo de `orden.pagada` (tarea 8.2)
 
@@ -46,7 +46,7 @@ Estos estados son los que expone la consulta de 8.4 (`PENDIENTE`, `ENVIADA`, `FA
 - `GET /api/notifications?page=0&size=20&estado=PENDIENTE` devuelve solo las notificaciones del `X-User-Id`, ordenadas por fecha de creación descendente, con estado, intentos y fechas de envío.
 - `GET /api/notifications/{id}` devuelve una notificación propia; la de otro cliente responde `403 NOTIFICATION_FORBIDDEN` y una inexistente `404 NOTIFICATION_NOT_FOUND`.
 - Solo el rol `CLIENT` puede consultar; sin identidad responde `401` y con otro rol `403`. `size` se recorta a 100 y el filtro de estado inválido responde `400 VALIDATION_ERROR`.
-- El contrato está en [`docs/api-contract.md` §7](../docs/api-contract.md#7-notification-service); la descripción se publica en `/v3/api-docs` y se exporta a [`openapi/notification-openapi.json`](../openapi/notification-openapi.json).
+- El contrato está en [`docs/api-contract.md` §8](../docs/api-contract.md#8-notification-service); la descripción se publica en `/v3/api-docs` y se exporta a [`openapi/notification-openapi.json`](../openapi/notification-openapi.json).
 
 ## Variables de entorno
 
