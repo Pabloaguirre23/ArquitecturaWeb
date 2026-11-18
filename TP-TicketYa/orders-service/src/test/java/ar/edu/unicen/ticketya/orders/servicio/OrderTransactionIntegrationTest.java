@@ -88,7 +88,7 @@ class OrderTransactionIntegrationTest {
 
     @Test
     void pasarelaCaidaPersisteErrorPagoYPagoRechazado() {
-        when(paymentGateway.cobrar(any(), any(), any(), any()))
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
                 .thenThrow(new PaymentGatewayException("timeout"));
 
         CrearOrdenRequest request = new CrearOrdenRequest(reservaId, MedioPago.TARJETA, "LENTO");
@@ -109,11 +109,11 @@ class OrderTransactionIntegrationTest {
 
     @Test
     void falloDeEmisionNoDejaPagadaYGuardaCompensacion() {
-        when(paymentGateway.cobrar(any(), any(), any(), any()))
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
                 .thenReturn(new PaymentGateway.PaymentResult(EstadoPago.APROBADO, "mock-ok"));
         when(ticketService.emitir(any(), any())).thenThrow(new RuntimeException("sin conexión"));
         // compensación crea reintegro y llama a pasarela
-        org.mockito.Mockito.doNothing().when(paymentGateway).reintegrar(any(), any());
+        org.mockito.Mockito.doNothing().when(paymentGateway).reintegrar(any(), any(), any());
 
         CrearOrdenRequest request = new CrearOrdenRequest(reservaId, MedioPago.TARJETA, "APROBADO");
 

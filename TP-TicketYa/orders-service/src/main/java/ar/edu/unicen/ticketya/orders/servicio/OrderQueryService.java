@@ -2,15 +2,20 @@ package ar.edu.unicen.ticketya.orders.servicio;
 
 import ar.edu.unicen.ticketya.orders.dominio.Entrada;
 import ar.edu.unicen.ticketya.orders.dominio.Orden;
+import ar.edu.unicen.ticketya.orders.dominio.SagaCompra;
 import ar.edu.unicen.ticketya.orders.repositorio.EntradaRepository;
 import ar.edu.unicen.ticketya.orders.repositorio.OrdenItemRepository;
 import ar.edu.unicen.ticketya.orders.repositorio.OrdenRepository;
+import ar.edu.unicen.ticketya.orders.repositorio.SagaCompraRepository;
 import ar.edu.unicen.ticketya.orders.web.ApiException;
 import ar.edu.unicen.ticketya.orders.web.dto.OrderResponse;
 import ar.edu.unicen.ticketya.orders.web.dto.PageResponse;
 import ar.edu.unicen.ticketya.orders.web.dto.TicketResponse;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -26,13 +31,16 @@ public class OrderQueryService {
     private final OrdenRepository ordenRepository;
     private final OrdenItemRepository ordenItemRepository;
     private final EntradaRepository entradaRepository;
+    private final SagaCompraRepository sagaCompraRepository;
 
     public OrderQueryService(OrdenRepository ordenRepository,
                              OrdenItemRepository ordenItemRepository,
-                             EntradaRepository entradaRepository) {
+                             EntradaRepository entradaRepository,
+                             SagaCompraRepository sagaCompraRepository) {
         this.ordenRepository = ordenRepository;
         this.ordenItemRepository = ordenItemRepository;
         this.entradaRepository = entradaRepository;
+        this.sagaCompraRepository = sagaCompraRepository;
     }
 
     @Transactional(readOnly = true)
@@ -40,10 +48,14 @@ public class OrderQueryService {
         validarPagina(page, size);
         Page<Orden> ordenes = ordenRepository.findByClienteIdOrderByCreatedAtDesc(
                 clienteId, PageRequest.of(page, size));
+        List<UUID> ids = ordenes.getContent().stream().map(Orden::getId).toList();
+        Map<UUID, SagaCompra> sagas = sagaCompraRepository.findByOrdenIdIn(ids).stream()
+                .collect(Collectors.toMap(SagaCompra::getOrdenId, Function.identity()));
         List<OrderResponse> content = ordenes.getContent().stream()
                 .map(orden -> OrderResponse.from(orden,
                         ordenItemRepository.findByOrdenId(orden.getId()),
-                        entradaRepository.findByOrdenId(orden.getId())))
+                        entradaRepository.findByOrdenId(orden.getId()),
+                        sagas.get(orden.getId())))
                 .toList();
         return new PageResponse<>(content, page, size,
                 ordenes.getTotalElements(), ordenes.getTotalPages());

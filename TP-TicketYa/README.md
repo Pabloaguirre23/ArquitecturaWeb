@@ -16,14 +16,15 @@ Repositorio del curso: <https://github.com/Pabloaguirre23/ArquitecturaWeb> (este
 | `recommendation-service` | 8084 | `recommendation_db` (27017, MongoDB) | Preferencias, historial y recomendaciones |
 | `notification-service` | 8085 | `notification_db` (5436) | Esqueleto de notificaciones asíncronas |
 | `rabbitmq` | 5672 / 15672 | — | Bus de eventos (`orden.pagada` → historial) |
+| `queue-service` | 8086 | Redis 7 (6379) | Fila virtual. Esqueleto: health y conexión a Redis |
 
-Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**` y eventos por RabbitMQ; el cliente siempre entra por el gateway. `queue-service` se agrega en las próximas tareas.
+Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**` y eventos por RabbitMQ; el cliente siempre entra por el gateway. `queue-service` guarda la fila en Redis.
 
 ## Requisitos
 
 - **Java 21** (Temurin recomendado)
 - **Maven 3.9+**
-- **Docker Desktop** (para PostgreSQL 16, MongoDB 7 y RabbitMQ 3.13)
+- **Docker Desktop** (para PostgreSQL 16, MongoDB 7, RabbitMQ 3.13 y Redis 7)
 - Git
 
 Verificar:
@@ -58,7 +59,27 @@ docker compose -f docker-compose.dev.yml down -v
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-### 2. Servicios
+### 3. Todo con Docker (integral)
+
+El compose integral levanta las bases, Redis, MongoDB, RabbitMQ, los seis servicios y el
+gateway:
+
+```bash
+docker compose -f docker-compose.yml up -d --build
+docker compose -f docker-compose.yml ps
+curl http://localhost:8080/actuator/health
+```
+
+Solo el gateway publica el puerto `8080`; las bases y brokers quedan en la red interna de
+Docker. Para reiniciar sin datos:
+
+```bash
+docker compose -f docker-compose.yml down -v
+```
+
+`queue-service` y la UI opcional se agregan cuando se mergeen sus PRs.
+
+### 4. Servicios con Maven
 
 En cinco terminales distintas:
 
@@ -80,14 +101,14 @@ curl http://localhost:8084/actuator/health
 curl http://localhost:8085/actuator/health
 ```
 
-### 3. Gateway
+### 5. Gateway
 
 ```bash
 cd api-gateway && mvn spring-boot:run
 curl http://localhost:8080/actuator/health
 ```
 
-### 4. Swagger
+### 6. Swagger
 
 - Catalog: <http://localhost:8081/swagger-ui.html>
 - Inventory: <http://localhost:8082/swagger-ui.html>
@@ -155,9 +176,11 @@ Sin headers, el gateway responde 401 en formato RFC 7807. El contrato completo e
 | `recommendation-service/` | Preferencias, historial y recomendaciones (MongoDB) |
 | `notification-service/` | Esqueleto de notificaciones (PostgreSQL + RabbitMQ) |
 | `api-gateway/` | Punto de entrada único |
+| `queue-service/` | Fila virtual sobre Redis |
 | `openspec/` | Especificaciones (propuesta → specs → diseño → tareas) |
 | `docs/` | Contrato, plan, checklist, arquitectura y briefs del equipo |
 | `docker-compose.dev.yml` | PostgreSQL 16 por servicio, MongoDB 7 y RabbitMQ 3.13 |
+| `docker-compose.yml` | Compose integral: seis servicios, gateway, PostgreSQL, MongoDB, RabbitMQ y Redis |
 
 ## Tests
 

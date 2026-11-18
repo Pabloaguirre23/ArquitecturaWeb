@@ -89,6 +89,7 @@ public class EventService {
                         Clock clock,
                         CatalogCacheService catalogCacheService,
                         OutboxService outboxService) {
+
         this.eventoRepository = eventoRepository;
         this.lugarRepository = lugarRepository;
         this.sectorRepository = sectorRepository;
@@ -194,7 +195,6 @@ public class EventService {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "INVENTORY_UNAVAILABLE",
                     "No se pudo confirmar el inventario del evento; el evento sigue en borrador", List.of());
         }
-
         evento.setInventarioVersion(nuevaVersion);
         evento.setEstado(EstadoEvento.PUBLICADO);
         evento = eventoRepository.save(evento);
@@ -420,6 +420,7 @@ public class EventService {
                 inventarioOk = false;
                 log.warn("No se pudo frenar la venta del evento {} en inventory; queda pendiente", eventoId, ex);
             }
+            cerrarFilaSiCorresponde(evento, "CANCELADO");
         }
         // Solo se avisa a orders después de cerrar la venta en inventory: si inventory
         // falla, no se reintegran entradas mientras el evento todavía se puede comprar.
@@ -435,7 +436,6 @@ public class EventService {
         evento = eventoRepository.save(evento);
         registrarEventoOutbox(CatalogEvents.EVENTO_CANCELADO, evento, correlationId);
         invalidarCachesEvento(eventoId);
-        cerrarFilaSiCorresponde(evento, "CANCELADO");
         return new CancelacionResponse(evento.getId(), evento.getEstado(), evento.isCancelacionPendiente());
     }
 

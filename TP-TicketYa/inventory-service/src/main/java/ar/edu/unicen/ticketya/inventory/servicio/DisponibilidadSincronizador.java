@@ -14,7 +14,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 /**
  * Actualiza el estado local a AGOTADO o PUBLICADO y, solo si cambió, avisa a catalog
- * después del commit. Un fallo de catalog no deshace la reserva.
+ * después del commit. Si el evento es de alta demanda y queda agotado, cierra la fila.
+ * Un fallo de catalog o de queue no deshace la reserva: el reconciliador lo reintenta.
  */
 @Service
 public class DisponibilidadSincronizador {
@@ -23,12 +24,17 @@ public class DisponibilidadSincronizador {
 
     private final JdbcTemplate jdbcTemplate;
     private final CatalogClient catalogClient;
+    private final QueueFilaClient queueFilaClient;
     private final Clock clock;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
-    public DisponibilidadSincronizador(JdbcTemplate jdbcTemplate, CatalogClient catalogClient, Clock clock) {
+    public DisponibilidadSincronizador(JdbcTemplate jdbcTemplate,
+                                       CatalogClient catalogClient,
+                                       QueueFilaClient queueFilaClient,
+                                       Clock clock) {
         this.jdbcTemplate = jdbcTemplate;
         this.catalogClient = catalogClient;
+        this.queueFilaClient = queueFilaClient;
         this.clock = clock;
     }
 
@@ -59,7 +65,7 @@ public class DisponibilidadSincronizador {
 
     private void registrarAviso(UUID eventoId, boolean agotado) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            executor.execute(() -> catalogClient.notificarDisponibilidad(eventoId, agotado));
+            executor.execute(() -> avisar(eventoId, agotado));
             return;
         }
         Map<UUID, Boolean> avisos = avisosDeLaTransaccion();
@@ -82,7 +88,7 @@ public class DisponibilidadSincronizador {
                 if (pendientes == null) {
                     return;
                 }
-                pendientes.forEach((id, flag) -> executor.execute(() -> catalogClient.notificarDisponibilidad(id, flag)));
+                pendientes.forEach((id, flag) -> executor.execute(() -> avisar(id, flag)));
             }
 
             @Override
@@ -93,5 +99,19 @@ public class DisponibilidadSincronizador {
             }
         });
         return avisos;
+    }
+
+    private void avisar(UUID eventoId, boolean agotado) {
+        catalogClient.notificarDisponibilidad(eventoId, agotado);
+        if (agotado && esAltaDemanda(eventoId)) {
+            queueFilaClient.cerrarAgotada(eventoId);
+        }
+    }
+
+    private boolean esAltaDemanda(UUID eventoId) {
+        Boolean altaDemanda = jdbcTemplate.queryForObject(
+                "SELECT alta_demanda FROM evento_inventario WHERE evento_id = ?",
+                Boolean.class, eventoId);
+        return Boolean.TRUE.equals(altaDemanda);
     }
 }

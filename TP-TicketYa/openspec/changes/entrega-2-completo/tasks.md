@@ -9,7 +9,7 @@
 - [ ] 1.3 (P4) Congelar el contrato v2 en `docs/api-contract.md`: endpoints nuevos, JWT, roles, headers `X-User-*`, `X-Queue-Token`, `X-Internal-Token`, `X-Correlation-Id`, códigos de error y ejemplos; actualizar el esquema `bearerAuth` del OpenAPI. Verificar que no quede ningún endpoint sin rol asignado y que P1/P2/P3/P5 lo revisen.
 - [ ] 1.4 (P4) Agregar Redis 7, MongoDB 7 y RabbitMQ 3.13 a `docker-compose.dev.yml` (o a un compose de infraestructura separado) con healthchecks, volúmenes y variables en `.env.example`; verificar `docker compose config` y que los tres servicios queden saludables.
 - [ ] 1.5 (P4) Definir el sobre de eventos (`eventId`, `type`, `occurredAt`, `correlationId`, `version`, `payload`), las routing keys y las colas/DLQ de RabbitMQ en `docs/eventos.md`; verificar con un mensaje de ejemplo y la revisión de los consumidores. _Borrador completo en `docs/eventos.md` con fixture `docs/ejemplos/orden-pagada.json` y test de contrato del consumidor; falta que P4 lo congele y que P1/P3 validen sus productores._
-- [ ] 1.6 (P2) Crear `queue-service` como proyecto Maven independiente con Spring Boot 3.5, Java 21, Actuator, springdoc, Redis y Dockerfile; verificar `mvn -q -DskipTests package`, `/actuator/health` y la conexión a Redis.
+- [x] 1.6 (P2) Crear `queue-service` como proyecto Maven independiente con Spring Boot 3.5, Java 21, Actuator, springdoc, Redis y Dockerfile; verificar `mvn -q -DskipTests package`, `/actuator/health` y la conexión a Redis.
 - [x] 1.7 (P5) Crear `recommendation-service` como proyecto Maven independiente con Spring Boot 3.5, Java 21, Actuator, springdoc, Spring Data MongoDB y Dockerfile; verificar build, health y conexión a MongoDB. _Hecho el Día 2: `mvn test` verde, `/actuator/health` UP con MongoDB y OpenAPI exportado._
 - [x] 1.8 (P1) Crear `notification-service` como proyecto Maven independiente con Spring Boot 3.5, Java 21, Actuator, springdoc, Spring AMQP, PostgreSQL y Dockerfile; verificar build, health y conexión a la base y al broker. _Hecho: `mvn test` verde el Día 3 con Testcontainers PostgreSQL/RabbitMQ; el health reporta `db` y `rabbit` UP._
 
@@ -21,7 +21,7 @@
 - [x] 2.4 (P1) Adaptar catalog-service y notification-service a la identidad JWT y a la matriz de roles (organizador dueño, admin, cliente y personal de acceso); verificar tests de 401/403/200 en los endpoints propios y del servicio de notificaciones.
 - [ ] 2.5 (P2) Adaptar inventory-service y queue-service a la identidad JWT y roles; verificar que solo el cliente reserva y consulta su reserva, que la fila es propia y que los endpoints internos exigen token.
 - [ ] 2.6 (P3) Adaptar orders-service a la identidad JWT y roles, incluyendo `ACCESS_STAFF` para el escaneo y `ORGANIZER`/`ADMIN` para reportes; verificar 401/403/200 y que un cliente no acceda a reportes ni a entradas ajenas.
-- [ ] 2.7 (P5) Adaptar recommendation-service a la identidad JWT: preferencias y recomendaciones solo del cliente autenticado; verificar 401 sin token, 403 al intentar datos de otro y 200 con el dueño.
+- [x] 2.7 (P5) Adaptar recommendation-service a la identidad JWT: preferencias y recomendaciones solo del cliente autenticado; verificar 401 sin token, 403 al intentar datos de otro y 200 con el dueño. _Hecho el Día 5: preferencias y recomendaciones exigen `X-User-Id` + rol `CLIENT`; `PUT` rechaza `clienteId` ajeno; el endpoint interno exige `X-Internal-Token`; tests de 401/403/200 y matriz en `docs/seguridad.md`._
 - [ ] 2.8 (P4) Crear la matriz de seguridad endpoint × rol en `docs/seguridad.md` y una carpeta Postman/Newman que recorra todos los endpoints con cada rol; verificar que cada fila tenga evidencia de 401, 403 o 200 según corresponda.
 
 ## 3. catalog-service: alta demanda, edición, outbox y cache
@@ -36,18 +36,18 @@
 
 ## 4. queue-service: fila virtual
 
-- [ ] 4.1 (P2) Implementar el modelo Redis de la fila: sorted set por evento, hash de estado, ingreso idempotente con `ZADD NX`, posición (`ZRANK + 1`) y consulta de estado; verificar tests de primer ingreso, reingreso sin duplicar, posición y 409 en evento sin fila.
-- [ ] 4.2 (P2) Implementar el scheduler de tandas con tamaño e intervalo configurables, habilitación FIFO, emisión de token JWT (`eventId`, `sub`, `jti`, `exp`, `type=QUEUE`) y limpieza de vencidos; verificar que no se habilite dos veces al mismo cliente y que el token venza.
-- [ ] 4.3 (P2) Cerrar la fila al cancelar, finalizar o agotar el evento, invalidar tokens nuevos y definir la recuperación ante reinicio de Redis (AOF o cierre controlado); verificar con tests y con un reinicio del contenedor.
-- [ ] 4.4 (P2) Actualizar OpenAPI, README y contrato de queue-service; documentar la simplificación de polling/tandas y verificar que el flujo completo se pueda ejecutar con `curl` y Postman.
+- [x] 4.1 (P2) Implementar el modelo Redis de la fila: sorted set por evento, hash de estado, ingreso idempotente con `ZADD NX`, posición (`ZRANK + 1`) y consulta de estado; verificar tests de primer ingreso, reingreso sin duplicar, posición y 409 en evento sin fila.
+- [x] 4.2 (P2) Implementar el scheduler de tandas con tamaño e intervalo configurables, habilitación FIFO, emisión de token JWT (`eventId`, `sub`, `jti`, `exp`, `type=QUEUE`) y limpieza de vencidos; verificar que no se habilite dos veces al mismo cliente y que el token venza.
+- [x] 4.3 (P2) Cerrar la fila al cancelar, finalizar o agotar el evento, invalidar tokens nuevos y definir la recuperación ante reinicio de Redis (AOF o cierre controlado); verificar con tests y con un reinicio del contenedor.
+- [x] 4.4 (P2) Actualizar OpenAPI, README y contrato de queue-service; documentar la simplificación de polling/tandas y verificar que el flujo completo se pueda ejecutar con `curl` y Postman.
 
 ## 5. inventory-service: token de fila, cancelación y resiliencia
 
-- [ ] 5.1 (P2) Migración Flyway nueva para `alta_demanda` y `queue_jti`; validar el token de fila en la reserva (firma, expiración, evento, cliente) y exigirlo solo en eventos de alta demanda. Verificar 403 sin token/vencido/ajeno y reserva normal con token válido.
-- [ ] 5.2 (P2) Implementar `DELETE /api/inventory/reservations/{id}` para cancelar una reserva propia, liberar asientos/cupo y responder de forma idempotente; verificar 204/200, repetición sin doble liberación, 403 ajeno y 409/410 según estado.
-- [ ] 5.3 (P2) Agregar timeouts, reintentos y circuit breaker a las llamadas de inventory hacia catalog (callbacks y reconciliación), con fallback y logs de correlación; verificar con WireMock los casos 5xx, timeout y recuperación.
-- [ ] 5.4 (P2) Reconciliar disponibilidad y estado del evento con queue-service y catalog ante fallos parciales; verificar que una reserva confirmada descuente una sola vez, que una liberación repetida no aumente el cupo y que la prueba de no doble venta de 100 hilos siga verde. _Plan de evidencia multi-instancia en `docs/pruebas.md` §10: dos instancias contra la misma `inventory_db`._
-- [ ] 5.5 (P2) Actualizar OpenAPI, README y contrato de inventory-service; verificar Swagger UI, ejemplos de 403/409/410 y la integración con el flujo de fila.
+- [x] 5.1 (P2) Migración Flyway nueva para `alta_demanda` y `queue_jti`; validar el token de fila en la reserva (firma, expiración, evento, cliente) y exigirlo solo en eventos de alta demanda. Verificar 403 sin token/vencido/ajeno y reserva normal con token válido.
+- [x] 5.2 (P2) Implementar `DELETE /api/inventory/reservations/{id}` para cancelar una reserva propia, liberar asientos/cupo y responder de forma idempotente; verificar 204/200, repetición sin doble liberación, 403 ajeno y 409/410 según estado.
+- [x] 5.3 (P2) Agregar timeouts, reintentos y circuit breaker a las llamadas de inventory hacia catalog (callbacks y reconciliación), con fallback y logs de correlación; verificar con WireMock los casos 5xx, timeout y recuperación.
+- [x] 5.4 (P2) Reconciliar disponibilidad y estado del evento con queue-service y catalog ante fallos parciales; verificar que una reserva confirmada descuente una sola vez, que una liberación repetida no aumente el cupo y que la prueba de no doble venta de 100 hilos siga verde. _Plan de evidencia multi-instancia en `docs/pruebas.md` §10: dos instancias contra la misma `inventory_db`._
+- [x] 5.5 (P2) Actualizar OpenAPI, README y contrato de inventory-service; verificar Swagger UI, ejemplos de 403/409/410 y la integración con el flujo de fila.
 
 ## 6. orders-service: saga, outbox, acceso y reportes
 
@@ -65,7 +65,7 @@
 - [x] 7.2 (P5) Implementar `PUT`/`GET /api/recommendations/preferences` con validación de tipos, artistas y ciudad, upsert idempotente y acceso solo al propio cliente; verificar 200, 400, 403 y actualización sin duplicados. _Hecho el Día 2: 200/400/401/403 probados con MockMvc y curl, y upsert sin duplicados contra MongoDB real._
 - [x] 7.3 (P5) Consumir `orden.pagada` y registrar el historial de forma idempotente por `eventId`; verificar que un evento duplicado no duplique el historial y que una compra reintegrada no se registre. _Hecho el Día 3: listener RabbitMQ, upsert con índice único y test de Testcontainers con duplicado y reintegro._
 - [x] 7.4 (P5) Implementar recomendaciones por preferencias y co-compra, con motivos, exclusión de eventos no elegibles, fallback de populares y resiliencia ante catalog; verificar cliente con historial, cliente nuevo, sin candidatos y catalog caído. _Hecho el Día 3: ranking explicable, co-compra en dos consultas, fallback a `eventos_vistos` y tests unitarios/HTTP._
-- [ ] 7.5 (P5) Implementar `GET /api/recommendations/events/{eventId}/similar` y actualizar OpenAPI, README y contrato; verificar resultados ordenados por frecuencia y lista vacía cuando no hay datos.
+- [x] 7.5 (P5) Implementar `GET /api/recommendations/events/{eventId}/similar` y actualizar OpenAPI, README y contrato; verificar resultados ordenados por frecuencia y lista vacía cuando no hay datos. _Hecho el Día 4: co-compra con conteo de clientes distintos, exclusión de comprados/no elegibles, metadata del snapshot `eventos_vistos`, tests de servicio/HTTP y evidencia en `docs/evidencia/entrega-2-dia-4.txt`._
 
 ## 8. notification-service: eventos, reintentos y consulta
 
@@ -86,7 +86,7 @@
 
 ## 10. Integración, carga, documentación y cierre
 
-- [ ] 10.1 (P5) Crear el módulo `integration-tests` con Testcontainers/Docker Compose y cinco flujos: login → búsqueda, fila → reserva, compra → QR, acceso QR y reporte, y compra → recomendación/notificación; verificar la suite verde contra el compose real.
+- [ ] 10.1 (P5) Crear el módulo `integration-tests` con Testcontainers/Docker Compose y cinco flujos: login → búsqueda, fila → reserva, compra → QR, acceso QR y reporte, y compra → recomendación/notificación; verificar la suite verde contra el compose real. _Iniciado el Día 5: módulo `integration-tests` con el primer flujo gateway → búsqueda de catalog y el esqueleto de los cinco flujos documentado en `integration-tests/README.md`; los flujos restantes dependen de 2.1, 4.x, 6.4/6.5 y 8.x._
 - [ ] 10.2 (P3) Actualizar la colección Postman/Newman v2 con auth, fila, compra, acceso, reportes, preferencias, recomendaciones, notificaciones y la carpeta de seguridad; verificar una corrida completa 100 % verde por el gateway.
 - [ ] 10.3 (P2) Crear el plan JMeter del flujo de compra (login, búsqueda, reserva, pago) con datos de prueba y corridas de 500 y 1000 usuarios concurrentes; guardar los resultados crudos y el comando reproducible.
 - [ ] 10.4 (P5) Escribir `docs/informe-carga.md` con hardware, usuarios, throughput, p50/p95/p99, errores y análisis de cuello de botella; verificar que las conclusiones se desprendan de los resultados guardados.

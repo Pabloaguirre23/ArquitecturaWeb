@@ -97,6 +97,6 @@ class InventarioServiceTest {
         InventoryUpsertRequest.SectorRequest sector = new InventoryUpsertRequest.SectorRequest(
                 UUID.randomUUID(), "Platea", "NUMERADO", new BigDecimal("15000"), 2, 1, List.of(a1, a2));
         return new InventoryUpsertRequest(eventoId, "Recital",
-                OffsetDateTime.parse("2027-01-15T21:00:00-03:00"), 4, version, List.of(sector));
+                OffsetDateTime.parse("2027-01-15T21:00:00-03:00"), 4, null, version, List.of(sector));
     }
 }

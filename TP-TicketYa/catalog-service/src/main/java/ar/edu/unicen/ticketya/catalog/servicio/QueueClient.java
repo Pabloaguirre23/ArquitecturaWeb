@@ -12,5 +12,6 @@ public interface QueueClient {
     void abrir(UUID eventoId);
 
     /** Cierra la fila con el motivo indicado: CANCELADO, FINALIZADO o AGOTADO. */
+
     void cerrar(UUID eventoId, String motivo);
 }

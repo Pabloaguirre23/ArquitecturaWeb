@@ -19,6 +19,10 @@ spring:
           uri: ${ORDERS_URL:http://localhost:8083}
           predicates:
             - Path=/api/orders/**
+        - id: queue-service
+          uri: ${QUEUE_URL:http://localhost:8086}
+          predicates:
+            - Path=/api/queue/**
 
 management:
   endpoints:

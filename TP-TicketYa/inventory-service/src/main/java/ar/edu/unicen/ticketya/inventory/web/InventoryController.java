@@ -24,6 +24,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -98,7 +99,11 @@ public class InventoryController {
             description = """
                     Todo o nada, durante 10 minutos. Un ítem numerado manda asientoIds y omite cantidad. \
                     Un ítem de zona manda cantidad y omite asientoIds. \
-                    El cliente sale de X-User-Id. 409 si el asiento no está libre o la zona no alcanza. \
+                    El cliente sale de X-User-Id. \
+                    Si el evento es de alta demanda, X-Queue-Token es obligatorio: 403 QUEUE_REQUIRED sin token \
+                    y 403 QUEUE_TOKEN_INVALID si venció, es de otro evento o cliente, o la firma no cierra. \
+                    Inventory lo valida en local y no llama a queue. El token se reutiliza hasta exp. \
+                    409 si el asiento no está libre, la zona no alcanza o el evento ya finalizó. \
                     422 CLIENT_LIMIT_EXCEEDED si vendidas más reservas vigentes más lo pedido superan limite_por_cliente.
                     """)
     @ApiResponses({
@@ -116,6 +121,13 @@ public class InventoryController {
                     content = @Content(mediaType = "application/problem+json",
                             schema = @Schema(implementation = Problema.class),
                             examples = @ExampleObject(name = "UNAUTHORIZED", value = Ejemplos.NO_AUTENTICADO))),
+            @ApiResponse(responseCode = "403", description = "El evento de alta demanda exige un token de fila válido",
+                    content = @Content(mediaType = "application/problem+json",
+                            schema = @Schema(implementation = Problema.class),
+                            examples = {
+                                    @ExampleObject(name = "QUEUE_REQUIRED", value = Ejemplos.FILA_REQUERIDA),
+                                    @ExampleObject(name = "QUEUE_TOKEN_INVALID", value = Ejemplos.FILA_INVALIDA)
+                            })),
             @ApiResponse(responseCode = "404", description = "No existe el evento o el sector",
                     content = @Content(mediaType = "application/problem+json",
                             schema = @Schema(implementation = Problema.class),
@@ -129,7 +141,8 @@ public class InventoryController {
                             examples = {
                                     @ExampleObject(name = "SEAT_NOT_AVAILABLE", value = Ejemplos.ASIENTO_OCUPADO),
                                     @ExampleObject(name = "INSUFFICIENT_AVAILABILITY", value = Ejemplos.ZONA_SIN_LUGAR),
-                                    @ExampleObject(name = "EVENT_NOT_ON_SALE", value = Ejemplos.EVENTO_NO_EN_VENTA)
+                                    @ExampleObject(name = "EVENT_NOT_ON_SALE", value = Ejemplos.EVENTO_NO_EN_VENTA),
+                                    @ExampleObject(name = "EVENT_FINISHED", value = Ejemplos.EVENTO_FINALIZADO)
                             })),
             @ApiResponse(responseCode = "422", description = "El cliente supera el límite de entradas del evento",
                     content = @Content(mediaType = "application/problem+json",
@@ -149,9 +162,13 @@ public class InventoryController {
             @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
                     description = "CLIENT, ORGANIZER o ADMIN.",
                     schema = @Schema(type = "string"), example = "CLIENT")
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @Parameter(name = "X-Queue-Token", in = ParameterIn.HEADER,
+                    description = "JWT de fila. Obligatorio si el evento es de alta demanda.",
+                    schema = @Schema(type = "string"))
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
-        ReservationResponse response = reservaService.reservar(request, identity.userId());
+        ReservationResponse response = reservaService.reservar(request, identity.userId(), queueToken);
         return ResponseEntity.created(URI.create("/api/inventory/reservations/" + response.id())).body(response);
     }
 
@@ -189,5 +206,48 @@ public class InventoryController {
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
         return reservaService.obtener(reservaId, identity.userId());
+    }
+
+    @DeleteMapping("/reservations/{reservaId}")
+    @Operation(summary = "Cancelar una reserva propia",
+            description = """
+                    Solo el dueño, y solo si sigue VIGENTE. Libera asientos y cupo. \
+                    Repetir la cancelación responde 204 sin liberar otra vez. \
+                    Una reserva de otro cliente responde 403. Una confirmada responde 409. Una vencida responde 410.
+                    """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Cancelada, o ya estaba cancelada"),
+            @ApiResponse(responseCode = "401", description = "Falta la identidad o X-User-Id no es un UUID",
+                    content = @Content(mediaType = "application/problem+json",
+                            schema = @Schema(implementation = Problema.class),
+                            examples = @ExampleObject(name = "UNAUTHORIZED", value = Ejemplos.NO_AUTENTICADO))),
+            @ApiResponse(responseCode = "403", description = "La reserva es de otro cliente",
+                    content = @Content(mediaType = "application/problem+json",
+                            schema = @Schema(implementation = Problema.class),
+                            examples = @ExampleObject(name = "NOT_RESERVATION_OWNER", value = Ejemplos.AJENA))),
+            @ApiResponse(responseCode = "404", description = "No existe la reserva",
+                    content = @Content(mediaType = "application/problem+json",
+                            schema = @Schema(implementation = Problema.class),
+                            examples = @ExampleObject(name = "RESERVATION_NOT_FOUND", value = Ejemplos.RESERVA_NO_ENCONTRADA))),
+            @ApiResponse(responseCode = "409", description = "La reserva ya está confirmada o no se puede cancelar",
+                    content = @Content(mediaType = "application/problem+json",
+                            schema = @Schema(implementation = Problema.class),
+                            examples = @ExampleObject(name = "RESERVATION_NOT_CANCELLABLE", value = Ejemplos.NO_CANCELABLE))),
+            @ApiResponse(responseCode = "410", description = "La reserva está vencida",
+                    content = @Content(mediaType = "application/problem+json",
+                            schema = @Schema(implementation = Problema.class),
+                            examples = @ExampleObject(name = "RESERVATION_EXPIRED", value = Ejemplos.CANCELACION_VENCIDA)))
+    })
+    public ResponseEntity<Void> cancelar(
+            @PathVariable UUID reservaId,
+            @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
+                    schema = @Schema(type = "string", format = "uuid"), example = Ejemplos.CLIENTE)
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+                    schema = @Schema(type = "string"), example = "CLIENT")
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        RequestIdentity identity = RequestIdentity.require(userId, userRole);
+        reservaService.cancelar(reservaId, identity.userId());
+        return ResponseEntity.noContent().build();
     }
 }

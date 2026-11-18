@@ -86,6 +86,7 @@ class EventServiceTest {
     @Mock
     private OutboxService outboxService;
 
+
     private EventService eventService;
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-03T12:00:00Z"), ZONA);
 
@@ -96,6 +97,7 @@ class EventServiceTest {
         eventService = new EventService(eventoRepository, lugarRepository, sectorRepository,
                 asientoRepository, participanteRepository, precioRepository, inventoryClient,
                 ordersClient, queueClient, clock, catalogCacheService, outboxService);
+
     }
 
     @Test
@@ -170,6 +172,7 @@ class EventServiceTest {
         verify(inventoryClient).publicarInventario(snapshot.capture());
         assertThat(snapshot.getValue().version()).isEqualTo(1L);
         assertThat(snapshot.getValue().altaDemanda()).isTrue();
+        verify(queueClient).abrir(evento.getId());
     }
 
     @Test

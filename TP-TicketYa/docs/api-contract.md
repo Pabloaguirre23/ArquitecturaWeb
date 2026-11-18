@@ -128,6 +128,9 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 | GET | `/api/recommendations` | CLIENT | 200 | recommendation |
 | GET | `/api/notifications` | CLIENT | 200 | notification |
 | GET | `/api/notifications/{notificacionId}` | CLIENT (dueño) | 200 | notification |
+| GET | `/api/recommendations/events/{eventId}/similar` | CLIENT | 200 | recommendation |
+| POST | `/api/queue/events/{eventoId}/join` | CLIENT | 201/200 | queue |
+| GET | `/api/queue/events/{eventoId}/position` | CLIENT | 200 | queue |
 
 “Autenticado” significa `CLIENT`, `ORGANIZER` o `ADMIN`; el dueño del recurso se valida dentro del servicio.
 Los endpoints `/internal/**` no se listan porque no se exponen por el gateway.
@@ -431,7 +434,7 @@ Catalog publica `evento.publicado`, `evento.actualizado` y `evento.cancelado` en
 }
 ```
 
-El ejemplo completo del payload publicado está en [`ejemplos/evento-publicado.json`](../docs/ejemplos/evento-publicado.json) y es el mismo que consume notification-service (§7). `eventId` es único y `correlationId` preserva la cabecera `X-Correlation-Id` de la petición que originó el cambio.
+El ejemplo completo del payload publicado está en [`ejemplos/evento-publicado.json`](../docs/ejemplos/evento-publicado.json) y es el mismo que consume notification-service (§8). `eventId` es único y `correlationId` preserva la cabecera `X-Correlation-Id` de la petición que originó el cambio.
 
 El publicador procesa `CATALOG_OUTBOX_BATCH_SIZE` eventos (default `50`) cada `CATALOG_OUTBOX_PUBLISH_MS` (default `2000`). Ante un fallo de RabbitMQ incrementa `attempts`, persiste `last_error` y reprograma con backoff lineal de `CATALOG_OUTBOX_BACKOFF_SECONDS × attempts` (base default `5`). Tras `CATALOG_OUTBOX_MAX_ATTEMPTS` (default `10`) el evento pasa a `FAILED` y no se reintenta; la operación de negocio ya confirmada no se revierte. Los estados `PENDING`, `PUBLISHED` y `FAILED` están definidos por `V6__outbox_event.sql` y `V8__outbox_failed_status.sql`.
 
@@ -519,7 +522,9 @@ Reglas:
 - Un item con `cantidad` es de zona no numerada; `asientoIds` debe omitirse.
 - Todo o nada: si un asiento no está libre o la zona no alcanza, no se reserva nada.
 - `clienteId` sale de `X-User-Id`.
+- Si el evento es de alta demanda, el header `X-Queue-Token` es obligatorio. Es el JWT que entrega queue al habilitar al cliente (`type=QUEUE`, claims `eventId`, `sub`, `jti`, `exp`), firmado con `QUEUE_TOKEN_SECRET`. Inventory lo valida en local y no llama a queue en la reserva. Sin token: `403 QUEUE_REQUIRED`. Token vencido, de otro evento, de otro cliente o con firma inválida: `403 QUEUE_TOKEN_INVALID` y no se toca el cupo. El token se puede reutilizar hasta `exp`. Un evento normal no lo exige. Cuando ese evento queda `AGOTADO`, inventory cierra la fila con `POST /internal/events/{eventoId}/close` y motivo `AGOTADO`; no la vuelve a abrir.
 - Límite por cliente: se toma `pg_advisory_xact_lock(hashtext(eventoId || clienteId))` y se suman `cliente_evento.entradas_vendidas` más las cantidades de reservas `VIGENTE`. Si eso más lo pedido supera `limitePorCliente`, se responde 422 y no se reserva nada.
+- Si el evento es de alta demanda, el header `X-Queue-Token` es obligatorio. Inventory valida el JWT en local (firma HS256, `exp`, `eventId`, `sub` y `type=QUEUE`) y no llama a queue. Sin token: `403 QUEUE_REQUIRED`. Token vencido, de otro cliente, de otro evento o con otra firma: `403 QUEUE_TOKEN_INVALID`. El token no es de un solo uso: se puede reutilizar hasta su `exp` (5 minutos). No hay unique en `reserva.queue_jti`. El límite por cliente y la no doble venta siguen aplicando.
 - Vencimiento: 10 minutos desde la creación.
 
 **201 Created**
@@ -553,7 +558,35 @@ Reglas:
 }
 ```
 
-Errores: `400 VALIDATION_ERROR`, `400 SECTOR_MISMATCH` (el asiento no pertenece al sector del ítem), `404 EVENT_NOT_FOUND`/`SECTOR_NOT_FOUND`, `409 SEAT_NOT_AVAILABLE`, `409 INSUFFICIENT_AVAILABILITY`, `409 EVENT_NOT_ON_SALE` (cancelado), `409 EVENT_FINISHED` (la fecha del evento ya pasó), `422 CLIENT_LIMIT_EXCEEDED`, `503 LOCK_TIMEOUT` (con `Retry-After: 1`).
+Errores: `400 VALIDATION_ERROR`, `400 SECTOR_MISMATCH` (el asiento no pertenece al sector del ítem), `401 UNAUTHORIZED`, `403 QUEUE_REQUIRED`, `403 QUEUE_TOKEN_INVALID`, `404 EVENT_NOT_FOUND`/`SECTOR_NOT_FOUND`, `409 SEAT_NOT_AVAILABLE`, `409 INSUFFICIENT_AVAILABILITY`, `409 EVENT_NOT_ON_SALE` (cancelado), `409 EVENT_FINISHED` (la fecha del evento ya pasó), `422 CLIENT_LIMIT_EXCEEDED`, `503 LOCK_TIMEOUT` (con `Retry-After: 1`).
+
+`403 QUEUE_REQUIRED`
+
+```json
+{
+  "type": "https://ticketya.local/errors/queue-required",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "Este evento exige un token de fila vigente",
+  "instance": "/api/inventory/reservations",
+  "code": "QUEUE_REQUIRED",
+  "errors": []
+}
+```
+
+`409 SEAT_NOT_AVAILABLE`
+
+```json
+{
+  "type": "https://ticketya.local/errors/seat-not-available",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "El asiento c0000000-0000-4000-8000-010101000000 ya no está disponible",
+  "instance": "/api/inventory/reservations",
+  "code": "SEAT_NOT_AVAILABLE",
+  "errors": []
+}
+```
 
 ### 4.4 Consultar reserva — `GET /api/inventory/reservations/{reservaId}` (dueño)
 
@@ -561,7 +594,51 @@ Errores: `400 VALIDATION_ERROR`, `400 SECTOR_MISMATCH` (el asiento no pertenece 
 
 ### 4.5 Cancelar reserva — `DELETE /api/inventory/reservations/{reservaId}` (dueño)
 
-**204 No Content**. Idempotente: si ya estaba liberada/vencida, también 204. Errores: `403`, `404`.
+**204 No Content** si estaba `VIGENTE` (pasa a `CANCELADA` y libera asientos y cupo) o si ya estaba `CANCELADA` (no libera otra vez).
+
+Errores: `401 UNAUTHORIZED`, `403 NOT_RESERVATION_OWNER`, `404 RESERVATION_NOT_FOUND`, `409 RESERVATION_NOT_CANCELLABLE` (confirmada o en un estado que no se cancela), `410 RESERVATION_EXPIRED`.
+
+`403 NOT_RESERVATION_OWNER`
+
+```json
+{
+  "type": "https://ticketya.local/errors/not-reservation-owner",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "La reserva pertenece a otro cliente",
+  "instance": "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+  "code": "NOT_RESERVATION_OWNER",
+  "errors": []
+}
+```
+
+`409 RESERVATION_NOT_CANCELLABLE`
+
+```json
+{
+  "type": "https://ticketya.local/errors/reservation-not-cancellable",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "La reserva ya está confirmada: hay que devolverla",
+  "instance": "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+  "code": "RESERVATION_NOT_CANCELLABLE",
+  "errors": []
+}
+```
+
+`410 RESERVATION_EXPIRED`
+
+```json
+{
+  "type": "https://ticketya.local/errors/reservation-expired",
+  "title": "Gone",
+  "status": 410,
+  "detail": "La reserva está vencida y no se puede cancelar",
+  "instance": "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+  "code": "RESERVATION_EXPIRED",
+  "errors": []
+}
+```
 
 ### 4.6 Interno — alta/actualización de inventario
 
@@ -597,7 +674,7 @@ Errores: `400 VALIDATION_ERROR`, `400 SECTOR_MISMATCH` (el asiento no pertenece 
 { "eventoId": "1f2e...", "sectores": 1, "asientos": 200, "idempotente": true }
 ```
 
-Idempotente por `eventoId` + `version`: reintentar no duplica filas ni reinicia disponibilidad ya vendida. Catalog incrementa `version` en cada publicación o edición de un evento publicado; `altaDemanda` es opcional para inventory hasta la tarea 5.1 (las versiones actuales ignoran campos desconocidos).
+Idempotente por `eventoId` + `version`: reintentar no duplica filas ni reinicia disponibilidad ya vendida. Catalog incrementa `version` en cada publicación o edición de un evento publicado. `altaDemanda` queda persistido: si es `true`, la reserva pública exige `X-Queue-Token`.
 
 ### 4.6.1 Interno — cambiar estado del evento
 
@@ -909,7 +986,42 @@ Devuelve eventos publicados y futuros ordenados por afinidad. Excluye lo ya comp
 - Catalog caído o sin el endpoint interno de 3.5: se usa el snapshot `eventos_vistos` y se registra la degradación.
 - `401` sin identidad y `403` para roles distintos de `CLIENT`.
 
-### 6.5 Evento consumido — `orden.pagada`
+### 6.5 Eventos similares — `GET /api/recommendations/events/{eventId}/similar` (CLIENT)
+
+Devuelve los eventos que compraron otros clientes que también compraron el evento consultado
+(“quienes compraron este también compraron”), ordenados por cantidad de compradores en común.
+
+```bash
+curl http://localhost:8084/api/recommendations/events/d0000000-0000-4000-8000-000000000001/similar \
+  -H "X-User-Id: 33333333-3333-4333-8333-333333333333" \
+  -H "X-User-Role: CLIENT"
+```
+
+```json
+{
+  "eventoId": "d0000000-0000-4000-8000-000000000001",
+  "generadoEn": "2026-11-16T13:00:00Z",
+  "similares": [
+    {
+      "eventoId": "d0000000-0000-4000-8000-000000000002",
+      "nombre": "El Avaro — Teatro Universitario",
+      "tipo": "TEATRO",
+      "artistas": ["Compañía Teatral Tandil"],
+      "ciudad": "Tandil",
+      "fechaEvento": "2027-04-18T23:30:00Z",
+      "compradoresEnComun": 3
+    }
+  ]
+}
+```
+
+- `compradoresEnComun` cuenta clientes distintos: varias órdenes del mismo cliente cuentan una vez.
+- Se excluyen el evento consultado, los que el cliente ya compró, los cancelados/finalizados y los pasados.
+- La metadata sale del snapshot `eventos_vistos`; un evento sin snapshot no se lista.
+- Sin otros compradores o sin candidatos elegibles: `200` con `similares: []`.
+- `400 VALIDATION_ERROR` si `eventId` no es un UUID; `401` sin identidad y `403` para roles distintos de `CLIENT`.
+
+### 6.6 Evento consumido — `orden.pagada`
 
 recommendation-service consume el sobre de la tarea 1.5 desde `ticketya.events` con routing key `orden.pagada`:
 
@@ -938,13 +1050,61 @@ El historial es idempotente por `(eventId, clienteId, eventoId)`. Un evento dupl
 
 El contrato canónico del sobre y de todos los payloads está en [`eventos.md`](eventos.md), con el fixture [`ejemplos/orden-pagada.json`](ejemplos/orden-pagada.json). orders debe publicar `eventoTipo`, `artistas` y `ciudad` desde el snapshot de la orden (ADR-017 y migración 6.1); no se acepta que recommendation los consulte a catalog al consumir.
 
-## 7. notification-service
+## 7. queue-service
+
+No hay WebSockets. El cliente hace polling de `GET /api/queue/events/{eventoId}/position` cada 2 a 5 segundos. La habilitación es por tandas: cada `intervaloSegundos` (30 por defecto) salen los primeros `batchSize` clientes (50 por defecto), en orden de llegada. Abrir y cerrar son internos y no pasan por el gateway.
+
+### 7.1 Abrir — `POST /internal/events/{eventoId}`
+
+Lo llama catalog al publicar un evento de alta demanda. Header `X-Internal-Token`. Sin cuerpo.
+
+**201** si la fila se crea, **200** si ya existía. Repetirlo no pisa `batchSize` ni `intervaloSegundos`. Si ya está `CERRADA`, no vuelve a `queue:open`.
+
+```json
+{ "eventoId": "11111111-1111-4111-8111-111111111111", "estado": "ABIERTA", "batchSize": 50, "intervaloSegundos": 30 }
+```
+
+### 7.2 Ingresar — `POST /api/queue/events/{eventoId}/join` (CLIENT)
+
+Headers `X-User-Id` y `X-User-Role`.
+
+**201** en el primer ingreso, **200** si el cliente ya estaba. La posición no cambia (`ZADD NX`).
+
+```json
+{
+  "eventoId": "11111111-1111-4111-8111-111111111111",
+  "posicion": 1,
+  "adelante": 0,
+  "estado": "EN_ESPERA",
+  "estimacionSegundos": 30
+}
+```
+
+Errores: `401 UNAUTHORIZED`, `409 QUEUE_NOT_OPEN` (el evento no tiene fila), `409 QUEUE_CLOSED` (la fila ya no admite ingresos).
+
+### 7.3 Posición — `GET /api/queue/events/{eventoId}/position` (CLIENT)
+
+Misma identidad que el ingreso. Es el request que el cliente repite.
+
+- `EN_ESPERA`: `posicion` (`ZRANK + 1`), `adelante` y `estimacionSegundos` = `(adelante / batchSize + 1) * intervaloSegundos`.
+- `HABILITADO`: `posicion` 0 y `token`, el JWT de compra. No es de un solo uso: vale hasta `exp` (5 minutos) y se puede reutilizar. No hay unique en `queue_jti`.
+- `CERRADA`: sin token. La fila se cerró mientras el cliente estaba adentro.
+
+**404** `NOT_IN_QUEUE` si nunca ingresó o si el token ya venció.
+
+### 7.4 Cerrar — `POST /internal/events/{eventoId}/close`
+
+Header `X-Internal-Token`. Cuerpo `{ "motivo": "CANCELADO" | "FINALIZADO" | "AGOTADO" }`.
+
+**200** al cerrar y al repetir el cierre. El motivo original se conserva. **404** si la fila nunca se abrió. **400** si el motivo no es uno de esos tres.
+
+## 8. notification-service
 
 OpenAPI: [`../openapi/notification-openapi.json`](../openapi/notification-openapi.json). Swagger UI en `http://localhost:8085/swagger-ui.html`. El documento incluye los esquemas `bearerAuth`, `X-User-Id`, `X-User-Role` y `X-Correlation-Id`, además de `ProblemDetail` con ejemplos para `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOTIFICATION_FORBIDDEN` y `NOTIFICATION_NOT_FOUND`.
 
 Los estados `PENDIENTE`, `ENVIADA` y `FALLIDA` reflejan el ciclo de envío. El primer envío ocurre al consumir el evento; si falla, la notificación queda `PENDIENTE` con `proximoReintento` calculado con backoff lineal (`NOTIFICATION_BACKOFF_SECONDS × intentos`). `reenviarPendientes()` reintenta cada `NOTIFICATION_RETRY_POLL_MS` (default `10000`) y tras `NOTIFICATION_MAX_ATTEMPTS` (default `3`) la marca `FALLIDA`. Una notificación ya enviada o fallida no se reenvía.
 
-### 7.1 Listar mis notificaciones — `GET /api/notifications` (CLIENT)
+### 8.1 Listar mis notificaciones — `GET /api/notifications` (CLIENT)
 
 Devuelve solo las notificaciones del cliente autenticado (`X-User-Id`), ordenadas por `createdAt` descendente. Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100) y `estado` opcional (`PENDIENTE`, `ENVIADA` o `FALLIDA`).
 
@@ -974,11 +1134,12 @@ Devuelve solo las notificaciones del cliente autenticado (`X-User-Id`), ordenada
 - `401 UNAUTHORIZED` sin identidad y `403 FORBIDDEN` para roles distintos de `CLIENT`.
 - Un `estado` desconocido responde `400 VALIDATION_ERROR`.
 
-### 7.2 Detalle de notificación — `GET /api/notifications/{notificacionId}` (CLIENT dueño)
+### 8.2 Detalle de notificación — `GET /api/notifications/{notificacionId}` (CLIENT dueño)
 
-**200** con el mismo objeto de 7.1. Una notificación de otro cliente responde `403 NOTIFICATION_FORBIDDEN`; una inexistente, `404 NOTIFICATION_NOT_FOUND`. Un `notificacionId` con formato UUID inválido responde `400 VALIDATION_ERROR` con `errors[0].field = "notificacionId"`.
+**200** con el mismo objeto de 8.1. Una notificación de otro cliente responde `403 NOTIFICATION_FORBIDDEN`; una inexistente, `404 NOTIFICATION_NOT_FOUND`. Un `notificacionId` con formato UUID inválido responde `400 VALIDATION_ERROR` con `errors[0].field = "notificacionId"`.
 
-## 8. Flujo de compra de punta a punta
+## 9. Flujo de compra de punta a punta
+
 
 ```bash
 GATEWAY=http://localhost:8080
@@ -1015,7 +1176,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
   -d '{"motivo":"No puedo asistir"}'
 ```
 
-## 9. Catálogo de errores
+## 10. Catálogo de errores
 
 | HTTP | `code` | Cuándo |
 |---|---|---|
@@ -1031,6 +1192,8 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 403 | `FORBIDDEN` | Rol sin permiso para la ruta |
 | 403 | `NOT_EVENT_OWNER` | El evento es de otro organizador |
 | 403 | `NOT_RESERVATION_OWNER` | La reserva es de otro cliente |
+| 403 | `QUEUE_REQUIRED` | El evento de alta demanda se reserva sin token de fila |
+| 403 | `QUEUE_TOKEN_INVALID` | El token de fila venció, es de otro cliente o evento, o la firma no cierra |
 | 403 | `ORDER_NOT_OWNER` | La orden es de otro cliente |
 | 403 | `NOT_TICKET_OWNER` | La entrada es de otro cliente |
 | 403 | `NOT_PREFERENCE_OWNER` | Las preferencias son de otro cliente |
@@ -1043,13 +1206,18 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 404 | `TICKET_NOT_FOUND` | Entrada inexistente |
 | 404 | `RETURN_NOT_FOUND` | Devolución inexistente |
 | 404 | `NOTIFICATION_NOT_FOUND` | Notificación inexistente |
+| 404 | `NOT_IN_QUEUE` | El cliente no ingresó a esa fila o su token de fila venció |
 | 404 | `NOT_FOUND` | Ruta inexistente |
 | 405 | `METHOD_NOT_ALLOWED` | Método HTTP no permitido |
+| 409 | `QUEUE_NOT_OPEN` | El evento no tiene fila virtual |
+| 409 | `QUEUE_CLOSED` | La fila ya no admite ingresos |
 | 409 | `EVENT_NOT_EDITABLE` | Evento ya publicado o en estado no editable |
 | 409 | `EVENT_INCOMPLETE` | Faltan precios para publicar |
 | 409 | `EVENT_NOT_CANCELLABLE` | Evento finalizado o ya cancelado |
 | 409 | `EVENT_NOT_ON_SALE` | Evento cancelado/finalizado al reservar |
 | 409 | `SECTOR_ALREADY_EXISTS` | Ya existe un sector con ese nombre en el lugar |
+| 409 | `EVENT_FINISHED` | La fecha del evento ya pasó al reservar |
+| 409 | `RESERVATION_NOT_CANCELLABLE` | La reserva confirmada no se cancela: hay que devolverla |
 | 409 | `SEAT_NOT_AVAILABLE` | Asiento reservado o vendido |
 | 409 | `INSUFFICIENT_AVAILABILITY` | Zona sin lugares suficientes |
 | 409 | `RESERVATION_NOT_CONFIRMABLE` | Reserva liberada o vencida al confirmar |
@@ -1057,7 +1225,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 409 | `RETURN_ALREADY_EXISTS` | Ya hay una devolución abierta |
 | 409 | `RETURN_ALREADY_RESOLVED` | La devolución ya fue resuelta |
 | 409 | `IDEMPOTENCY_IN_PROGRESS` | Reintento mientras la compra original corre (incluye `Retry-After`) |
-| 410 | `RESERVATION_EXPIRED` | Se intenta pagar una reserva vencida |
+| 410 | `RESERVATION_EXPIRED` | Se intenta pagar o cancelar una reserva vencida |
 | 422 | `CLIENT_LIMIT_EXCEEDED` | Supera el límite de entradas por cliente |
 | 422 | `IDEMPOTENCY_KEY_REUSED` | Misma `Idempotency-Key` con cuerpo distinto |
 | 422 | `RETURN_WINDOW_CLOSED` | Faltan 72 h o menos para el evento |
@@ -1066,7 +1234,7 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 503 | `INVENTORY_UNAVAILABLE` | No se pudo obtener disponibilidad en el detalle |
 | 500 | `INTERNAL_ERROR` | Error inesperado; no expone stacktrace |
 
-## 10. Reglas de cambio
+## 11. Reglas de cambio
 
 1. Un endpoint nuevo o un cambio de payload empieza por el spec de OpenSpec y este documento.
 2. El PR actualiza el OpenAPI y el README del servicio en el mismo commit.

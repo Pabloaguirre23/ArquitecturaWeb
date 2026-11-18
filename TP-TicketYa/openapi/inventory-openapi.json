@@ -268,7 +268,7 @@
       "post" : {
         "tags" : [ "Inventario público" ],
         "summary" : "Reservar asientos o lugares de una zona",
-        "description" : "Todo o nada, durante 10 minutos. Un ítem numerado manda asientoIds y omite cantidad. Un ítem de zona manda cantidad y omite asientoIds. El cliente sale de X-User-Id. 409 si el asiento no está libre o la zona no alcanza. 422 CLIENT_LIMIT_EXCEEDED si vendidas más reservas vigentes más lo pedido superan limite_por_cliente.\n",
+        "description" : "Todo o nada, durante 10 minutos. Un ítem numerado manda asientoIds y omite cantidad. Un ítem de zona manda cantidad y omite asientoIds. El cliente sale de X-User-Id. Si el evento es de alta demanda, X-Queue-Token es obligatorio: 403 QUEUE_REQUIRED sin token y 403 QUEUE_TOKEN_INVALID si venció, es de otro evento o cliente, o la firma no cierra. Inventory lo valida en local y no llama a queue. El token se reutiliza hasta exp. 409 si el asiento no está libre, la zona no alcanza o el evento ya finalizó. 422 CLIENT_LIMIT_EXCEEDED si vendidas más reservas vigentes más lo pedido superan limite_por_cliente.\n",
         "operationId" : "reservar",
         "parameters" : [ {
           "name" : "X-User-Id",
@@ -289,6 +289,14 @@
             "type" : "string"
           },
           "example" : "CLIENT"
+        }, {
+          "name" : "X-Queue-Token",
+          "in" : "header",
+          "description" : "JWT de fila. Obligatorio si el evento es de alta demanda.",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "requestBody" : {
           "content" : {
@@ -395,6 +403,42 @@
               }
             }
           },
+          "403" : {
+            "description" : "El evento de alta demanda exige un token de fila válido",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problema"
+                },
+                "examples" : {
+                  "QUEUE_REQUIRED" : {
+                    "description" : "QUEUE_REQUIRED",
+                    "value" : {
+                      "type" : "https://ticketya.local/errors/queue-required",
+                      "title" : "Forbidden",
+                      "status" : 403,
+                      "detail" : "Este evento exige un token de fila vigente",
+                      "instance" : "/api/inventory/reservations",
+                      "code" : "QUEUE_REQUIRED",
+                      "errors" : [ ]
+                    }
+                  },
+                  "QUEUE_TOKEN_INVALID" : {
+                    "description" : "QUEUE_TOKEN_INVALID",
+                    "value" : {
+                      "type" : "https://ticketya.local/errors/queue-token-invalid",
+                      "title" : "Forbidden",
+                      "status" : 403,
+                      "detail" : "El token de fila no corresponde a este cliente y evento",
+                      "instance" : "/api/inventory/reservations",
+                      "code" : "QUEUE_TOKEN_INVALID",
+                      "errors" : [ ]
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404" : {
             "description" : "No existe el evento o el sector",
             "content" : {
@@ -472,6 +516,18 @@
                       "detail" : "El evento no está en venta",
                       "instance" : "/api/inventory/reservations",
                       "code" : "EVENT_NOT_ON_SALE",
+                      "errors" : [ ]
+                    }
+                  },
+                  "EVENT_FINISHED" : {
+                    "description" : "EVENT_FINISHED",
+                    "value" : {
+                      "type" : "https://ticketya.local/errors/event-finished",
+                      "title" : "Conflict",
+                      "status" : 409,
+                      "detail" : "El evento ya finalizó",
+                      "instance" : "/api/inventory/reservations",
+                      "code" : "EVENT_FINISHED",
                       "errors" : [ ]
                     }
                   }
@@ -794,6 +850,163 @@
                       "detail" : "No existe la reserva b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
                       "instance" : "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
                       "code" : "RESERVATION_NOT_FOUND",
+                      "errors" : [ ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Inventario público" ],
+        "summary" : "Cancelar una reserva propia",
+        "description" : "Solo el dueño, y solo si sigue VIGENTE. Libera asientos y cupo. Repetir la cancelación responde 204 sin liberar otra vez. Una reserva de otro cliente responde 403. Una confirmada responde 409. Una vencida responde 410.\n",
+        "operationId" : "cancelar",
+        "parameters" : [ {
+          "name" : "reservaId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "X-User-Id",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "example" : "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e"
+        }, {
+          "name" : "X-User-Role",
+          "in" : "header",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "CLIENT"
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Cancelada, o ya estaba cancelada"
+          },
+          "401" : {
+            "description" : "Falta la identidad o X-User-Id no es un UUID",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problema"
+                },
+                "examples" : {
+                  "UNAUTHORIZED" : {
+                    "description" : "UNAUTHORIZED",
+                    "value" : {
+                      "type" : "https://ticketya.local/errors/unauthorized",
+                      "title" : "Unauthorized",
+                      "status" : 401,
+                      "detail" : "Faltan los encabezados X-User-Id y X-User-Role",
+                      "instance" : "/api/inventory/reservations",
+                      "code" : "UNAUTHORIZED",
+                      "errors" : [ ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "La reserva es de otro cliente",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problema"
+                },
+                "examples" : {
+                  "NOT_RESERVATION_OWNER" : {
+                    "description" : "NOT_RESERVATION_OWNER",
+                    "value" : {
+                      "type" : "https://ticketya.local/errors/not-reservation-owner",
+                      "title" : "Forbidden",
+                      "status" : 403,
+                      "detail" : "La reserva pertenece a otro cliente",
+                      "instance" : "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+                      "code" : "NOT_RESERVATION_OWNER",
+                      "errors" : [ ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No existe la reserva",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problema"
+                },
+                "examples" : {
+                  "RESERVATION_NOT_FOUND" : {
+                    "description" : "RESERVATION_NOT_FOUND",
+                    "value" : {
+                      "type" : "https://ticketya.local/errors/reservation-not-found",
+                      "title" : "Not Found",
+                      "status" : 404,
+                      "detail" : "No existe la reserva b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+                      "instance" : "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+                      "code" : "RESERVATION_NOT_FOUND",
+                      "errors" : [ ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "La reserva ya está confirmada o no se puede cancelar",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problema"
+                },
+                "examples" : {
+                  "RESERVATION_NOT_CANCELLABLE" : {
+                    "description" : "RESERVATION_NOT_CANCELLABLE",
+                    "value" : {
+                      "type" : "https://ticketya.local/errors/reservation-not-cancellable",
+                      "title" : "Conflict",
+                      "status" : 409,
+                      "detail" : "La reserva ya está confirmada: hay que devolverla",
+                      "instance" : "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+                      "code" : "RESERVATION_NOT_CANCELLABLE",
+                      "errors" : [ ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "410" : {
+            "description" : "La reserva está vencida",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problema"
+                },
+                "examples" : {
+                  "RESERVATION_EXPIRED" : {
+                    "description" : "RESERVATION_EXPIRED",
+                    "value" : {
+                      "type" : "https://ticketya.local/errors/reservation-expired",
+                      "title" : "Gone",
+                      "status" : 410,
+                      "detail" : "La reserva está vencida y no se puede cancelar",
+                      "instance" : "/api/inventory/reservations/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+                      "code" : "RESERVATION_EXPIRED",
                       "errors" : [ ]
                     }
                   }
@@ -1126,7 +1339,7 @@
           },
           "estado" : {
             "type" : "string",
-            "enum" : [ "VIGENTE", "CONFIRMADA", "LIBERADA", "VENCIDA" ],
+            "enum" : [ "VIGENTE", "CONFIRMADA", "LIBERADA", "VENCIDA", "CANCELADA" ],
             "example" : "VIGENTE"
           },
           "expiresAt" : {
@@ -1185,6 +1398,9 @@
             "type" : "integer",
             "format" : "int32",
             "minimum" : 1
+          },
+          "altaDemanda" : {
+            "type" : "boolean"
           },
           "version" : {
             "type" : "integer",

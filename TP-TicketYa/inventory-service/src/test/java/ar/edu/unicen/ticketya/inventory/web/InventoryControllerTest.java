@@ -1,6 +1,7 @@
 package ar.edu.unicen.ticketya.inventory.web;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -62,7 +63,7 @@ class InventoryControllerTest {
                 List.of(new ReservationResponse.Item(sectorId, asientoId, 1,
                         new BigDecimal("15000"), new BigDecimal("15000"))),
                 new BigDecimal("15000"));
-        when(reservaService.reservar(any(ReservaRequest.class), any())).thenReturn(response);
+        when(reservaService.reservar(any(ReservaRequest.class), any(), nullable(String.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/inventory/reservations")
                         .header("X-User-Id", CLIENTE)

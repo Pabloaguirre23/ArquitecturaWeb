@@ -1,0 +1,82 @@
+Día 5 — 17/11/2026 — P5: seguridad de recommendation (2.7) e inicio de integración (10.1)
+
+1) Seguridad de recommendation (2.7)
+
+Cambios:
+- Se agregaron tests de 401/403/200 para preferencias y recomendaciones:
+  - PUT sin identidad -> 401.
+  - PUT con rol ORGANIZER -> 403.
+  - GET con X-User-Id inválido -> 401.
+  - GET/PUT del dueño -> 200.
+  - PUT con clienteId ajeno -> 403 NOT_PREFERENCE_OWNER.
+- Se documentó la matriz endpoint × rol en docs/seguridad.md.
+- El README del servicio y el checklist de la Entrega 2 quedaron actualizados.
+
+Comando:
+$ cd TP-TicketYa/recommendation-service
+$ export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+$ mvn -B -ntp test
+
+Resultado:
+[INFO] Tests run: 5 -- RecommendationMongoIntegrationTest
+[INFO] Tests run: 5 -- RecommendationControllerTest
+[INFO] Tests run: 1 -- OpenApiExportTest
+[INFO] Tests run: 11 -- PreferenceControllerTest
+[INFO] Tests run: 3 -- InternalPreferenceControllerTest
+[INFO] Tests run: 5 -- RecommendationServiceTest
+[INFO] Tests run: 6 -- HistorialServiceTest
+[INFO] Tests run: 8 -- PreferenceServiceTest
+[INFO] Tests run: 3 -- CatalogoRestClientTest
+[INFO] Tests run: 1 -- OrdenPagadaEventContractTest
+[INFO] Tests run: 1 -- RecommendationRabbitIntegrationTest
+[INFO] Tests run: 49, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+
+Matriz verificada:
+- GET /api/recommendations/preferences: sin identidad 401, ORGANIZER 403, CLIENT 200.
+- PUT /api/recommendations/preferences: sin identidad 401, ORGANIZER 403, CLIENT 200, clienteId ajeno 403.
+- GET /api/recommendations: sin identidad 401, ORGANIZER 403, CLIENT 200.
+- GET /internal/preferences/{clienteId}: sin token 401, token incorrecto 401, token correcto 200.
+- OpenAPI declara bearerAuth, X-User-Id, X-User-Role y X-Internal-Token.
+
+2) Inicio del módulo de integración (10.1)
+
+Se creó TP-TicketYa/integration-tests con:
+- pom.xml (Java 21, JUnit 5, AssertJ, Jackson, Failsafe para *IT).
+- GatewayCatalogIT: primer flujo gateway -> búsqueda pública de catalog.
+- README con el estado de los cinco flujos y las dependencias pendientes.
+
+El test se salta sin TICKETYA_E2E=true para no romper el build local sin entorno.
+
+Preparación ejecutada:
+$ docker compose -f docker-compose.dev.yml up -d catalog-db
+$ (cd catalog-service && mvn -B -ntp spring-boot:run)
+$ (cd api-gateway && mvn -B -ntp spring-boot:run)
+$ curl http://localhost:8081/actuator/health -> UP
+$ curl http://localhost:8080/actuator/health -> UP
+
+Corrida:
+$ cd TP-TicketYa/integration-tests
+$ TICKETYA_E2E=true mvn -B -ntp verify
+
+Resultado:
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0 -- GatewayCatalogIT
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+
+Cubre:
+- GET /actuator/health del gateway -> 200 y status UP.
+- GET /api/catalog/events?page=0&size=5&orden=FECHA_ASC por el gateway -> 200, content[],
+  page=0, size=5, totalElements y totalPages.
+
+Interpretación:
+- 10.1 queda INICIADO, no terminado. El módulo y el primer flujo están verdes contra servicios
+  reales; los otros cuatro flujos dependen de tareas que todavía no están integradas:
+  login JWT (2.1-2.3), fila (4.x), acceso QR (6.4), reportes (6.5) y notificaciones (8.2/8.4).
+
+3) Notas de integración
+
+- La rama de integración sigue en 151cfb7; los PRs de queue/inventory de Pablo ya están
+  rebasados sobre ella (merge-base 151cfb7) y los de Iván están en el PR #18.
+- Este trabajo se entrega en una rama aparte contra feat/entrega-2-dia-1.
+- 7.5 (eventos similares) sigue en el PR #10, fuera de esta rama.

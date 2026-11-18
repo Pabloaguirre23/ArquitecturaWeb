@@ -79,6 +79,7 @@ public class QueueRestClient implements QueueClient {
         }
     }
 
+
     private <T> T conReintentos(Supplier<T> operacion) {
         RuntimeException ultimo = null;
         for (int intento = 1; intento <= MAX_INTENTOS; intento++) {
