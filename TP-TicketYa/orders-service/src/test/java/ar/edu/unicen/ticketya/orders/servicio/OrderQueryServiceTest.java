@@ -10,11 +10,15 @@ import static org.mockito.Mockito.when;
 import ar.edu.unicen.ticketya.orders.dominio.Entrada;
 import ar.edu.unicen.ticketya.orders.dominio.EstadoEntrada;
 import ar.edu.unicen.ticketya.orders.dominio.EstadoOrden;
+import ar.edu.unicen.ticketya.orders.dominio.EstadoSaga;
 import ar.edu.unicen.ticketya.orders.dominio.MedioPago;
 import ar.edu.unicen.ticketya.orders.dominio.Orden;
+import ar.edu.unicen.ticketya.orders.dominio.PasoSaga;
+import ar.edu.unicen.ticketya.orders.dominio.SagaCompra;
 import ar.edu.unicen.ticketya.orders.repositorio.EntradaRepository;
 import ar.edu.unicen.ticketya.orders.repositorio.OrdenItemRepository;
 import ar.edu.unicen.ticketya.orders.repositorio.OrdenRepository;
+import ar.edu.unicen.ticketya.orders.repositorio.SagaCompraRepository;
 import ar.edu.unicen.ticketya.orders.web.ApiException;
 import ar.edu.unicen.ticketya.orders.web.dto.OrderResponse;
 import ar.edu.unicen.ticketya.orders.web.dto.PageResponse;
@@ -41,27 +45,35 @@ class OrderQueryServiceTest {
     private OrdenItemRepository ordenItemRepository;
     @Mock
     private EntradaRepository entradaRepository;
+    @Mock
+    private SagaCompraRepository sagaCompraRepository;
 
     private OrderQueryService service;
     private final UUID clienteId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
-        service = new OrderQueryService(ordenRepository, ordenItemRepository, entradaRepository);
+        service = new OrderQueryService(ordenRepository, ordenItemRepository,
+                entradaRepository, sagaCompraRepository);
     }
 
     @Test
     void ordenesDevuelveSoloLasDelClienteYPaginadas() {
         Orden orden = orden();
+        SagaCompra saga = new SagaCompra(orden.getId(), PasoSaga.ENTRADAS_EMITIDAS);
+        saga.setEstado(EstadoSaga.COMPLETADA);
         when(ordenRepository.findByClienteIdOrderByCreatedAtDesc(clienteId, PageRequest.of(0, 20)))
                 .thenReturn(new PageImpl<>(List.of(orden), PageRequest.of(0, 20), 1));
         when(ordenItemRepository.findByOrdenId(orden.getId())).thenReturn(List.of());
         when(entradaRepository.findByOrdenId(orden.getId())).thenReturn(List.of());
+        when(sagaCompraRepository.findByOrdenIdIn(List.of(orden.getId()))).thenReturn(List.of(saga));
 
         PageResponse<OrderResponse> pagina = service.ordenes(clienteId, 0, 20);
 
         assertThat(pagina.content()).singleElement()
                 .extracting(OrderResponse::id).isEqualTo(orden.getId());
+        assertThat(pagina.content().get(0).sagaEstado()).isEqualTo(EstadoSaga.COMPLETADA);
+        assertThat(pagina.content().get(0).sagaPaso()).isEqualTo(PasoSaga.ENTRADAS_EMITIDAS);
         assertThat(pagina.totalElements()).isEqualTo(1);
         assertThat(pagina.totalPages()).isEqualTo(1);
         verify(ordenRepository).findByClienteIdOrderByCreatedAtDesc(clienteId, PageRequest.of(0, 20));

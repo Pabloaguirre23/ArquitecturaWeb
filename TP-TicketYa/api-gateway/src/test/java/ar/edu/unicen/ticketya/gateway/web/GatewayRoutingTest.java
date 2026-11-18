@@ -12,7 +12,7 @@ import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 /**
- * Verifica que el gateway tenga las tres rutas y que aplique las reglas de rol
+ * Verifica que el gateway tenga las rutas de los servicios y que aplique las reglas de rol
  * del contrato. Las peticiones rechazadas nunca llegan a los servicios.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -29,15 +29,16 @@ class GatewayRoutingTest {
     private RouteLocator routeLocator;
 
     @Test
-    void lasTresRutasApuntanAlServicioCorrecto() {
+    void lasRutasApuntanAlServicioCorrecto() {
         Map<String, URI> rutas = routeLocator.getRoutes()
                 .collectMap(Route::getId, Route::getUri)
                 .block();
 
-        assertThat(rutas).containsKeys("catalog-service", "inventory-service", "orders-service");
+        assertThat(rutas).containsKeys("catalog-service", "inventory-service", "orders-service", "queue-service");
         assertThat(rutas.get("catalog-service").getPort()).isEqualTo(8081);
         assertThat(rutas.get("inventory-service").getPort()).isEqualTo(8082);
         assertThat(rutas.get("orders-service").getPort()).isEqualTo(8083);
+        assertThat(rutas.get("queue-service").getPort()).isEqualTo(8086);
     }
 
     @Test
@@ -76,6 +77,25 @@ class GatewayRoutingTest {
     @Test
     void unOrganizadorNoReserva() {
         client.post().uri("/api/inventory/reservations")
+                .header("X-User-Id", ORGANIZER)
+                .header("X-User-Role", "ORGANIZER")
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FORBIDDEN");
+    }
+
+    @Test
+    void unOrganizadorNoEntraALaFila() {
+        client.post().uri("/api/queue/events/" + UUID_CUALQUIERA + "/join")
+                .header("X-User-Id", ORGANIZER)
+                .header("X-User-Role", "ORGANIZER")
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FORBIDDEN");
+
+        client.get().uri("/api/queue/events/" + UUID_CUALQUIERA + "/position")
                 .header("X-User-Id", ORGANIZER)
                 .header("X-User-Role", "ORGANIZER")
                 .exchange()

@@ -18,7 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/queue")
-@Tag(name = "Fila virtual", description = "Ingreso y posición en la fila de un evento de alta demanda.")
+@Tag(name = "Fila virtual", description = """
+        Ingreso y posición en la fila de un evento de alta demanda. \
+        No hay WebSockets: el cliente consulta su posición cada 2 a 5 segundos \
+        hasta recibir HABILITADO o CERRADA.
+        """)
 public class QueueController {
 
     private final FilaService filaService;
@@ -59,6 +63,7 @@ public class QueueController {
     @Operation(summary = "Consultar la posición propia",
             description = """
                     En espera: posición (ZRANK + 1), personas adelante y estimación. \
+                    El cliente repite esta consulta cada 2 a 5 segundos. No hay WebSockets. \
                     Habilitado por una tanda: estado HABILITADO y el token de compra. \
                     404 si nunca ingresó o si el token ya venció.
                     """)

@@ -83,7 +83,7 @@ class OrderTransactionEmissionIntegrationTest {
                         new BigDecimal("15000.00"), new BigDecimal("15000.00"))),
                 new BigDecimal("15000.00"));
         when(inventoryClient.obtenerReserva(any())).thenReturn(reserva);
-        when(paymentGateway.cobrar(any(), any(), any(), any()))
+        when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
                 .thenReturn(new PaymentGateway.PaymentResult(EstadoPago.APROBADO, "mock-ok"));
         when(entradaRepository.saveAll(any()))
                 .thenThrow(new DataIntegrityViolationException("fallo de emisión"));

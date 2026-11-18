@@ -7,6 +7,7 @@ import ar.edu.unicen.ticketya.queue.web.dto.PosicionResponse;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -26,6 +27,8 @@ public class FilaService {
     static final String EN_ESPERA = "EN_ESPERA";
     static final String HABILITADO = "HABILITADO";
     static final String ABIERTA = "ABIERTA";
+    static final String CERRADA = "CERRADA";
+    static final String PENDIENTE = "PENDIENTE";
     static final String OPEN_KEY = "queue:open";
 
     private static final Logger log = LoggerFactory.getLogger(FilaService.class);
@@ -34,6 +37,8 @@ public class FilaService {
     private final DefaultRedisScript<List> ingresarScript;
     private final DefaultRedisScript<List> abrirScript;
     private final DefaultRedisScript<List> habilitarScript;
+    private final DefaultRedisScript<List> cerrarScript;
+    private final DefaultRedisScript<List> completarScript;
     private final DefaultRedisScript<Long> limpiarScript;
     private final QueueProperties properties;
     private final QueueTokenService tokens;
@@ -43,6 +48,8 @@ public class FilaService {
                        @Qualifier("ingresarScript") DefaultRedisScript<List> ingresarScript,
                        @Qualifier("abrirScript") DefaultRedisScript<List> abrirScript,
                        @Qualifier("habilitarScript") DefaultRedisScript<List> habilitarScript,
+                       @Qualifier("cerrarScript") DefaultRedisScript<List> cerrarScript,
+                       @Qualifier("completarScript") DefaultRedisScript<List> completarScript,
                        @Qualifier("limpiarScript") DefaultRedisScript<Long> limpiarScript,
                        QueueProperties properties,
                        QueueTokenService tokens,
@@ -51,6 +58,8 @@ public class FilaService {
         this.ingresarScript = ingresarScript;
         this.abrirScript = abrirScript;
         this.habilitarScript = habilitarScript;
+        this.cerrarScript = cerrarScript;
+        this.completarScript = completarScript;
         this.limpiarScript = limpiarScript;
         this.properties = properties;
         this.tokens = tokens;
@@ -72,7 +81,26 @@ public class FilaService {
                 eventoId,
                 texto(resultado, 1),
                 numero(resultado, 2),
-                numero(resultado, 3)));
+                numero(resultado, 3),
+                null));
+    }
+
+    public FilaEstadoResponse cerrar(UUID eventoId, String motivo) {
+        List<?> resultado = redis.execute(
+                cerrarScript,
+                List.of(estadoKey(eventoId), OPEN_KEY, admitidosKey(eventoId)),
+                motivo,
+                Long.toString(clock.millis()),
+                eventoId.toString());
+        if (codigo(resultado, 0) == 0) {
+            throw ApiException.notFound("QUEUE_NOT_OPEN", "Este evento no tiene fila virtual");
+        }
+        return new FilaEstadoResponse(
+                eventoId,
+                CERRADA,
+                numero(resultado, 2),
+                numero(resultado, 3),
+                texto(resultado, 1));
     }
 
     public Ingreso ingresar(UUID eventoId, UUID userId) {
@@ -98,6 +126,12 @@ public class FilaService {
     }
 
     public PosicionResponse consultar(UUID eventoId, UUID userId) {
+        if (CERRADA.equals(estadoFila(eventoId))) {
+            return posicionCerrada(eventoId, userId);
+        }
+        if (PENDIENTE.equals(valorAdmitido(eventoId, userId))) {
+            completarPendiente(eventoId, userId, clock.instant());
+        }
         PosicionResponse habilitado = habilitadoSiVigente(eventoId, userId);
         if (habilitado != null) {
             return habilitado;
@@ -130,29 +164,67 @@ public class FilaService {
     }
 
     private void habilitar(UUID eventoId, Instant ahora) {
-        List<?> resultado = redis.execute(
+        redis.execute(
                 habilitarScript,
                 List.of(esperaKey(eventoId), estadoKey(eventoId), admitidosKey(eventoId)),
                 Long.toString(ahora.toEpochMilli()));
-        if (resultado == null || resultado.isEmpty() || numero(resultado, 0) != 3) {
-            return;
+        int firmados = completarPendientes(eventoId, ahora);
+        if (firmados > 0) {
+            log.info("Tanda de {}: {} clientes habilitados", eventoId, firmados);
         }
+    }
+
+    private int completarPendientes(UUID eventoId, Instant ahora) {
+        Map<Object, Object> admitidos = redis.opsForHash().entries(admitidosKey(eventoId));
+        int firmados = 0;
+        for (Map.Entry<Object, Object> entry : admitidos.entrySet()) {
+            if (!PENDIENTE.equals(String.valueOf(entry.getValue()))) {
+                continue;
+            }
+            if (completarPendiente(eventoId, UUID.fromString(entry.getKey().toString()), ahora)) {
+                firmados++;
+            }
+        }
+        return firmados;
+    }
+
+    private boolean completarPendiente(UUID eventoId, UUID userId, Instant ahora) {
         Instant expira = ahora.plus(properties.token().ttl());
-        for (int i = 1; i < resultado.size(); i++) {
-            UUID userId = UUID.fromString(resultado.get(i).toString());
-            UUID jti = UUID.randomUUID();
-            String jwt = tokens.emitir(eventoId, userId, jti, expira);
-            redis.opsForHash().put(
-                    admitidosKey(eventoId),
-                    userId.toString(),
-                    jti + "|" + expira.toEpochMilli() + "|" + jwt);
+        UUID jti = UUID.randomUUID();
+        String jwt = tokens.emitir(eventoId, userId, jti, expira);
+        String valor = jti + "|" + expira.toEpochMilli() + "|" + jwt;
+        List<?> resultado = redis.execute(
+                completarScript,
+                List.of(admitidosKey(eventoId)),
+                userId.toString(),
+                valor);
+        return resultado != null && !resultado.isEmpty() && numero(resultado, 0) == 1;
+    }
+
+    private String valorAdmitido(UUID eventoId, UUID userId) {
+        Object valor = redis.opsForHash().get(admitidosKey(eventoId), userId.toString());
+        return valor == null ? null : valor.toString();
+    }
+
+    private String estadoFila(UUID eventoId) {
+        Object estado = redis.opsForHash().get(estadoKey(eventoId), "estado");
+        return estado == null ? null : estado.toString();
+    }
+
+    private PosicionResponse posicionCerrada(UUID eventoId, UUID userId) {
+        Long rank = redis.opsForZSet().rank(esperaKey(eventoId), userId.toString());
+        boolean estuvo = rank != null || redis.opsForHash().hasKey(admitidosKey(eventoId), userId.toString());
+        if (!estuvo) {
+            throw ApiException.notFound("NOT_IN_QUEUE", "El cliente no ingresó a la fila de este evento");
         }
-        log.info("Tanda de {}: {} clientes habilitados", eventoId, resultado.size() - 1);
+        int posicion = rank == null ? 0 : rank.intValue() + 1;
+        int adelante = rank == null ? 0 : rank.intValue();
+        return new PosicionResponse(eventoId, posicion, adelante, CERRADA, 0, null);
     }
 
     private PosicionResponse habilitadoSiVigente(UUID eventoId, UUID userId) {
         Object valor = redis.opsForHash().get(admitidosKey(eventoId), userId.toString());
-        if (valor == null || "PENDIENTE".equals(valor.toString())) {
+        if (valor == null || PENDIENTE.equals(valor.toString()) || CERRADA.equals(valor.toString())) {
             return null;
         }
         String[] partes = valor.toString().split("\\|", 3);

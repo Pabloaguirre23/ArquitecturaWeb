@@ -17,27 +17,30 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(QueueController.class)
 class QueueControllerRolTest {
 
-    private static final UUID EVENTO = UUID.fromString("d0000000-0000-4000-8000-000000000001");
-    private static final String CLIENTE = "33333333-3333-4333-8333-333333333333";
+    private static final String CLIENTE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
     @Autowired
-    private MockMvc mockMvc;
+    private MockMvc mvc;
 
     @MockitoBean
     private FilaService filaService;
 
     @Test
     void unOrganizadorNoEntraNiConsulta() throws Exception {
-        mockMvc.perform(post("/api/queue/events/" + EVENTO + "/join")
+        UUID evento = UUID.randomUUID();
+
+        mvc.perform(post("/api/queue/events/{eventoId}/join", evento)
                         .header("X-User-Id", CLIENTE)
                         .header("X-User-Role", "ORGANIZER"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
-        mockMvc.perform(get("/api/queue/events/" + EVENTO + "/position")
+
+        mvc.perform(get("/api/queue/events/{eventoId}/position", evento)
                         .header("X-User-Id", CLIENTE)
                         .header("X-User-Role", "ORGANIZER"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
         verifyNoInteractions(filaService);
     }
 }

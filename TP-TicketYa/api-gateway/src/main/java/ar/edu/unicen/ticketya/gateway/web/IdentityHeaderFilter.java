@@ -35,8 +35,8 @@ public class IdentityHeaderFilter implements org.springframework.cloud.gateway.f
     private static final Set<String> ROLES = Set.of("CLIENT", "ORGANIZER", "ADMIN");
     private static final Set<String> ADMIN_ONLY = Set.of("ADMIN");
     private static final Set<String> ORGANIZER_ONLY = Set.of("ORGANIZER");
-    private static final Set<String> AUTHENTICATED = Set.of("CLIENT", "ORGANIZER", "ADMIN");
     private static final Set<String> CLIENT_ONLY = Set.of("CLIENT");
+    private static final Set<String> AUTHENTICATED = Set.of("CLIENT", "ORGANIZER", "ADMIN");
 
     private static final Set<String> PUBLIC_GET_PATHS = Set.of(
             "/api/catalog/events",
@@ -74,7 +74,9 @@ public class IdentityHeaderFilter implements org.springframework.cloud.gateway.f
             rule(HttpMethod.GET, "/api/orders/tickets/" + ID, AUTHENTICATED),
             rule(HttpMethod.POST, "/api/orders/tickets/" + ID + "/returns", AUTHENTICATED),
             rule(HttpMethod.POST, "/api/orders/returns/" + ID + "/approve", ADMIN_ONLY),
-            rule(HttpMethod.POST, "/api/orders/returns/" + ID + "/reject", ADMIN_ONLY));
+            rule(HttpMethod.POST, "/api/orders/returns/" + ID + "/reject", ADMIN_ONLY),
+            rule(HttpMethod.POST, "/api/queue/events/" + ID + "/join", CLIENT_ONLY),
+            rule(HttpMethod.GET, "/api/queue/events/" + ID + "/position", CLIENT_ONLY));
 
     private final ObjectMapper objectMapper;
 

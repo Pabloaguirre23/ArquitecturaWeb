@@ -51,7 +51,8 @@ class ReintegroRetryServiceTest {
 
         retryService.reintentarPendientes();
 
-        verify(paymentGateway).reintegrar(pagoId, new BigDecimal("15000.00"));
+        verify(paymentGateway).reintegrar(pagoId, new BigDecimal("15000.00"),
+                ClavesIdempotencia.reintegroEntrada(pagoId, reintegro.getEntradaId()));
         assertThat(reintegro.getEstado()).isEqualTo(EstadoReintegro.APROBADO);
         verify(reintegroRepository).save(reintegro);
         verify(pagoRepository).save(pago);
@@ -64,7 +65,8 @@ class ReintegroRetryServiceTest {
         Reintegro reintegro = reintegro(pagoId, new BigDecimal("15000.00"));
         when(reintegroRepository.findByEstado(EstadoReintegro.PENDIENTE)).thenReturn(List.of(reintegro));
         doThrow(new RuntimeException("pasarela caída"))
-                .when(paymentGateway).reintegrar(pagoId, new BigDecimal("15000.00"));
+                .when(paymentGateway).reintegrar(pagoId, new BigDecimal("15000.00"),
+                        ClavesIdempotencia.reintegroEntrada(pagoId, reintegro.getEntradaId()));
 
         retryService.reintentarPendientes();
 
