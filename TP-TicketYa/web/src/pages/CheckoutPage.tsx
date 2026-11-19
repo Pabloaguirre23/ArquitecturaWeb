@@ -76,8 +76,8 @@ export function CheckoutPage() {
                 <QrPlaceholder value={ticket.qrCode} />
                 <div>
                   <span className="badge ok">{ticket.estado}</span>
-                  <h3>{ticket.eventoNombre}</h3>
-                  <p className="muted">{formatDate(ticket.eventoFecha)}</p>
+                  <h3>{order.eventoNombre}</h3>
+                  <p className="muted">{formatDate(order.eventoFecha)}</p>
                   <p className="mono">{ticket.qrCode}</p>
                 </div>
               </div>
