@@ -177,6 +177,11 @@ class TicketYaE2EIT {
     @Test
     @Order(6)
     void laCompraAlimentaNotificacionesYRecomendaciones() throws Exception {
+        await(() -> send("GET", "/api/notifications?size=50", auth("CLIENT"), null),
+                body -> hasNotification(body, "evento.publicado"),
+                "No apareció la notificación de artista favorito; revisar el endpoint interno "
+                        + "de preferencias y el binding notification.favorite");
+
         JsonNode notificaciones = await(() -> send("GET", "/api/notifications?size=50", auth("CLIENT"), null),
                 body -> hasNotification(body, "orden.pagada"),
                 "No apareció la notificación de orden.pagada; revisar RabbitMQ y el outbox de orders");
@@ -228,6 +233,14 @@ class TicketYaE2EIT {
 
         ok("PUT", "/api/catalog/events/" + eventoId + "/prices/" + sectorId, auth("ORGANIZER"),
                 Map.of("precio", 15000));
+
+        // Preferencia previa a la publicación: notification debe encontrar al cliente
+        // por el endpoint interno de recommendation (8.3).
+        ok("PUT", "/api/recommendations/preferences", auth("CLIENT"), Map.of(
+                "tipos", List.of("RECITAL"),
+                "artistas", List.of("Artista E2E"),
+                "ciudad", "Tandil"));
+
         JsonNode publicado = ok("POST", "/api/catalog/events/" + eventoId + "/publish",
                 auth("ORGANIZER"), null);
         assertThat(publicado.path("estado").asText()).isEqualTo("PUBLICADO");
