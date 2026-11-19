@@ -167,6 +167,19 @@ class PreferenceControllerTest {
     }
 
     @Test
+    void guardarSinContenidoJsonDevuelve415() throws Exception {
+        mockMvc.perform(put("/api/recommendations/preferences")
+                        .header("X-User-Id", CLIENTE_TEXTO)
+                        .header("X-User-Role", "CLIENT")
+                        .content("""
+                                {"tipos":["FESTIVAL"],"artistas":[],"ciudad":"Tandil"}
+                                """))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
+    }
+
+    @Test
     void guardarConClienteIdAjenoDevuelve403() throws Exception {
         when(preferenceService.guardar(eq(CLIENTE), any(PreferenciasRequest.class)))
                 .thenThrow(ApiException.forbidden("NOT_PREFERENCE_OWNER",

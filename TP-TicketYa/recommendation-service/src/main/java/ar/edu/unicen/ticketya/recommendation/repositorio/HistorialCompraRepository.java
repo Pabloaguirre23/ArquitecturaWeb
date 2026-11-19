@@ -12,6 +12,4 @@ public interface HistorialCompraRepository extends MongoRepository<HistorialComp
     List<HistorialCompra> findByClienteIdIn(Collection<String> clienteIds);
 
     List<HistorialCompra> findByEventoIdIn(Collection<String> eventoIds);
-
-    long countByEventoId(String eventoId);
 }
