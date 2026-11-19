@@ -1,0 +1,60 @@
+Entrega 2 — Día 7 (19/11/2026)
+================================
+Tarea 10.1 (P5): suite de integración contra el compose integral.
+
+Entorno
+-------
+- macOS (Darwin), Docker Desktop con 6 CPUs y 4 GB para la VM.
+- Java 21 (Temurin 21.0.12.1) y Maven 3.9.16.
+- Rama: test/integracion-servicios (base feat/entrega-2-dia-1).
+- Compose: TP-TicketYa/docker-compose.yml.
+
+Arranque
+--------
+QUEUE_BATCH_SIZE=1 QUEUE_INTERVAL_SECONDS=2 QUEUE_SCHEDULER_MS=500 \
+  docker compose up -d --build
+
+Resultado: 13/13 contenedores healthy (7 servicios + 4 PostgreSQL + MongoDB +
+RabbitMQ + Redis). GET http://localhost:8080/actuator/health -> UP.
+
+Corrección de integración detectada en la corrida
+--------------------------------------------------
+catalog-service no arrancaba healthy porque el compose no le pasaba REDIS_HOST:
+Lettuce intentaba localhost:6379 dentro del contenedor y el health check de Redis
+quedaba DOWN; el gateway no se creaba por la dependencia service_healthy.
+
+Se agregó al servicio catalog-service:
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+y depends_on: redis (service_healthy).
+
+Suite
+-----
+cd TP-TicketYa/integration-tests
+TICKETYA_E2E=true mvn -B -ntp verify
+
+Salida:
+[INFO] Running ar.edu.unicen.ticketya.integration.GatewayCatalogIT
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Running ar.edu.unicen.ticketya.integration.TicketYaE2EIT
+[WARNING] Tests run: 6, Failures: 0, Errors: 0, Skipped: 1
+[INFO] Results:
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 1
+[INFO] BUILD SUCCESS
+[INFO] Total time: 8.323 s
+
+Flujos verificados
+------------------
+1. Gateway -> health y búsqueda pública de catalog.
+2. Identidad obligatoria (401 sin identidad, 403 con rol incorrecto).
+3. Fila virtual -> reserva de un evento de alta demanda con X-Queue-Token.
+4. Compra -> entrada con QR e idempotencia de la orden.
+5. Acceso QR: omitido; POST /api/orders/access/validate (6.4) todavía no existe.
+6. Compra -> notificación orden.pagada por RabbitMQ y recomendaciones/similares.
+
+Pendientes al cierre del día
+----------------------------
+- Reemplazar X-User-* por JWT cuando se mergee 2.1/2.2 (PR #29).
+- Quitar la omisión del acceso QR cuando P3 cierre 6.4.
+- Agregar el flujo de reporte cuando P3 cierre 6.5.
+- Llevar esta suite al CI con docker compose (9.7).

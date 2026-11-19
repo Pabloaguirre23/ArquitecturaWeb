@@ -3,16 +3,19 @@
 Pruebas end-to-end de TicketYa contra el **gateway** y los servicios reales. Es el módulo de
 la tarea **10.1** (P5). No usa mocks de servicios: valida el flujo por el puerto 8080.
 
-## Estado (Día 6 — 18/11/2026)
+## Estado (Día 7 — 19/11/2026)
 
 | Flujo | Clase / test | Estado |
 |---|---|---|
-| Gateway → salud y búsqueda pública de catalog | `GatewayCatalogIT` | Implementado |
-| Identidad → búsqueda y 401/403 | `TicketYaE2EIT.laBusquedaPublicaNoRequiereIdentidad`, `laIdentidadEsObligatoriaEnLosEndpointsProtegidos` | Implementado con identidad por headers (el login JWT de 2.1 todavía no está) |
-| Fila → reserva de alta demanda | `TicketYaE2EIT.laFilaHabilitaLaReservaDeUnEventoDeAltaDemanda` | Implementado |
-| Compra → QR e idempotencia | `TicketYaE2EIT.laCompraGeneraUnaEntradaConQrYEsIdempotente` | Implementado |
+| Gateway → salud y búsqueda pública de catalog | `GatewayCatalogIT` | Implementado y verde |
+| Identidad → búsqueda y 401/403 | `TicketYaE2EIT.laBusquedaPublicaNoRequiereIdentidad`, `laIdentidadEsObligatoriaEnLosEndpointsProtegidos` | Verde con identidad por headers (el login JWT de 2.1 sigue en el PR #29) |
+| Fila → reserva de alta demanda | `TicketYaE2EIT.laFilaHabilitaLaReservaDeUnEventoDeAltaDemanda` | Verde |
+| Compra → QR e idempotencia | `TicketYaE2EIT.laCompraGeneraUnaEntradaConQrYEsIdempotente` | Verde |
 | Acceso QR con un solo uso | `TicketYaE2EIT.elPersonalDeAccesoValidaElQrUnaSolaVez` | Se omite mientras 6.4 no esté expuesta |
-| Compra → notificación y recomendaciones | `TicketYaE2EIT.laCompraAlimentaNotificacionesYRecomendaciones` | Implementado |
+| Compra → notificación y recomendaciones | `TicketYaE2EIT.laCompraAlimentaNotificacionesYRecomendaciones` | Verde |
+
+Corrida del 19/11 contra el compose integral: **8 tests, 0 fallos, 1 omitido** (acceso QR).
+La evidencia completa está en [`../docs/evidencia/entrega-2-dia-7.txt`](../docs/evidencia/entrega-2-dia-7.txt).
 
 Los tests se saltan si no se define `TICKETYA_E2E=true`, para que un `mvn test` sin entorno
 no falle.
@@ -35,6 +38,9 @@ curl -fsS http://localhost:8080/actuator/health
 for p in 8081 8082 8083 8084 8085 8086; do curl -fsS "http://localhost:$p/actuator/health"; done
 ```
 
+`catalog-service` necesita `REDIS_HOST=redis` en el compose para que su health check de cache
+quede `UP`; sin eso el gateway no arranca por el `depends_on: service_healthy`.
+
 ### 2. Suite
 
 ```bash
@@ -50,7 +56,7 @@ Variables:
 | `TICKETYA_GATEWAY_URL` | `http://localhost:8080` | URL del gateway |
 | `TICKETYA_E2E_TIMEOUT_MS` | `45000` | Espera máxima de la fila y de los consumidores asíncronos |
 
-Resultado esperado con las siete piezas arriba:
+Resultado de la corrida del 19/11 con las siete piezas arriba:
 
 ```text
 Tests run: 8, Failures: 0, Errors: 0, Skipped: 1
