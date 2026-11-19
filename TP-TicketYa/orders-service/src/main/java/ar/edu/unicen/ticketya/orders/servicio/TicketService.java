@@ -25,6 +25,11 @@ public class TicketService {
 
     @Transactional
     public List<Entrada> emitir(Orden orden, List<OrdenItem> items) {
+        // La emisión es idempotente: un reintento no duplica entradas para la orden.
+        List<Entrada> existentes = entradaRepository.findByOrdenId(orden.getId());
+        if (existentes != null && !existentes.isEmpty()) {
+            return existentes;
+        }
         List<Entrada> entradas = new ArrayList<>();
         for (OrdenItem item : items) {
             if (item.getAsientoId() != null) {

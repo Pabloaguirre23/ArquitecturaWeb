@@ -78,7 +78,7 @@ class OrderControllerTest {
                 List.of(new OrderResponse.Item(UUID.randomUUID(), UUID.randomUUID(), 1,
                         new BigDecimal("15000.00"), new BigDecimal("15000.00"))),
                 List.of(),
-                OffsetDateTime.parse("2026-11-03T12:00:00-03:00"));
+                OffsetDateTime.parse("2026-11-03T12:00:00-03:00"), null, null);
         when(orderService.crear(any(CrearOrdenRequest.class), any(), eq("compra-0001"))).thenReturn(response);
 
         mockMvc.perform(post("/api/orders")
@@ -179,7 +179,7 @@ class OrderControllerTest {
                 List.of(new OrderResponse.Item(UUID.randomUUID(), UUID.randomUUID(), 1,
                         new BigDecimal("15000.00"), new BigDecimal("15000.00"))),
                 List.of(),
-                OffsetDateTime.parse("2026-11-03T12:00:00-03:00"));
+                OffsetDateTime.parse("2026-11-03T12:00:00-03:00"), null, null);
         when(orderQueryService.ordenes(eq(UUID.fromString(CLIENTE)), eq(0), eq(20)))
                 .thenReturn(new PageResponse<>(List.of(orden), 0, 20, 1, 1));
 

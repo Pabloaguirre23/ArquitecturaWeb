@@ -12,6 +12,8 @@ Esta carpeta tiene un brief por integrante. La idea es que cada uno pueda clonar
 
 **Guía puntual Día 4:** [`caro-4.10.md`](caro-4.10.md) — la tarea 4.10 ya está implementada; pasos simples para verificarla y aprobar el PR.
 
+**Entrega 2:** los briefs actualizados están en [`entrega-2/README.md`](entrega-2/README.md).
+
 ## 1. Acceso al repositorio
 
 **¿Es tu primer PR?** Empezá por [`primer-pr.md`](primer-pr.md): explica rama, commit, push y PR paso a paso, con GitHub Desktop y con terminal.

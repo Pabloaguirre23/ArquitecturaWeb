@@ -9,6 +9,7 @@ import ar.edu.unicen.ticketya.orders.dominio.EstadoReintegro;
 import ar.edu.unicen.ticketya.orders.dominio.OrdenItem;
 import ar.edu.unicen.ticketya.orders.dominio.Pago;
 import ar.edu.unicen.ticketya.orders.dominio.Reintegro;
+import ar.edu.unicen.ticketya.orders.eventos.OrderDomainEvents;
 import ar.edu.unicen.ticketya.orders.repositorio.DevolucionRepository;
 import ar.edu.unicen.ticketya.orders.repositorio.EntradaRepository;
 import ar.edu.unicen.ticketya.orders.repositorio.OrdenItemRepository;
@@ -44,6 +45,7 @@ public class DevolucionService {
     private final ReintegroRepository reintegroRepository;
     private final InventoryClient inventoryClient;
     private final PaymentGateway paymentGateway;
+    private final OutboxService outboxService;
     private final Clock clock;
 
     public DevolucionService(DevolucionRepository devolucionRepository,
@@ -53,6 +55,7 @@ public class DevolucionService {
                              ReintegroRepository reintegroRepository,
                              InventoryClient inventoryClient,
                              PaymentGateway paymentGateway,
+                             OutboxService outboxService,
                              Clock clock) {
         this.devolucionRepository = devolucionRepository;
         this.entradaRepository = entradaRepository;
@@ -61,6 +64,7 @@ public class DevolucionService {
         this.reintegroRepository = reintegroRepository;
         this.inventoryClient = inventoryClient;
         this.paymentGateway = paymentGateway;
+        this.outboxService = outboxService;
         this.clock = clock;
     }
 
@@ -121,7 +125,7 @@ public class DevolucionService {
         entradaRepository.save(entrada);
 
         // Procesar reintegro antes de liberar el asiento para evitar inconsistencia
-        reintegrarEntrada(entrada);
+        BigDecimal monto = reintegrarEntrada(entrada);
 
         try {
             inventoryClient.devolverItems(new ReturnDto(
@@ -139,6 +143,9 @@ public class DevolucionService {
         devolucion.setEstado(EstadoDevolucion.APROBADA);
         devolucion.setResolvedAt(OffsetDateTime.now(clock));
         devolucion = devolucionRepository.save(devolucion);
+        // El aviso de reintegro se persiste con el cambio a APROBADA, no después.
+        outboxService.registrar(OrderDomainEvents.DEVOLUCION_APROBADA, devolucion.getId(),
+                OrderDomainEvents.devolucionAprobada(devolucion, entrada, monto));
         return ReturnResponse.from(devolucion);
     }
 
@@ -165,7 +172,7 @@ public class DevolucionService {
                         "No existe la devolución " + devolucionId));
     }
 
-    private void reintegrarEntrada(Entrada entrada) {
+    private BigDecimal reintegrarEntrada(Entrada entrada) {
         Pago pago = pagoRepository.findByOrdenId(entrada.getOrdenId()).stream()
                 .filter(p -> p.getEstado() == EstadoPago.APROBADO
                         || p.getEstado() == EstadoPago.REINTEGRO_PENDIENTE
@@ -187,7 +194,8 @@ public class DevolucionService {
 
         if (reintegro.getEstado() != EstadoReintegro.APROBADO) {
             try {
-                paymentGateway.reintegrar(pago.getId(), reintegro.getMonto());
+                paymentGateway.reintegrar(pago.getId(), reintegro.getMonto(),
+                        ClavesIdempotencia.reintegroEntrada(pago.getId(), entrada.getId()));
                 reintegro.setEstado(EstadoReintegro.APROBADO);
                 reintegroRepository.save(reintegro);
             } catch (RuntimeException ex) {
@@ -197,6 +205,7 @@ public class DevolucionService {
         }
 
         actualizarEstadoPago(pago, entrada.getOrdenId());
+        return monto;
     }
 
     private void actualizarEstadoPago(Pago pago, UUID ordenId) {

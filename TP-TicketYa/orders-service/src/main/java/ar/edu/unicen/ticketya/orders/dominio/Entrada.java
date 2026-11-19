@@ -53,6 +53,12 @@ public class Entrada {
     @Column(name = "created_at", insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name = "used_at")
+    private OffsetDateTime usedAt;
+
+    @Column(name = "used_by")
+    private UUID usedBy;
+
     public UUID getId() {
         return id;
     }
@@ -143,5 +149,21 @@ public class Entrada {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public OffsetDateTime getUsedAt() {
+        return usedAt;
+    }
+
+    public void setUsedAt(OffsetDateTime usedAt) {
+        this.usedAt = usedAt;
+    }
+
+    public UUID getUsedBy() {
+        return usedBy;
+    }
+
+    public void setUsedBy(UUID usedBy) {
+        this.usedBy = usedBy;
     }
 }

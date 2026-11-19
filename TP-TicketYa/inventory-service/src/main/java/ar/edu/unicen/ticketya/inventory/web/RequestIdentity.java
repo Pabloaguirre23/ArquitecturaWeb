@@ -15,4 +15,11 @@ public record RequestIdentity(UUID userId, String role) {
             throw ApiException.unauthorized("X-User-Id debe ser un UUID válido");
         }
     }
+
+    public void requireRole(String expectedRole) {
+        if (!expectedRole.equals(role)) {
+            throw ApiException.forbidden("FORBIDDEN",
+                    "El rol " + role + " no puede ejecutar esta operación");
+        }
+    }
 }

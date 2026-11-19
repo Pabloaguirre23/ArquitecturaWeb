@@ -1,0 +1,54 @@
+Día 5 — 17/11/2026 — Dockerfiles y compose integral (apoyo a 9.5/9.6)
+
+1) Cambios
+
+- Dockerfiles nuevos: api-gateway, catalog-service, inventory-service y orders-service.
+- Ya existían: recommendation-service, notification-service y queue-service (rama de Pablo).
+- docker-compose.yml integral en TP-TicketYa/ con:
+  - PostgreSQL de catalog, inventory, orders y notification;
+  - MongoDB de recommendation;
+  - RabbitMQ;
+  - Redis para la fila virtual;
+  - los seis servicios actuales y el api-gateway;
+  - healthchecks y depends_on por salud;
+  - solo el gateway publica 8080; bases y brokers quedan en la red interna.
+- queue-service y la UI opcional quedan fuera hasta que se mergeen sus PRs.
+
+2) Verificación
+
+$ docker compose -f docker-compose.yml config --quiet
+OK
+
+$ docker compose -f docker-compose.yml build
+Image ticketya-full-api-gateway Built
+Image ticketya-full-catalog-service Built
+Image ticketya-full-inventory-service Built
+Image ticketya-full-orders-service Built
+Image ticketya-full-recommendation-service Built
+Image ticketya-full-notification-service Built
+
+$ docker compose -f docker-compose.yml up -d
+13 contenedores: 13 healthy (6 servicios + 4 PostgreSQL + MongoDB + RabbitMQ + Redis).
+
+$ curl http://localhost:8080/actuator/health
+{"status":"UP", ...}
+
+$ curl "http://localhost:8080/api/catalog/events?page=0&size=3"
+{"content":[{"id":"d0000000-0000-4000-8000-000000000001","nombre":"Festival de Rock Tandil 2027",...}]}
+
+Puertos 5433-5436, 27017, 5672, 6379 y 15672: no publicados al host.
+
+3) Integración 10.1 contra el compose
+
+$ cd TP-TicketYa/integration-tests
+$ TICKETYA_E2E=true mvn -B -ntp verify
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0 -- GatewayCatalogIT
+[INFO] BUILD SUCCESS
+
+El primer flujo de integración pasa contra el compose integral, no solo contra Maven local.
+
+4) Pendiente
+
+- queue-service en el compose (espera PRs #11-#14).
+- Rutas del gateway para recommendation/notification (P4/JWT).
+- Observabilidad (Loki/Promtail/Grafana) y UI opcional.

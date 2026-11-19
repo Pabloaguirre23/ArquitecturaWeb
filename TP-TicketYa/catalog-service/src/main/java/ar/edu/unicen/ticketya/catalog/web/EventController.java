@@ -1,9 +1,12 @@
 package ar.edu.unicen.ticketya.catalog.web;
 
 import ar.edu.unicen.ticketya.catalog.dominio.TipoEvento;
+import ar.edu.unicen.ticketya.catalog.servicio.AuditService;
+import ar.edu.unicen.ticketya.catalog.servicio.CatalogCacheService;
 import ar.edu.unicen.ticketya.catalog.servicio.EventService;
 import ar.edu.unicen.ticketya.catalog.web.dto.CancelacionResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.CrearEventoRequest;
+import ar.edu.unicen.ticketya.catalog.web.dto.EditarEventoRequest;
 import ar.edu.unicen.ticketya.catalog.web.dto.EventoBusquedaResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.EventoDetalleResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.EventoResponse;
@@ -12,12 +15,19 @@ import ar.edu.unicen.ticketya.catalog.web.dto.PrecioRequest;
 import ar.edu.unicen.ticketya.catalog.web.dto.PrecioResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,9 +46,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class EventController {
 
     private final EventService eventService;
+    private final AuditService auditService;
 
-    public EventController(EventService eventService) {
+    public EventController(EventService eventService, AuditService auditService) {
         this.eventService = eventService;
+        this.auditService = auditService;
     }
 
     @PostMapping
@@ -56,6 +68,33 @@ public class EventController {
         identity.requireRole("ORGANIZER");
         EventoResponse response = eventService.crearEvento(request, identity.userId());
         return ResponseEntity.created(URI.create("/api/catalog/events/" + response.id())).body(response);
+    }
+
+    @PutMapping("/{eventoId}")
+    @Operation(summary = "Editar un evento",
+            description = "Actualiza solo los campos enviados. Si el evento está publicado o agotado, "
+                    + "refresca el snapshot de inventory con una versión nueva y reintenta abrir la fila "
+                    + "de alta demanda (operación idempotente). Invalida el detalle y las búsquedas cacheadas.")
+    @ApiResponse(responseCode = "200", description = "Evento actualizado")
+    @ApiResponse(responseCode = "400", description = "Datos inválidos o fecha pasada (VALIDATION_ERROR)")
+    @ApiResponse(responseCode = "401", description = "Falta identidad (UNAUTHORIZED)")
+    @ApiResponse(responseCode = "403", description = "Rol insuficiente o evento de otro organizador (FORBIDDEN, NOT_EVENT_OWNER)")
+    @ApiResponse(responseCode = "404", description = "Evento o lugar inexistente (EVENT_NOT_FOUND, VENUE_NOT_FOUND)")
+    @ApiResponse(responseCode = "409", description = "Evento terminal, lugar de evento publicado o "
+            + "cambio de alta demanda publicado (EVENT_NOT_EDITABLE); evento incompleto (EVENT_INCOMPLETE)")
+    @ApiResponse(responseCode = "502", description = "Inventory no confirmó el snapshot (INVENTORY_UNAVAILABLE)")
+    public EventoResponse editar(
+            @PathVariable UUID eventoId,
+            @Valid @RequestBody EditarEventoRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
+        RequestIdentity identity = RequestIdentity.require(userId, userRole);
+        identity.requireRole("ORGANIZER");
+        String correlacion = correlation(correlationId);
+        return auditar("EDITAR_EVENTO", eventoId, identity, correlacion,
+                () -> eventService.editarEvento(eventoId, request, identity.userId(), correlacion),
+                response -> detalleEdicion(request, response));
     }
 
     @PutMapping("/{eventoId}/prices/{sectorId}")
@@ -80,7 +119,8 @@ public class EventController {
 
     @PostMapping("/{eventoId}/publish")
     @Operation(summary = "Publicar un evento",
-            description = "Envía el snapshot a inventory de forma idempotente. Si inventory falla, el evento sigue en BORRADOR.")
+            description = "Envía el snapshot a inventory de forma idempotente y abre la fila si el evento es de alta demanda. "
+                    + "Si inventory falla, el evento sigue en BORRADOR; si falla queue, la publicación continúa.")
     @ApiResponse(responseCode = "200", description = "Evento publicado")
     @ApiResponse(responseCode = "401", description = "Falta identidad (UNAUTHORIZED)")
     @ApiResponse(responseCode = "403", description = "Rol insuficiente o evento de otro organizador (FORBIDDEN, NOT_EVENT_OWNER)")
@@ -90,15 +130,20 @@ public class EventController {
     public EventoResponse publicar(
             @PathVariable UUID eventoId,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
         identity.requireRole("ORGANIZER");
-        return eventService.publicar(eventoId, identity.userId());
+        String correlacion = correlation(correlationId);
+        return auditar("PUBLICAR_EVENTO", eventoId, identity, correlacion,
+                () -> eventService.publicar(eventoId, identity.userId(), correlacion),
+                response -> "estado=" + response.estado());
     }
 
     @PostMapping("/{eventoId}/cancel")
     @Operation(summary = "Cancelar un evento",
-            description = "Requiere ADMIN. Si orders no responde, responde 200 con cancelacionPendiente=true.")
+            description = "Requiere ADMIN. Cierra la fila de alta demanda y avisa a inventory y orders. "
+                    + "Si orders no responde, responde 200 con cancelacionPendiente=true.")
     @ApiResponse(responseCode = "200", description = "Evento cancelado")
     @ApiResponse(responseCode = "401", description = "Falta identidad (UNAUTHORIZED)")
     @ApiResponse(responseCode = "403", description = "Rol insuficiente (FORBIDDEN)")
@@ -107,16 +152,23 @@ public class EventController {
     public CancelacionResponse cancelar(
             @PathVariable UUID eventoId,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
         identity.requireRole("ADMIN");
-        return eventService.cancelar(eventoId);
+        String correlacion = correlation(correlationId);
+        return auditar("CANCELAR_EVENTO", eventoId, identity, correlacion,
+                () -> eventService.cancelar(eventoId, correlacion),
+                response -> "estado=" + response.estado()
+                        + "; cancelacionPendiente=" + response.cancelacionPendiente());
     }
 
     @GetMapping
     @Operation(summary = "Buscar eventos",
             description = "Solo devuelve eventos PUBLICADO o AGOTADO. Los filtros se combinan entre sí.")
-    @ApiResponse(responseCode = "200", description = "Página de eventos")
+    @ApiResponse(responseCode = "200", description = "Página de eventos",
+            headers = @Header(name = "X-Cache", description = "HIT, MISS o BYPASS",
+                    schema = @Schema(type = "string", example = "HIT")))
     @ApiResponse(responseCode = "400", description = "Rango de fechas inválido (INVALID_DATE_RANGE) u orden inválido (INVALID_SORT)")
     public PageResponse<EventoBusquedaResponse> buscar(
             @Parameter(description = "Tipo de evento") @RequestParam(required = false) TipoEvento tipo,
@@ -132,18 +184,80 @@ public class EventController {
             @Parameter(description = "FECHA_ASC, FECHA_DESC, PRECIO_ASC, PRECIO_DESC o RELEVANCIA")
             @RequestParam(defaultValue = "FECHA_ASC") String orden,
             @Parameter(description = "Número de página, desde 0") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Tamaño de página, entre 1 y 100") @RequestParam(defaultValue = "20") int size) {
-        return eventService.buscar(tipo, organizadorId, participante, ciudad,
-                fechaDesde, fechaHasta, orden, page, size);
+            @Parameter(description = "Tamaño de página, entre 1 y 100") @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest request) {
+        CatalogCacheService.CacheResult<PageResponse<EventoBusquedaResponse>> result =
+                eventService.buscarCacheable(tipo, organizadorId, participante, ciudad,
+                        fechaDesde, fechaHasta, orden, page, size);
+        CacheStatusFilter.mark(request, result.header());
+        return result.value();
     }
 
     @GetMapping("/{eventoId}")
     @Operation(summary = "Detalle de un evento",
             description = "Incluye sectores, precios y disponibilidad consultada a inventory. Un evento BORRADOR responde 404.")
-    @ApiResponse(responseCode = "200", description = "Detalle del evento")
+    @ApiResponse(responseCode = "200", description = "Detalle del evento (la disponibilidad se consulta siempre)",
+            headers = @Header(name = "X-Cache", description = "Estado de la caché del detalle estático",
+                    schema = @Schema(type = "string", example = "MISS")))
     @ApiResponse(responseCode = "404", description = "El evento no existe o no es visible (EVENT_NOT_FOUND)")
     @ApiResponse(responseCode = "503", description = "No se pudo consultar inventory (INVENTORY_UNAVAILABLE)")
-    public EventoDetalleResponse detalle(@PathVariable UUID eventoId) {
-        return eventService.detalle(eventoId);
+    public EventoDetalleResponse detalle(@PathVariable UUID eventoId, HttpServletRequest request) {
+        CatalogCacheService.CacheResult<EventoDetalleResponse> result = eventService.detalleCacheable(eventoId);
+        CacheStatusFilter.mark(request, result.header());
+        return result.value();
+    }
+
+    private String correlation(String correlationId) {
+        return correlationId == null || correlationId.isBlank()
+                ? UUID.randomUUID().toString()
+                : correlationId;
+    }
+
+    private <T> T auditar(String accion, UUID eventoId, RequestIdentity identity, String correlationId,
+                          Supplier<T> operacion, Function<T, String> detalleExito) {
+        try {
+            T resultado = operacion.get();
+            auditService.registrar(eventoId, accion, identity.userId(), identity.role(), "EXITOSO",
+                    detalleExito.apply(resultado), correlationId);
+            return resultado;
+        } catch (ApiException ex) {
+            auditService.registrar(eventoId, accion, identity.userId(), identity.role(), "RECHAZADO",
+                    ex.getCode() + ": " + ex.getMessage(), correlationId);
+            throw ex;
+        } catch (RuntimeException ex) {
+            auditService.registrar(eventoId, accion, identity.userId(), identity.role(), "RECHAZADO",
+                    "INTERNAL_ERROR: " + ex.getClass().getSimpleName(), correlationId);
+            throw ex;
+        }
+    }
+
+    private String detalleEdicion(EditarEventoRequest request, EventoResponse response) {
+        List<String> campos = new ArrayList<>();
+        if (request.nombre() != null) {
+            campos.add("nombre");
+        }
+        if (request.descripcion() != null) {
+            campos.add("descripcion");
+        }
+        if (request.tipo() != null) {
+            campos.add("tipo");
+        }
+        if (request.lugarId() != null) {
+            campos.add("lugarId");
+        }
+        if (request.fecha() != null) {
+            campos.add("fecha");
+        }
+        if (request.participantes() != null) {
+            campos.add("participantes");
+        }
+        if (request.limitePorCliente() != null) {
+            campos.add("limitePorCliente");
+        }
+        if (request.altaDemanda() != null) {
+            campos.add("altaDemanda");
+        }
+        String cambios = campos.isEmpty() ? "sin cambios" : "campos=" + String.join(",", campos);
+        return cambios + "; estado=" + response.estado();
     }
 }

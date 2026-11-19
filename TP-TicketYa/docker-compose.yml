@@ -1,0 +1,265 @@
+name: ticketya-full
+
+services:
+  catalog-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: catalog_db
+      POSTGRES_USER: ticketya
+      POSTGRES_PASSWORD: ticketya
+    volumes:
+      - catalog_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketya -d catalog_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  inventory-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: ticketya
+      POSTGRES_PASSWORD: ticketya
+    volumes:
+      - inventory_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketya -d inventory_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  orders-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: orders_db
+      POSTGRES_USER: ticketya
+      POSTGRES_PASSWORD: ticketya
+    volumes:
+      - orders_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketya -d orders_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  notification-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: ticketya
+      POSTGRES_PASSWORD: ticketya
+    volumes:
+      - notification_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketya -d notification_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  recommendation-mongo:
+    image: mongo:7
+    volumes:
+      - recommendation_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ticketya
+      RABBITMQ_DEFAULT_PASS: ticketya
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  catalog-service:
+    build: ./catalog-service
+    environment:
+      SERVER_PORT: 8081
+      DB_URL: jdbc:postgresql://catalog-db:5432/catalog_db
+      DB_USER: ticketya
+      DB_PASSWORD: ticketya
+      INVENTORY_URL: http://inventory-service:8082
+      ORDERS_URL: http://orders-service:8083
+      QUEUE_URL: http://queue-service:8086
+      INTERNAL_TOKEN: ticketya-internal-dev
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ticketya
+      RABBITMQ_PASSWORD: ticketya
+    expose:
+      - "8081"
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  inventory-service:
+    build: ./inventory-service
+    environment:
+      SERVER_PORT: 8082
+      DB_URL: jdbc:postgresql://inventory-db:5432/inventory_db
+      DB_USER: ticketya
+      DB_PASSWORD: ticketya
+      DB_POOL_SIZE: 40
+      DB_CONNECTION_TIMEOUT_MS: 5000
+      CATALOG_URL: http://catalog-service:8081
+      QUEUE_URL: http://queue-service:8086
+      INTERNAL_TOKEN: ticketya-internal-dev
+      QUEUE_TOKEN_SECRET: ticketya-queue-dev-secret-key-32b
+    expose:
+      - "8082"
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  orders-service:
+    build: ./orders-service
+    environment:
+      SERVER_PORT: 8083
+      DB_URL: jdbc:postgresql://orders-db:5432/orders_db
+      DB_USER: ticketya
+      DB_PASSWORD: ticketya
+      DB_POOL_SIZE: 40
+      DB_CONNECTION_TIMEOUT_MS: 5000
+      INVENTORY_URL: http://inventory-service:8082
+      CATALOG_URL: http://catalog-service:8081
+      INTERNAL_TOKEN: ticketya-internal-dev
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ticketya
+      RABBITMQ_PASSWORD: ticketya
+    expose:
+      - "8083"
+    depends_on:
+      orders-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  recommendation-service:
+    build: ./recommendation-service
+    environment:
+      SERVER_PORT: 8084
+      MONGO_URI: mongodb://recommendation-mongo:27017/recommendation_db
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ticketya
+      RABBITMQ_PASSWORD: ticketya
+      CATALOG_URL: http://catalog-service:8081
+      INTERNAL_TOKEN: ticketya-internal-dev
+    expose:
+      - "8084"
+    depends_on:
+      recommendation-mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notification-service:
+    build: ./notification-service
+    environment:
+      SERVER_PORT: 8085
+      NOTIFICATION_DB_URL: jdbc:postgresql://notification-db:5432/notification_db
+      DB_USER: ticketya
+      DB_PASSWORD: ticketya
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ticketya
+      RABBITMQ_PASSWORD: ticketya
+      RECOMMENDATION_URL: http://recommendation-service:8084
+      INTERNAL_TOKEN: ticketya-internal-dev
+    expose:
+      - "8085"
+    depends_on:
+      notification-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api-gateway:
+    build: ./api-gateway
+    environment:
+      SERVER_PORT: 8080
+      CATALOG_URL: http://catalog-service:8081
+      INVENTORY_URL: http://inventory-service:8082
+      ORDERS_URL: http://orders-service:8083
+      RECOMMENDATION_URL: http://recommendation-service:8084
+      NOTIFICATION_URL: http://notification-service:8085
+      QUEUE_URL: http://queue-service:8086
+      JWT_SECRET: ${JWT_SECRET:-ticketya-dev-secret-change-me-32-bytes-min!!}
+      JWT_TTL: ${JWT_TTL:-8h}
+    ports:
+      - "8080:8080"
+    depends_on:
+      catalog-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+      orders-service:
+        condition: service_healthy
+      queue-service:
+        condition: service_healthy
+      recommendation-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  queue-service:
+    build: ./queue-service
+    environment:
+      SERVER_PORT: 8086
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      INTERNAL_TOKEN: ticketya-internal-dev
+      QUEUE_TOKEN_SECRET: ticketya-queue-dev-secret-key-32b
+      QUEUE_BATCH_SIZE: ${QUEUE_BATCH_SIZE:-50}
+      QUEUE_INTERVAL_SECONDS: ${QUEUE_INTERVAL_SECONDS:-30}
+      QUEUE_SCHEDULER_MS: ${QUEUE_SCHEDULER_MS:-5000}
+    expose:
+      - "8086"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+# La UI opcional no se incluye hasta que el P0 esté verde.
+
+volumes:
+  catalog_data:
+  inventory_data:
+  orders_data:
+  notification_data:
+  recommendation_mongo_data:
+  rabbitmq_data:
+  redis_data:

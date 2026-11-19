@@ -10,11 +10,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * Reconciliación periódica del estado AGOTADO/PUBLICADO hacia catalog.
+ * Reconciliación periódica del estado AGOTADO/PUBLICADO hacia catalog y, si el evento
+ * de alta demanda sigue agotado, del cierre de la fila.
  *
- * <p>El aviso normal es fire-and-forget: si catalog está caído, el estado puede quedar
- * desfasado o dos avisos pueden llegar desordenados. Este job reenvía el estado local
- * actual de todos los eventos en venta, así el próximo tick corrige cualquier drift.</p>
+ * <p>El aviso normal es fire-and-forget: si catalog o queue están caídos, el estado puede
+ * quedar desfasado. Este job reenvía el estado local actual, así el próximo tick corrige
+ * el fallo parcial sin reabrir una fila que ya se cerró.</p>
  */
 @Service
 public class DisponibilidadReconciliador {
@@ -23,11 +24,14 @@ public class DisponibilidadReconciliador {
 
     private final EventoInventarioRepository eventoRepository;
     private final CatalogClient catalogClient;
+    private final QueueFilaClient queueFilaClient;
 
     public DisponibilidadReconciliador(EventoInventarioRepository eventoRepository,
-                                       CatalogClient catalogClient) {
+                                       CatalogClient catalogClient,
+                                       QueueFilaClient queueFilaClient) {
         this.eventoRepository = eventoRepository;
         this.catalogClient = catalogClient;
+        this.queueFilaClient = queueFilaClient;
     }
 
     @Scheduled(fixedDelayString = "${inventory.disponibilidad.reconciliacion-ms:300000}")
@@ -35,9 +39,12 @@ public class DisponibilidadReconciliador {
         List<EventoInventario> eventos = eventoRepository.findByEstadoIn(
                 List.of(EstadoEventoInventario.PUBLICADO, EstadoEventoInventario.AGOTADO));
         for (EventoInventario evento : eventos) {
+            boolean agotado = evento.getEstado() == EstadoEventoInventario.AGOTADO;
             log.debug("Reconciliando disponibilidad de {} ({})", evento.getEventoId(), evento.getEstado());
-            catalogClient.notificarDisponibilidad(evento.getEventoId(),
-                    evento.getEstado() == EstadoEventoInventario.AGOTADO);
+            catalogClient.notificarDisponibilidad(evento.getEventoId(), agotado);
+            if (agotado && evento.isAltaDemanda()) {
+                queueFilaClient.cerrarAgotada(evento.getEventoId());
+            }
         }
     }
 }

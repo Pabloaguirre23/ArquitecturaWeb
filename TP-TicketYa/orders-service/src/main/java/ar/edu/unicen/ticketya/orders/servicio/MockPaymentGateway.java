@@ -8,13 +8,15 @@ import org.springframework.stereotype.Component;
 
 /**
  * Pasarela mock de la Entrega 1 (tarea 4.3). El token define el resultado:
- * APROBADO, RECHAZADO o LENTO (timeout simulado).
+ * APROBADO, RECHAZADO o LENTO (timeout simulado). La clave de idempotencia se
+ * recibe y se ignora porque el mock no mueve dinero.
  */
 @Component
 public class MockPaymentGateway implements PaymentGateway {
 
     @Override
-    public PaymentResult cobrar(UUID ordenId, BigDecimal monto, MedioPago medioPago, String token) {
+    public PaymentResult cobrar(UUID ordenId, BigDecimal monto, MedioPago medioPago, String token,
+                                String idempotencyKey) {
         String resultado = token == null || token.isBlank() ? "APROBADO" : token.trim().toUpperCase();
         return switch (resultado) {
             case "APROBADO" -> new PaymentResult(EstadoPago.APROBADO, "mock-" + ordenId);
@@ -25,7 +27,7 @@ public class MockPaymentGateway implements PaymentGateway {
     }
 
     @Override
-    public void reintegrar(UUID pagoId, BigDecimal monto) {
+    public void reintegrar(UUID pagoId, BigDecimal monto, String idempotencyKey) {
         // El mock no mueve dinero: el estado del reintegro/pago es la evidencia.
     }
 }
