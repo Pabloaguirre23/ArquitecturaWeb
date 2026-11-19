@@ -27,6 +27,12 @@ export function Layout() {
             </NavLink>
             {isAuthenticated && user?.role === 'CLIENT' && <NavLink to="/para-vos">Para vos</NavLink>}
             {isAuthenticated && <NavLink to="/tickets">Mis entradas</NavLink>}
+            {isAuthenticated && (user?.role === 'ACCESS_STAFF' || user?.role === 'ADMIN') && (
+              <NavLink to="/access">Control de acceso</NavLink>
+            )}
+            {isAuthenticated && (user?.role === 'ORGANIZER' || user?.role === 'ADMIN') && (
+              <NavLink to="/reports">Reportes</NavLink>
+            )}
           </nav>
 
           <div className="header-actions">

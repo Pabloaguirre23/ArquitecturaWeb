@@ -199,3 +199,38 @@ export interface ProblemDetail {
   code?: string
   errors?: string[]
 }
+
+export interface AccessValidation {
+  entradaId: string
+  ordenId: string
+  eventoId: string
+  sectorId: string
+  estado: string
+  usedAt: string
+  usedBy: string
+}
+
+export interface SectorReport {
+  sectorId: string
+  sectorNombre: string
+  capacidad: number | null
+  vendidas: number
+  devueltas: number
+  netas: number
+  ocupacion: number | null
+  recaudacion: number
+}
+
+export interface EventReport {
+  eventoId: string
+  organizadorId: string
+  sectores: SectorReport[]
+  totales: {
+    vendidas: number
+    devueltas: number
+    netas: number
+    recaudacion: number
+  }
+  datosDesactualizados: boolean
+  generadoEn: string
+}
