@@ -2,6 +2,10 @@
 
 FROM node:22-alpine AS build
 WORKDIR /app
+ARG VITE_USE_MOCKS=false
+ARG VITE_API_URL=/api
+ENV VITE_USE_MOCKS=$VITE_USE_MOCKS
+ENV VITE_API_URL=$VITE_API_URL
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .

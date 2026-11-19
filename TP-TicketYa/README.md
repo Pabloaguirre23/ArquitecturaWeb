@@ -118,11 +118,14 @@ curl http://localhost:8080/actuator/health
 
 OpenAPI crudo: `http://localhost:<puerto>/v3/api-docs`.
 
-### 5. Interfaz web (opcional, demo navegable)
+### 5. Interfaz web (opcional)
 
-La UI del cliente vive en [`web/`](web/) y es un extra opcional de la Entrega 2. Por defecto
-arranca en modo demo, sin backend, con login, búsqueda, detalle, checkout, mis entradas y una
-pantalla **Para vos** con preferencias, recomendaciones explicables y eventos similares:
+La UI del cliente vive en [`web/`](web/) y es un extra opcional de la Entrega 2. El compose
+integral la publica en `http://localhost:3000` y Nginx proxya `/api` al gateway real. Incluye
+login JWT, búsqueda, detalle con asientos, checkout, mis entradas y la pantalla **Para vos**
+con preferencias, recomendaciones explicables y eventos similares.
+
+Para desarrollo con recarga en caliente, en modo demo sin backend:
 
 ```bash
 cd web
@@ -132,7 +135,7 @@ npm run dev
 # Demo: cliente@ticketya.test / demo
 ```
 
-Para consumir el gateway real, copiar `web/.env.example` a `web/.env`, poner
+Para desarrollo contra el gateway real, copiar `web/.env.example` a `web/.env`, poner
 `VITE_USE_MOCKS=false` y levantar el gateway en `8080`. El detalle está en
 [`web/README.md`](web/README.md).
 

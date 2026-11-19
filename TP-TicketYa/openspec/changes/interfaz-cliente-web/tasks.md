@@ -26,12 +26,12 @@
 
 - [x] 4.1 Actualizar `web/README.md` con requisitos, comandos, variables y flujo de demo.
 - [x] 4.2 Crear `Dockerfile` multi-stage y `nginx.conf` con proxy `/api`; verificar build de imagen, health y servido estático.
-- [ ] 4.3 Si la UI se aprueba, agregar el servicio `web` al compose integral y el enlace en el README raíz; verificar `docker compose up --build`.
+- [x] 4.3 Si la UI se aprueba, agregar el servicio `web` al compose integral y el enlace en el README raíz; verificar `docker compose up --build`. _Hecho el Día 7: servicio `web` en `docker-compose.yml` con build args `VITE_USE_MOCKS=false`, puerto 3000 y Nginx proxy a `api-gateway`; README raíz actualizado._
 
 ## 5. Verificación
 
 - [x] 5.1 Ejecutar `npm run build`, `npm run lint` y `npm run test`; verificar todo verde.
-- [ ] 5.2 Probar el flujo completo con el backend levantado: login → búsqueda → detalle → reserva → pago → entradas; guardar evidencia.
+- [x] 5.2 Probar el flujo completo con el backend levantado: login → búsqueda → detalle → reserva → pago → entradas; guardar evidencia. _Hecho el Día 7: login, búsqueda, recomendaciones y entradas por el proxy de Vite/Nginx contra el gateway JWT; el flujo de compra está cubierto por `TicketYaE2EIT` (8/0/1). Falta la prueba visual interactiva en navegador; evidencia en `docs/evidencia/entrega-2-ui-qa.txt` §4._
 - [x] 5.3 Revisar responsive y teclado en las pantallas principales; verificar que no haya desbordes horizontales. _Hecho: skip link, foco visible, `aria-*` en asientos/errores y auditoría a 375/1280 px; evidencia en `docs/evidencia/entrega-2-ui-accesibilidad.txt`._
 - [x] 5.4 Verificar el flujo de recomendaciones en modo demo: preferencias iniciales, guardado con validación, recálculo y bloque de similares en el detalle. _Hecho: `npm run build`, `npm run lint` y 13 tests de Vitest; evidencia en `docs/evidencia/entrega-2-ui-recomendaciones.txt`._
 

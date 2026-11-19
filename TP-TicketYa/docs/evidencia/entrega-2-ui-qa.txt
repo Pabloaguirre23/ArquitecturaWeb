@@ -67,3 +67,16 @@ La build estática se sirvió con `serve -s dist -l 4173` y se manejó con Chrom
 al input; para probar el estado controlado se usó el setter nativo + evento `input` y clics
 DOM. El flujo real de botones y navegación se verificó igual. No se detectaron errores de la
 aplicación por esa limitación de la herramienta.
+
+4) Backend real y compose (19/11/2026)
+
+- `docker compose up -d --build web` agrega la UI en http://localhost:3000.
+- `GET /` -> 200; `GET /health` -> 200.
+- `GET /api/catalog/events?page=0&size=2` por el proxy de Nginx -> 200.
+- `POST /api/auth/login` con cliente@ticketya.test / demo -> 200.
+- `GET /api/recommendations` y `GET /api/orders/tickets` con Bearer -> 200.
+- `npm run build`, `npm run lint` y `npm run test` -> 13/13.
+- La suite E2E del backend sigue verde (8 tests, 0 fallos, 1 omitido por acceso QR).
+
+Queda pendiente la prueba visual interactiva en navegador (el navegador embebido no estaba
+disponible en esta sesión); la capa de API y el proxy sí quedaron verificados contra el gateway.

@@ -75,8 +75,8 @@ Con el gateway levantado en `8080`, Vite hace proxy de `/api` y no hay problemas
 desarrollo. Para producción, Nginx hace el mismo proxy hacia `api-gateway:8080` dentro del
 compose.
 
-> El login real depende de la tarea 2.1 (JWT en el gateway). Hasta que esté implementada, el
-> modo demo es la forma de recorrer la UI.
+> El login real usa `POST /api/auth/login` del gateway (JWT de 2.1/2.2, ya mergeado). El
+> modo demo sigue disponible para revisar la UI sin backend.
 
 ## Comandos
 
@@ -97,8 +97,8 @@ docker build -t ticketya/web:local .
 docker run --rm -p 3000:80 ticketya/web:local
 ```
 
-El `nginx.conf` espera un host `api-gateway` en la red del compose. Cuando la UI se apruebe, se
-agrega el servicio `web` al `docker-compose.yml` integral y el enlace en el README raíz.
+El `nginx.conf` espera un host `api-gateway` en la red del compose. El servicio `web` ya está
+incluido en el `docker-compose.yml` integral y se publica en `http://localhost:3000`.
 
 ## Accesibilidad y responsive
 
@@ -114,7 +114,8 @@ agrega el servicio `web` al `docker-compose.yml` integral y el enlace en el READ
 
 La verificación de teclado y responsive se registra en
 [`docs/evidencia/entrega-2-ui-accesibilidad.txt`](../docs/evidencia/entrega-2-ui-accesibilidad.txt).
-La prueba contra el backend real (5.2) sigue bloqueada hasta que el gateway tenga JWT (tarea 2.1).
+La prueba contra el backend real (5.2) quedó desbloqueada con el JWT: login, búsqueda,
+recomendaciones y entradas responden por el proxy de Vite/Nginx.
 
 ## Validaciones y QA
 
