@@ -35,6 +35,8 @@
 | `../orders-service/README.md` | Responsabilidad, endpoints, modelo y comandos del servicio | P3 | Día 1 a 4 | Día 4 |
 | `../recommendation-service/README.md` | Responsabilidad, endpoints, modelo MongoDB y comandos del servicio | P5 | Día 2 a 5 | Día 3 (1.7, 7.1–7.4) |
 | `../api-gateway/README.md` | Rutas, headers, variables y ejecución | P4 | Día 1 a 5 | Día 5 |
+| `../web/README.md` | Interfaz web opcional: pantallas, modo demo, recomendaciones, variables y Docker | P5 | Extra | Demo navegable con recomendaciones |
+| `../openspec/changes/interfaz-cliente-web/` | Propuesta, spec, diseño y tareas de la UI opcional | P5 | Extra | Actualizado con recomendaciones |
 | `../postman/TicketYa.postman_collection.json` | Colección de requests con assertions | P5 | Día 5 y 6 | 45 requests, Newman 45/45 (Día 6) |
 | `../openapi/*.json` | OpenAPI exportado de cada servicio | Cada dueño | Día 4 | Listos: catalog (2.6), inventory (3.8) y orders (4.11); revisión agregada 5.8; recommendation agregado el Día 2 |
 

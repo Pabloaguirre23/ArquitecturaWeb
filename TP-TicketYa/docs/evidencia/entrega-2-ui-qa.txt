@@ -1,0 +1,82 @@
+Día 5 — 17/11/2026 — QA de la UI opcional (P5)
+Objetivo: revisar interacción, responsive y estados límite antes de la entrega.
+
+1) Correcciones aplicadas
+
+- Buscador: si "Desde" es posterior a "Hasta", la UI muestra un error local y no llama al
+  backend. Los campos de fecha quedan con `aria-invalid` y `aria-describedby=date-error`.
+- Preferencias: al editar tipos, artistas o ciudad se limpia el error anterior; el mensaje
+  de éxito no queda pegado.
+- Navegación: "Para vos" solo se muestra a usuarios con rol CLIENT.
+- Cantidad de lugares: se mantiene el valor mientras se edita, permite borrar el 1 y escribir
+  2 o 3 sin que salte a 4; al salir del campo se normaliza al rango [1, máximo].
+- Mapa de asientos: barra "Escenario" arriba de la fila 1 y nota de mapa referencial.
+
+2) Verificación automática
+
+$ cd TP-TicketYa/web
+$ npm run build
+✓ built in 82ms
+$ npm run lint
+(sin errores)
+$ npm run test
+Test Files  6 passed (6)
+Tests       13 passed (13)
+
+3) QA con Chrome headless (build estática en :4173)
+
+Sin errores de consola ni `pageerror` en las pantallas revisadas.
+
+Layout del buscador:
+- 1280 px: 0 solapamientos, sin scroll horizontal.
+- 1024 px: 0 solapamientos, sin scroll horizontal.
+- 768 px: 0 solapamientos, sin scroll horizontal.
+- 375 px: 0 solapamientos, sin scroll horizontal.
+
+Páginas revisadas a 1280/768/375: `/`, `/login`, detalle de evento numerado y no numerado,
+`/para-vos`, `/tickets`, `/checkout` y 404. Todas sin desborde horizontal.
+
+Cantidad de lugares (evento "Festival de Rock", sector Campo):
+- Borrar el valor -> queda vacío y el botón se deshabilita.
+- Escribir 2 -> 2.
+- Escribir 3 -> 3.
+- Escribir 10 y salir del campo -> 4 (máximo por cliente).
+
+Buscador:
+- "Festival" devuelve 1 tarjeta en modo demo.
+- Desde 20/05/2027 y Hasta 01/05/2027 -> error "La fecha “Desde” no puede ser posterior a
+  “Hasta”." y `aria-invalid=true`; al corregir la fecha el error desaparece.
+
+Detalle:
+- Sector numerado (El Avaro, Platea): barra "Escenario", 120 asientos y nota de fila 1.
+
+Recomendaciones:
+- 4 tarjetas iniciales.
+- Ciudad vacía -> error "La ciudad es obligatoria para personalizar las recomendaciones.".
+- Guardar con Tandil -> "Preferencias guardadas. Actualizamos tus recomendaciones.".
+- El evento comprado deja de recomendarse.
+
+Flujo de compra:
+- Evento -> Continuar al pago -> checkout -> Pagar -> compra confirmada y 1 entrada emitida.
+- "Ver mis entradas" muestra la entrada nueva junto con la de ejemplo (2 tarjetas).
+
+4) Nota de herramienta
+
+La build estática se sirvió con `serve -s dist -l 4173` y se manejó con Chrome headless
+(Puppeteer). Después de una navegación SPA, los eventos de teclado de Puppeteer no llegaban
+al input; para probar el estado controlado se usó el setter nativo + evento `input` y clics
+DOM. El flujo real de botones y navegación se verificó igual. No se detectaron errores de la
+aplicación por esa limitación de la herramienta.
+
+4) Backend real y compose (19/11/2026)
+
+- `docker compose up -d --build web` agrega la UI en http://localhost:3000.
+- `GET /` -> 200; `GET /health` -> 200.
+- `GET /api/catalog/events?page=0&size=2` por el proxy de Nginx -> 200.
+- `POST /api/auth/login` con cliente@ticketya.test / demo -> 200.
+- `GET /api/recommendations` y `GET /api/orders/tickets` con Bearer -> 200.
+- `npm run build`, `npm run lint` y `npm run test` -> 13/13.
+- La suite E2E del backend sigue verde (8 tests, 0 fallos, 1 omitido por acceso QR).
+
+Queda pendiente la prueba visual interactiva en navegador (el navegador embebido no estaba
+disponible en esta sesión); la capa de API y el proxy sí quedaron verificados contra el gateway.

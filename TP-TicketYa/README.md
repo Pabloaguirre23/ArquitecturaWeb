@@ -118,6 +118,27 @@ curl http://localhost:8080/actuator/health
 
 OpenAPI crudo: `http://localhost:<puerto>/v3/api-docs`.
 
+### 5. Interfaz web (opcional)
+
+La UI del cliente vive en [`web/`](web/) y es un extra opcional de la Entrega 2. El compose
+integral la publica en `http://localhost:3000` y Nginx proxya `/api` al gateway real. Incluye
+login JWT, búsqueda, detalle con asientos, checkout, mis entradas y la pantalla **Para vos**
+con preferencias, recomendaciones explicables y eventos similares.
+
+Para desarrollo con recarga en caliente, en modo demo sin backend:
+
+```bash
+cd web
+npm install
+npm run dev
+# http://localhost:5173
+# Demo: cliente@ticketya.test / demo
+```
+
+Para desarrollo contra el gateway real, copiar `web/.env.example` a `web/.env`, poner
+`VITE_USE_MOCKS=false` y levantar el gateway en `8080`. El detalle está en
+[`web/README.md`](web/README.md).
+
 ## Variables de entorno
 
 Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
@@ -180,6 +201,7 @@ Sin headers, el gateway responde 401 en formato RFC 7807. El contrato completo e
 | `notification-service/` | Notificaciones asíncronas (PostgreSQL + RabbitMQ + DLQ) |
 | `api-gateway/` | Punto de entrada único |
 | `queue-service/` | Fila virtual sobre Redis |
+| `web/` | Interfaz web opcional del cliente (React + Vite) |
 | `openspec/` | Especificaciones (propuesta → specs → diseño → tareas) |
 | `docs/` | Contrato, plan, checklist, arquitectura y briefs del equipo |
 | `docker-compose.dev.yml` | PostgreSQL 16 por servicio, MongoDB 7 y RabbitMQ 3.13 |
