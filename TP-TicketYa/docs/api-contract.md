@@ -22,7 +22,8 @@ Este documento es la **vista humana** del contrato. La fuente machine-readable e
 - Header ausente o `X-User-Id` que no sea UUID → **401**.
 - Rol no habilitado para la ruta → **403**.
 - Las lecturas públicas (búsqueda, detalle, disponibilidad, mapa de asientos) no requieren headers.
-- En la Entrega 2 el gateway valida JWT y sigue propagando `X-User-Id`/`X-User-Role`; los servicios no cambian.
+- En la Entrega 2 el gateway valida el JWT (`Authorization: Bearer <token>`) y propaga `X-User-Id`, `X-User-Role` y `X-User-Email` tomados del token. Los `X-User-*` que mande el cliente se descartan, así que ya no autentican. Los servicios no cambian.
+- Token vencido o inválido → **401**. Ruta que no figura en las reglas del gateway → **403**.
 
 ### 1.2 Formato de error (RFC 7807)
 
@@ -94,10 +95,40 @@ Parámetros: `page` (desde 0, default 0), `size` (default 20, máximo 100). Un `
 | `MedioPago` | `TARJETA`, `EFECTIVO`, `TRANSFERENCIA` |
 | Token de la pasarela mock | `APROBADO`, `RECHAZADO`, `LENTO` |
 
+### 1.6 Login — `POST /api/auth/login` (público)
+
+Lo atiende el gateway. Usuarios demo en memoria, contraseña `demo`:
+`cliente@ticketya.test` (CLIENT), `organizador@ticketya.test` (ORGANIZER),
+`admin@ticketya.test` (ADMIN), `acceso@ticketya.test` (ACCESS_STAFF).
+
+```bash
+curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"cliente@ticketya.test","password":"demo"}'
+```
+
+```json
+{
+  "token": "<jwt>",
+  "role": "CLIENT",
+  "email": "cliente@ticketya.test",
+  "nombre": "Cliente Demo",
+  "expiresAt": "2026-11-19T02:37:47Z"
+}
+```
+
+| Caso | Código | `code` |
+|---|---|---|
+| Credenciales inválidas | `401` | `UNAUTHORIZED` |
+| Falta `email` o `password` | `400` | `VALIDATION_ERROR` |
+
+El token se manda en cada pedido protegido: `Authorization: Bearer <token>`. Dura 8 h por defecto (`JWT_TTL`).
+
 ## 2. Resumen de endpoints
 
 | Método | Ruta | Rol | Éxito | Servicio |
 |---|---|---|---|---|
+| POST | `/api/auth/login` | público | 200 | api-gateway |
 | POST | `/api/catalog/venues` | ADMIN | 201 | catalog |
 | GET | `/api/catalog/venues` | público | 200 | catalog |
 | GET | `/api/catalog/venues/{venueId}` | público | 200 | catalog |
