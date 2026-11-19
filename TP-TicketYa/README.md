@@ -17,6 +17,7 @@ Repositorio del curso: <https://github.com/Pabloaguirre23/ArquitecturaWeb> (este
 | `notification-service` | 8085 | `notification_db` (5436) | Notificaciones asíncronas con reintentos y DLQ |
 | `rabbitmq` | 5672 / 15672 | — | Bus de eventos (`orden.pagada` → historial) |
 | `queue-service` | 8086 | Redis 7 (6379) | Fila virtual: tandas, posición y token de compra |
+| `web` (opcional) | 3000 | — | UI React/Vite que Nginx proxya al gateway |
 
 Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**` y eventos por RabbitMQ; el cliente siempre entra por el gateway. `queue-service` guarda la fila en Redis.
 
@@ -50,7 +51,7 @@ docker compose -f docker-compose.dev.yml up -d
 docker compose -f docker-compose.dev.yml ps
 ```
 
-Las tres bases PostgreSQL y MongoDB deben quedar `healthy`. Flyway aplica las migraciones al levantar cada servicio; MongoDB crea sus índices al arrancar `recommendation-service`.
+Las cuatro bases PostgreSQL, Redis, RabbitMQ y MongoDB deben quedar `healthy`. Flyway aplica las migraciones al levantar cada servicio; MongoDB crea sus índices al arrancar `recommendation-service`.
 
 Para reiniciar sin datos:
 
@@ -59,7 +60,7 @@ docker compose -f docker-compose.dev.yml down -v
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-### 3. Todo con Docker (integral)
+### 2. Todo con Docker (integral)
 
 El compose integral levanta las bases, Redis, MongoDB, RabbitMQ, los seis servicios y el
 gateway:
@@ -79,9 +80,9 @@ docker compose -f docker-compose.yml down -v
 
 La UI opcional vive en `web/` y no forma parte del backend entregado.
 
-### 4. Servicios con Maven
+### 3. Servicios con Maven
 
-En cinco terminales distintas:
+En seis terminales distintas:
 
 ```bash
 cd catalog-service && mvn spring-boot:run
@@ -89,6 +90,7 @@ cd inventory-service && mvn spring-boot:run
 cd orders-service && mvn spring-boot:run
 cd recommendation-service && mvn spring-boot:run
 cd notification-service && mvn spring-boot:run
+cd queue-service && mvn spring-boot:run
 ```
 
 Verificar:
@@ -99,26 +101,28 @@ curl http://localhost:8082/actuator/health
 curl http://localhost:8083/actuator/health
 curl http://localhost:8084/actuator/health
 curl http://localhost:8085/actuator/health
+curl http://localhost:8086/actuator/health
 ```
 
-### 5. Gateway
+### 4. Gateway
 
 ```bash
 cd api-gateway && mvn spring-boot:run
 curl http://localhost:8080/actuator/health
 ```
 
-### 6. Swagger
+### 5. Swagger
 
 - Catalog: <http://localhost:8081/swagger-ui.html>
 - Inventory: <http://localhost:8082/swagger-ui.html>
 - Orders: <http://localhost:8083/swagger-ui.html>
 - Recommendation: <http://localhost:8084/swagger-ui.html>
 - Notification: <http://localhost:8085/swagger-ui.html>
+- Queue: <http://localhost:8086/swagger-ui.html>
 
 OpenAPI crudo: `http://localhost:<puerto>/v3/api-docs`.
 
-### 5. Interfaz web (opcional)
+### 6. Interfaz web (opcional)
 
 La UI del cliente vive en [`web/`](web/) y es un extra opcional de la Entrega 2. El compose
 integral la publica en `http://localhost:3000` y Nginx proxya `/api` al gateway real. Incluye
@@ -178,17 +182,23 @@ Las lecturas públicas no piden identidad:
 curl http://localhost:8080/api/catalog/events
 ```
 
-Las rutas protegidas piden `X-User-Id` y `X-User-Role`:
+Las rutas protegidas exigen JWT: primero se inicia sesión contra `/api/auth/login` y el token viaja como `Authorization: Bearer` (el gateway descarta cualquier `X-User-*` que mande el cliente):
 
 ```bash
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"cliente@ticketya.test","password":"demo"}'
+# → { "token": "...", "role": "CLIENT", "email": "...", "nombre": "...", "expiresAt": "..." }
+
+TOKEN=<pegar el token>
+
 curl -X POST http://localhost:8080/api/inventory/reservations \
   -H "Content-Type: application/json" \
-  -H "X-User-Id: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e" \
-  -H "X-User-Role: CLIENT" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"eventoId":"...","items":[]}'
 ```
 
-Sin headers, el gateway responde 401 en formato RFC 7807. El contrato completo está en [`docs/api-contract.md`](docs/api-contract.md).
+Sin token, el gateway responde 401 en formato RFC 7807. El contrato completo está en [`docs/api-contract.md`](docs/api-contract.md).
 
 ## Estructura
 
@@ -205,7 +215,7 @@ Sin headers, el gateway responde 401 en formato RFC 7807. El contrato completo e
 | `openspec/` | Especificaciones (propuesta → specs → diseño → tareas) |
 | `docs/` | Contrato, plan, checklist, arquitectura y briefs del equipo |
 | `docker-compose.dev.yml` | PostgreSQL 16 por servicio, MongoDB 7 y RabbitMQ 3.13 |
-| `docker-compose.yml` | Compose integral: seis servicios, gateway, PostgreSQL, MongoDB, RabbitMQ y Redis |
+| `docker-compose.yml` | Compose integral: seis servicios, gateway, UI web opcional, PostgreSQL, MongoDB, RabbitMQ y Redis |
 
 ## Tests
 
@@ -280,12 +290,14 @@ Los seeds de Flyway (`V2__seed.sql` en catalog e inventory) crean:
 | Evento | `d0000000-0000-4000-8000-000000000002` | El Avaro — Teatro Universitario, 18/04/2027 |
 | Evento | `d0000000-0000-4000-8000-000000000003` | Arquitectura Web 2027 — Charla abierta, 20/05/2027 |
 
-Identidades de la Entrega 1 (el gateway las propaga como headers):
+Usuarios de prueba de la Entrega 2: todos usan la contraseña `demo` y el gateway deriva
+`X-User-Id`/`X-User-Role` del JWT (los headers `X-User-*` externos se descartan):
 
-| Rol | `X-User-Id` |
-|---|---|
-| ADMIN | `11111111-1111-4111-8111-111111111111` |
-| ORGANIZER | `22222222-2222-4222-8222-222222222222` |
-| CLIENT | `33333333-3333-4333-8333-333333333333` |
+| Rol | Email (`password`: `demo`) | `X-User-Id` derivado del JWT |
+|---|---|---|
+| ADMIN | `admin@ticketya.test` | `11111111-1111-4111-8111-111111111111` |
+| ORGANIZER | `organizador@ticketya.test` | `22222222-2222-4222-8222-222222222222` |
+| CLIENT | `cliente@ticketya.test` | `33333333-3333-4333-8333-333333333333` |
+| ACCESS_STAFF | `acceso@ticketya.test` | `55555555-5555-4555-8555-555555555555` |
 
 Los asientos numerados usan IDs determinísticos: `c0000000-0000-4000-8000-[sector][fila][numero]000000`. La colección [`postman/TicketYa.postman_collection.json`](postman/TicketYa.postman_collection.json) recorre los flujos de catálogo y compra (aprobada, rechazada, pago lento y cancelación) y guarda los IDs que crea.
