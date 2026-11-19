@@ -12,9 +12,12 @@ import org.springframework.web.client.RestClient;
 public class InventoryRestClient implements InventoryClient {
 
     private final RestClient restClient;
+    private final String internalToken;
 
     public InventoryRestClient(RestClient.Builder builder,
-                               @Value("${inventory.url:http://localhost:8082}") String baseUrl) {
+                               @Value("${inventory.url:http://localhost:8082}") String baseUrl,
+                               @Value("${inventory.internal-token:${INTERNAL_TOKEN:ticketya-internal-dev}}")
+                               String internalToken) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(2));
         requestFactory.setReadTimeout(Duration.ofSeconds(5));
@@ -22,12 +25,14 @@ public class InventoryRestClient implements InventoryClient {
                 .baseUrl(baseUrl)
                 .requestFactory(requestFactory)
                 .build();
+        this.internalToken = internalToken;
     }
 
     @Override
     public ReservationDto obtenerReserva(UUID reservaId) {
         return restClient.get()
                 .uri("/internal/reservations/{reservaId}", reservaId)
+                .header("X-Internal-Token", internalToken)
                 .retrieve()
                 .body(ReservationDto.class);
     }
@@ -36,6 +41,7 @@ public class InventoryRestClient implements InventoryClient {
     public void confirmarReserva(UUID reservaId, String idempotencyKey) {
         restClient.post()
                 .uri("/internal/reservations/{reservaId}/confirm", reservaId)
+                .header("X-Internal-Token", internalToken)
                 .header("Idempotency-Key", idempotencyKey)
                 .retrieve()
                 .toBodilessEntity();
@@ -45,6 +51,7 @@ public class InventoryRestClient implements InventoryClient {
     public void liberarReserva(UUID reservaId, String motivo, String idempotencyKey) {
         restClient.post()
                 .uri("/internal/reservations/{reservaId}/release", reservaId)
+                .header("X-Internal-Token", internalToken)
                 .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ReleaseDto(motivo))
@@ -56,6 +63,7 @@ public class InventoryRestClient implements InventoryClient {
     public void devolverItems(ReturnDto devolucion) {
         restClient.post()
                 .uri("/internal/returns")
+                .header("X-Internal-Token", internalToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Idempotency-Key", devolucion.referencia().toString())
                 .body(devolucion)

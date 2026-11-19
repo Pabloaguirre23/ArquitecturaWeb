@@ -44,8 +44,10 @@ class InventoryRestClientTest {
     void publicaElSnapshotYReintentaAnteErrores5xx() {
         AtomicInteger intentos = new AtomicInteger();
         List<String> cuerpos = new CopyOnWriteArrayList<>();
+        List<String> tokens = new CopyOnWriteArrayList<>();
         server.createContext("/internal/events/" + SNAPSHOT.eventoId() + "/inventory", exchange -> {
             cuerpos.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            tokens.add(exchange.getRequestHeaders().getFirst("X-Internal-Token"));
             int intento = intentos.incrementAndGet();
             responder(exchange, intento < 3 ? 500 : 200, "{}");
         });
@@ -57,6 +59,7 @@ class InventoryRestClientTest {
             assertThat(cuerpo).contains(SNAPSHOT.eventoId().toString());
             assertThat(cuerpo).contains("\"version\":1");
         });
+        assertThat(tokens).containsOnly("ticketya-internal-dev");
     }
 
     @Test
@@ -132,7 +135,7 @@ class InventoryRestClientTest {
             aceptador.setDaemon(true);
             aceptador.start();
             InventoryRestClient client = new InventoryRestClient(RestClient.builder(),
-                    "http://localhost:" + serverSocket.getLocalPort(), 500, 500);
+                    "http://localhost:" + serverSocket.getLocalPort(), 500, 500, "ticketya-internal-dev");
 
             assertThatThrownBy(() -> client.actualizarEstado(UUID.randomUUID(), "CANCELADO"))
                     .isInstanceOf(RuntimeException.class);
@@ -161,7 +164,7 @@ class InventoryRestClientTest {
     }
 
     private InventoryRestClient cliente() {
-        return new InventoryRestClient(RestClient.builder(), baseUrl, 1000, 1000);
+        return new InventoryRestClient(RestClient.builder(), baseUrl, 1000, 1000, "ticketya-internal-dev");
     }
 
     private void responderSinCuerpo(HttpExchange exchange, int status) throws IOException {
