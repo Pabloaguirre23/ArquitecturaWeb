@@ -81,6 +81,6 @@ class OrdersRestClientTest {
     }
 
     private OrdersRestClient cliente(int readTimeoutMs) {
-        return new OrdersRestClient(RestClient.builder(), baseUrl, 1000, readTimeoutMs);
+        return new OrdersRestClient(RestClient.builder(), baseUrl, 1000, readTimeoutMs, "token-de-prueba");
     }
 }
