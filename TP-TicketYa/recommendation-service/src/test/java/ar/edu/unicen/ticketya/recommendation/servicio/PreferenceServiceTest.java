@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import ar.edu.unicen.ticketya.recommendation.dominio.Preferencia;
 import ar.edu.unicen.ticketya.recommendation.repositorio.PreferenciaRepository;
 import ar.edu.unicen.ticketya.recommendation.web.ApiException;
+import ar.edu.unicen.ticketya.recommendation.web.dto.PreferenciaClienteResponse;
 import ar.edu.unicen.ticketya.recommendation.web.dto.PreferenciasRequest;
 import ar.edu.unicen.ticketya.recommendation.web.dto.PreferenciasResponse;
 import java.time.Clock;
@@ -179,6 +180,32 @@ class PreferenceServiceTest {
 
         assertThat(response.clienteId()).isEqualTo(CLIENTE.toString());
         assertThat(response.tipos()).containsExactly("FESTIVAL");
+    }
+
+    @Test
+    void buscaClientesPorArtistaYCiudadSinDistinguirMayusculas() {
+        Preferencia coincidencia = new Preferencia();
+        coincidencia.setClienteId(CLIENTE.toString());
+        coincidencia.setCiudad("Tandil");
+        coincidencia.setArtistas(List.of("Los Piojos", "Otro"));
+        Preferencia sinCoincidencia = new Preferencia();
+        sinCoincidencia.setClienteId("44444444-4444-4444-8444-444444444444");
+        sinCoincidencia.setCiudad("Tandil");
+        sinCoincidencia.setArtistas(List.of("Otra banda"));
+        when(preferenciaRepository.findByCiudadIgnoreCase("tandil"))
+                .thenReturn(List.of(coincidencia, sinCoincidencia));
+
+        List<PreferenciaClienteResponse> encontrados =
+                preferenceService.buscarPorArtistaYCiudad(" los piojos ", " tandil ");
+
+        assertThat(encontrados).containsExactly(new PreferenciaClienteResponse(CLIENTE.toString(), null));
+    }
+
+    @Test
+    void buscarSinArtistaOCiudadDevuelveVacioSinConsultarMongo() {
+        assertThat(preferenceService.buscarPorArtistaYCiudad("", "Tandil")).isEmpty();
+        assertThat(preferenceService.buscarPorArtistaYCiudad("Los Piojos", " ")).isEmpty();
+        verify(preferenciaRepository, never()).findByCiudadIgnoreCase(any());
     }
 
     private Preferencia preferenciaExistente() {

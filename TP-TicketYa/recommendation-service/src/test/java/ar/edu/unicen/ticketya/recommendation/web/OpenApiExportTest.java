@@ -58,7 +58,7 @@ class OpenApiExportTest {
                 .getContentAsString(StandardCharsets.UTF_8);
 
         JsonNode documento = new ObjectMapper().readTree(json);
-        assertThat(documento.at("/paths").size()).isEqualTo(4);
+        assertThat(documento.at("/paths").size()).isEqualTo(5);
         assertThat(documento.at("/components/schemas/ProblemDetail").isMissingNode()).isFalse();
         assertThat(documento.at("/components/securitySchemes/bearerAuth").isMissingNode()).isFalse();
         assertThat(documento.at("/components/securitySchemes/X-User-Id").isMissingNode()).isFalse();
@@ -70,6 +70,7 @@ class OpenApiExportTest {
         assertThat(documento.at("/paths/~1api~1recommendations~1preferences/put").isMissingNode()).isFalse();
         assertThat(documento.at("/paths/~1internal~1preferences~1{clienteId}/get").isMissingNode())
                 .isFalse();
+        assertThat(documento.at("/paths/~1internal~1preferences/get").isMissingNode()).isFalse();
         assertThat(documento.at("/paths/~1api~1recommendations~1preferences/put/responses/400/content/"
                         + "application~1problem+json/schema/$ref").asText())
                 .isEqualTo("#/components/schemas/ProblemDetail");

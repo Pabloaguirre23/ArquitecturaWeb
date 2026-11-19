@@ -17,6 +17,7 @@ Servicio de preferencias, historial de compras y recomendaciones de TicketYa sob
 | GET | `/api/recommendations` | CLIENT | Recomendaciones por preferencias, popularidad y co-compra |
 | GET | `/api/recommendations/events/{eventId}/similar` | CLIENT | Eventos similares por co-compra |
 | GET | `/internal/preferences/{clienteId}` | interno | Consulta para notification-service con `X-Internal-Token` |
+| GET | `/internal/preferences?artista=&ciudad=` | interno | Clientes con artista favorito en una ciudad (8.3) |
 
 La identidad llega desde el gateway en `X-User-Id` y `X-User-Role`; el cliente final usa JWT contra el gateway (tareas 2.1–2.7). La ruta `/api/recommendations/**` se agrega al gateway en la tarea de P4; hasta entonces el servicio se prueba directo en el puerto 8084.
 
@@ -25,7 +26,9 @@ La identidad llega desde el gateway en `X-User-Id` y `X-User-Role`; el cliente f
 - Los tres endpoints públicos de recommendation exigen `X-User-Id` y `X-User-Role: CLIENT`.
 - Sin identidad o con un UUID inválido responden `401 UNAUTHORIZED`; con otro rol, `403 FORBIDDEN`.
 - `GET` siempre devuelve los datos del `X-User-Id`; `PUT` rechaza con `403 NOT_PREFERENCE_OWNER` un `clienteId` del body que no coincida.
-- `GET /internal/preferences/{clienteId}` exige `X-Internal-Token` y no se expone por el gateway.
+- `GET /internal/preferences/{clienteId}` y `GET /internal/preferences?artista=&ciudad=`
+  exigen `X-Internal-Token` y no se exponen por el gateway. La búsqueda compara artistas sin
+  distinguir mayúsculas y devuelve `clienteEmail` en `null` (notification usa su sender mock).
 - La matriz completa y la evidencia están en [`docs/seguridad.md`](../docs/seguridad.md).
 
 ### Consultar preferencias

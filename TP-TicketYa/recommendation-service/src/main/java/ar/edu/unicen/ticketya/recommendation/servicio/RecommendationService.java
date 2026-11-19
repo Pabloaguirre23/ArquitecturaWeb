@@ -37,6 +37,8 @@ public class RecommendationService {
 
     private static final Logger log = LoggerFactory.getLogger(RecommendationService.class);
     private static final int LIMITE = 10;
+    /** Cota de la consulta de co-compra para no armar un IN gigante. */
+    private static final int MAX_CLIENTES_CO_COMPRA = 200;
     private static final Set<String> ESTADOS_ELEGIBLES = Set.of("PUBLICADO", "AGOTADO");
 
     private final PreferenciaRepository preferenciaRepository;
@@ -239,7 +241,8 @@ public class RecommendationService {
         }
         // 2) Otros eventos que compraron esos clientes, excluyendo los que ya tiene.
         Map<String, Long> resultado = new HashMap<>();
-        historialRepository.findByClienteIdIn(otrosClientes).stream()
+        List<String> muestraClientes = otrosClientes.stream().limit(MAX_CLIENTES_CO_COMPRA).toList();
+        historialRepository.findByClienteIdIn(muestraClientes).stream()
                 .filter(compra -> compra.getEventoId() != null && !comprados.contains(compra.getEventoId()))
                 .forEach(compra -> resultado.merge(compra.getEventoId(), 1L, Long::sum));
         return resultado;

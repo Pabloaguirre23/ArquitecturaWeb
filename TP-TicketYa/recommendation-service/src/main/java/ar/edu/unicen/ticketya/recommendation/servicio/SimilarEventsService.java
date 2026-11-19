@@ -32,6 +32,8 @@ public class SimilarEventsService {
 
     private static final Logger log = LoggerFactory.getLogger(SimilarEventsService.class);
     private static final int LIMITE = 10;
+    /** Cota de la consulta de co-compra para no armar un IN gigante. */
+    private static final int MAX_COMPRADORES = 200;
     private static final Set<String> ESTADOS_ELEGIBLES = Set.of("PUBLICADO", "AGOTADO");
 
     private final HistorialCompraRepository historialRepository;
@@ -67,7 +69,8 @@ public class SimilarEventsService {
         // Clientes distintos por evento: una misma persona no suma dos veces aunque
         // haya comprado el evento en órdenes separadas.
         Map<String, Set<String>> compradoresPorEvento = new HashMap<>();
-        historialRepository.findByClienteIdIn(otrosCompradores).stream()
+        List<String> muestraCompradores = otrosCompradores.stream().limit(MAX_COMPRADORES).toList();
+        historialRepository.findByClienteIdIn(muestraCompradores).stream()
                 .filter(compra -> compra.getEventoId() != null)
                 .filter(compra -> compra.getClienteId() != null)
                 .filter(compra -> !objetivo.equals(compra.getEventoId()))

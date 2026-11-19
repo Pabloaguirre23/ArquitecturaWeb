@@ -17,6 +17,12 @@ spring:
     listener:
       simple:
         default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: ${RECOMMENDATION_CONSUMER_MAX_ATTEMPTS:3}
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 5s
 
 management:
   endpoints:
