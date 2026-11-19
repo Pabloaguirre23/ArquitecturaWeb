@@ -87,7 +87,7 @@ class CatalogoRestClientTest {
     }
 
     private CatalogoRestClient cliente() {
-        return new CatalogoRestClient(RestClient.builder(), baseUrl, 1000, 1000);
+        return new CatalogoRestClient(RestClient.builder(), baseUrl, 1000, 1000, "token-de-prueba");
     }
 
     private Preferencia preferencia() {

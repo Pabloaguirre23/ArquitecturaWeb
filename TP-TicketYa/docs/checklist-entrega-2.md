@@ -16,24 +16,24 @@ implementación arranca el Día 1.
 |---|---|---|
 | Change OpenSpec | Planificado y validado | `openspec validate entrega-2-completo --strict` |
 | Criterios US-25 a US-38 | Completos y trazados | `docs/features-y-user-stories.md` (tarea 1.2) |
-| recommendation-service | Build, tests, health y Docker OK | `recommendation-service/` (tareas 1.7, 7.1–7.4) |
-| notification-service (esqueleto) | Build, health y Testcontainers OK | `notification-service/` (tarea 1.8) |
+| recommendation-service | Build, tests, health y Docker OK | `recommendation-service/` (tareas 1.7, 2.7, 7.1–7.5) |
+| notification-service | Completo: compra, cancelación, favorito y consulta | `notification-service/` (8.1–8.4) y PR #27 |
 | Acceso al repo del curso | 5 colaboradores con push; branch protection pendiente | Tarea 1.1 |
 | Sobre de eventos y payloads | Borrador con fixture y test de contrato | [`eventos.md`](eventos.md) (1.5, pendiente de congelar) |
-| ADR de la Entrega 2 | ADR-014 a ADR-018 | [`decisiones.md`](decisiones.md) |
-| Contrato v2 y matriz de roles | Pendiente | `docs/api-contract.md` |
-| JWT y autorización | Pendiente (recommendation 2.7 verificado) | Tareas 2.1–2.8; 2.7 completo y documentado en [`seguridad.md`](seguridad.md) |
-| Fila virtual | Pendiente | Tareas 4.1–4.4, 5.1 |
+| ADR de la Entrega 2 | ADR-014 a ADR-019 | [`decisiones.md`](decisiones.md) |
+| Contrato v2 y matriz de roles | Parcial: JWT, roles, queue, recommendation y notification | `docs/api-contract.md`; faltan acceso/reportes de 6.4/6.5 |
+| JWT y autorización | 2.1 y 2.2 completos; 2.8 parcial | PR #29, [`seguridad.md`](seguridad.md), suite E2E |
+| Fila virtual | Completa (4.1–4.4, 5.1) | `queue-service/` y PR #24 |
 | Control de acceso QR | Pendiente | Tarea 6.4 |
-| Preferencias y recomendaciones | Completo (7.1–7.5 y 2.7) | `recommendation-service` + tests Mongo/Rabbit/HTTP, [`seguridad.md`](seguridad.md) y [`evidencia/entrega-2-dia-4.txt`](evidencia/entrega-2-dia-4.txt) |
-| Notificaciones | Pendiente | Tareas 8.1–8.4 |
+| Preferencias y recomendaciones | Completo (7.1–7.5 y 2.7) | `recommendation-service` + tests Mongo/Rabbit/HTTP y [`evidencia/entrega-2-dia-4.txt`](evidencia/entrega-2-dia-4.txt) |
+| Notificaciones | Completo (8.1–8.4) | PR #27 y evidencia `dia-7-p1.txt` |
 | Reportes | Pendiente | Tarea 6.5 |
-| Consistencia, saga y outbox | Pendiente | Tareas 6.2, 6.3, 3.2 |
-| Resiliencia | Pendiente | Tareas 5.3, 6.6 |
-| Cache | Pendiente | Tareas 3.3, 3.4 |
-| Observabilidad y log central | Pendiente | Tareas 9.1–9.4 |
-| Docker y compose | Pendiente | Tareas 9.5–9.7 |
-| Integración, seguridad y carga | En curso (10.1 iniciado) | `integration-tests/` con el primer flujo verde y [`evidencia/entrega-2-dia-5.txt`](evidencia/entrega-2-dia-5.txt) |
+| Consistencia, saga y outbox | Completo (3.2, 6.2, 6.3) | PR #25 y #27; corrida de carga con transacciones cortas |
+| Resiliencia | Parcial: inventory 5.3; falta 6.6 de pagos/inventory | PR #21, #25 |
+| Cache | Completo (3.3, 3.4) | PR #27, tests de cache |
+| Observabilidad y log central | Parcial: 9.2 hecho; faltan 9.1, 9.3 y 9.4 | PR #27; Loki pendiente |
+| Docker y compose | Completo (9.5–9.7) | 13/13 contenedores healthy y CI verde en PR #30 |
+| Integración, seguridad y carga | En curso: 10.1 (8 tests) y 10.4 (informe); 10.2/10.3 pendientes | [`pruebas.md`](pruebas.md) §12, [`informe-carga.md`](informe-carga.md) y [`evidencia/entrega-2-dia-7.txt`](evidencia/entrega-2-dia-7.txt) |
 | Cierre y tag | Pendiente | Tareas 10.8–10.9 |
 
 ## 1. Funcionalidad de la Entrega 2
@@ -107,7 +107,7 @@ implementación arranca el Día 1.
 
 - [ ] **Unitarios** de la lógica nueva (fila, acceso, reportes, recomendaciones, notificaciones, saga, cache). → tareas de cada servicio
 - [ ] **No doble venta** con 100 hilos y última unidad de zona, sigue verde con la fila y el token. → 5.4, 10.1
-- [ ] **Integración entre servicios** con Testcontainers/Compose: login, fila, compra, QR, reporte, recomendación y notificación. → 10.1 _(Iniciado: módulo y gateway → búsqueda verdes; faltan login, fila, compra/QR, acceso, reporte y eventos.)_
+- [ ] **Integración entre servicios** con Testcontainers/Compose: login, fila, compra, QR, reporte, recomendación y notificación. → 10.1 _(Día 7: 8 tests, 0 fallos, 1 omitido; cubre login JWT, fila → reserva, compra → QR y notificación/recomendación. Faltan acceso QR (6.4) y reporte (6.5); evidencia en `evidencia/entrega-2-dia-7.txt`.)_
 - [ ] **Seguridad de endpoints:** cada endpoint solo accesible por sus roles; 401 sin token y 403 con rol incorrecto. → 2.8
 - [ ] **Idempotencia de eventos:** duplicados no duplican historial ni notificaciones. → 7.3, 8.2
 - [ ] **Resiliencia:** timeout, 5xx, circuito abierto y recuperación con WireMock. → 5.3, 6.6

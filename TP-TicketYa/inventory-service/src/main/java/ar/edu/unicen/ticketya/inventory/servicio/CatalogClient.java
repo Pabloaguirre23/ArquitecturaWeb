@@ -25,11 +25,14 @@ public class CatalogClient {
     private static final Logger log = LoggerFactory.getLogger(CatalogClient.class);
 
     private final RestClient restClient;
+    private final String internalToken;
 
     public CatalogClient(RestClient.Builder builder,
                          @Value("${catalog.url:http://localhost:8081}") String baseUrl,
                          @Value("${catalog.timeout.connect-ms:2000}") long connectMs,
-                         @Value("${catalog.timeout.read-ms:2000}") long readMs) {
+                         @Value("${catalog.timeout.read-ms:2000}") long readMs,
+                         @Value("${catalog.internal-token:${INTERNAL_TOKEN:ticketya-internal-dev}}")
+                         String internalToken) {
         HttpClient http = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(Duration.ofMillis(connectMs))
@@ -37,6 +40,7 @@ public class CatalogClient {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
         factory.setReadTimeout(Duration.ofMillis(readMs));
         this.restClient = builder.baseUrl(baseUrl).requestFactory(factory).build();
+        this.internalToken = internalToken;
     }
 
     @CircuitBreaker(name = CIRCUITO, fallbackMethod = "disponibilidadNoAvisada")
@@ -45,6 +49,7 @@ public class CatalogClient {
         String correlacion = correlacion();
         var request = restClient.patch()
                 .uri("/internal/events/{eventoId}/availability", eventoId)
+                .header("X-Internal-Token", internalToken)
                 .contentType(MediaType.APPLICATION_JSON);
         if (!SIN_CORRELACION.equals(correlacion)) {
             request = request.header("X-Correlation-Id", correlacion);
