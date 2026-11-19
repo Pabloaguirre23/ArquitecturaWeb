@@ -8,14 +8,16 @@ la tarea **10.1** (P5). No usa mocks de servicios: valida el flujo por el puerto
 | Flujo | Clase / test | Estado |
 |---|---|---|
 | Gateway → salud y búsqueda pública de catalog | `GatewayCatalogIT` | Implementado y verde |
-| Identidad → búsqueda y 401/403 | `TicketYaE2EIT.laBusquedaPublicaNoRequiereIdentidad`, `laIdentidadEsObligatoriaEnLosEndpointsProtegidos` | Verde con identidad por headers (el login JWT de 2.1 sigue en el PR #29) |
+| Login → JWT, búsqueda y 401/403 | `TicketYaE2EIT.elLoginEmiteJwtYLaIdentidadEsObligatoriaEnLosEndpointsProtegidos` | Verde con `Authorization: Bearer` (2.1/2.2 mergeadas) |
 | Fila → reserva de alta demanda | `TicketYaE2EIT.laFilaHabilitaLaReservaDeUnEventoDeAltaDemanda` | Verde |
 | Compra → QR e idempotencia | `TicketYaE2EIT.laCompraGeneraUnaEntradaConQrYEsIdempotente` | Verde |
 | Acceso QR con un solo uso | `TicketYaE2EIT.elPersonalDeAccesoValidaElQrUnaSolaVez` | Se omite mientras 6.4 no esté expuesta |
 | Compra → notificación y recomendaciones | `TicketYaE2EIT.laCompraAlimentaNotificacionesYRecomendaciones` | Verde |
 
 Corrida del 19/11 contra el compose integral: **8 tests, 0 fallos, 1 omitido** (acceso QR).
-La evidencia completa está en [`../docs/evidencia/entrega-2-dia-7.txt`](../docs/evidencia/entrega-2-dia-7.txt).
+Se corrió dos veces: antes del merge del JWT (headers `X-User-*`) y después (login real y
+`Authorization: Bearer`), con el mismo resultado. La evidencia completa está en
+[`../docs/evidencia/entrega-2-dia-7.txt`](../docs/evidencia/entrega-2-dia-7.txt).
 
 Los tests se saltan si no se define `TICKETYA_E2E=true`, para que un `mvn test` sin entorno
 no falle.
@@ -76,7 +78,6 @@ bases del compose se pueden reutilizar entre ejecuciones.
 
 ## Pendientes
 
-1. Cuando P4 cierre 2.1–2.3, reemplazar los headers `X-User-*` por JWT en `TicketYaE2EIT`.
-2. Cuando P3 cierre 6.4, quitar la omisión del acceso QR y agregar `ACCESS_STAFF` al gateway.
-3. Cuando orders exponga reportes (6.5), agregar el flujo de reporte por evento.
-4. Llevar esta suite al workflow de CI con `docker compose` cuando 9.7 lo permita.
+1. Cuando P3 cierre 6.4, quitar la omisión del acceso QR y agregar `ACCESS_STAFF` al gateway.
+2. Cuando orders exponga reportes (6.5), agregar el flujo de reporte por evento.
+3. Llevar esta suite al workflow de CI con `docker compose` cuando 9.7 lo permita.

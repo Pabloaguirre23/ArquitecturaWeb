@@ -418,7 +418,9 @@ TICKETYA_E2E=true mvn -B -ntp verify
 
 Resultado del Día 5: 2 tests (health + búsqueda), 0 fallos.
 Resultado del Día 7 (19/11): **8 tests, 0 fallos, 1 omitido**; el omitido es el acceso QR
-porque `POST /api/orders/access/validate` (6.4) todavía no existe. Evidencia completa en
+porque `POST /api/orders/access/validate` (6.4) todavía no existe. La suite se corrió antes y
+después de mergear el JWT del PR #29: la segunda corrida hace login real y usa
+`Authorization: Bearer`. Evidencia completa en
 [`evidencia/entrega-2-dia-7.txt`](evidencia/entrega-2-dia-7.txt).
 
 La corrida detectó y corrigió un problema del compose integral: `catalog-service` no recibía
@@ -426,7 +428,7 @@ La corrida detectó y corrigió un problema del compose integral: `catalog-servi
 `unhealthy`; el gateway no se creaba por el `depends_on`. Con `REDIS_HOST=redis` los 13
 contenedores quedaron healthy.
 
-Estado de los cinco flujos: búsqueda pública ✅; identidad y 401/403 ✅ (headers; falta
-reemplazar por JWT cuando se mergee 2.1/2.2); fila → reserva ✅; compra → QR ✅; acceso QR
-⏳ (6.4); compra → recomendación/notificación ✅; reporte por evento ⏳ (6.5). El detalle y
-los comandos están en [`../integration-tests/README.md`](../integration-tests/README.md).
+Estado de los cinco flujos: login JWT y búsqueda ✅ (2.1/2.2 mergeadas en el PR #29);
+fila → reserva ✅; compra → QR ✅; acceso QR ⏳ (6.4); compra →
+recomendación/notificación ✅; reporte por evento ⏳ (6.5). El detalle y los comandos están
+en [`../integration-tests/README.md`](../integration-tests/README.md).

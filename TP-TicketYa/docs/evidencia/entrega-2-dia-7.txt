@@ -46,15 +46,31 @@ Salida:
 Flujos verificados
 ------------------
 1. Gateway -> health y búsqueda pública de catalog.
-2. Identidad obligatoria (401 sin identidad, 403 con rol incorrecto).
+2. Login -> JWT y 401 con credenciales inválidas; 401 sin identidad y 403 con rol incorrecto.
 3. Fila virtual -> reserva de un evento de alta demanda con X-Queue-Token.
 4. Compra -> entrada con QR e idempotencia de la orden.
 5. Acceso QR: omitido; POST /api/orders/access/validate (6.4) todavía no existe.
 6. Compra -> notificación orden.pagada por RabbitMQ y recomendaciones/similares.
 
+Integración de JWT (PR #29)
+---------------------------
+Se mergeó el PR #29 (2.1/2.2/2.8) en feat/entrega-2-dia-1 y se actualizó
+TicketYaE2EIT para hacer login real y mandar Authorization: Bearer en lugar de
+X-User-*. Segunda corrida, con el gateway JWT:
+
+[INFO] Running ar.edu.unicen.ticketya.integration.TicketYaE2EIT
+[WARNING] Tests run: 6, Failures: 0, Errors: 0, Skipped: 1
+[INFO] Results:
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 1
+[INFO] BUILD SUCCESS
+[INFO] Total time: 8.560 s
+
+Verificación manual del borde:
+  POST /api/auth/login (cliente@ticketya.test / demo) -> 200
+  GET  /api/recommendations sin token -> 401
+
 Pendientes al cierre del día
 ----------------------------
-- Reemplazar X-User-* por JWT cuando se mergee 2.1/2.2 (PR #29).
 - Quitar la omisión del acceso QR cuando P3 cierre 6.4.
 - Agregar el flujo de reporte cuando P3 cierre 6.5.
 - Llevar esta suite al CI con docker compose (9.7).

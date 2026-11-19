@@ -212,8 +212,6 @@ services:
       RECOMMENDATION_URL: http://recommendation-service:8084
       NOTIFICATION_URL: http://notification-service:8085
       QUEUE_URL: http://queue-service:8086
-      RECOMMENDATION_URL: http://recommendation-service:8084
-      NOTIFICATION_URL: http://notification-service:8085
       JWT_SECRET: ${JWT_SECRET:-ticketya-dev-secret-change-me-32-bytes-min!!}
       JWT_TTL: ${JWT_TTL:-8h}
     ports:

@@ -53,6 +53,8 @@ class TicketYaE2EIT {
     private static final String CLIENT = "33333333-3333-4333-8333-333333333333";
     private static final String STAFF = "44444444-4444-4444-8444-444444444444";
 
+    private static final Map<String, String> TOKENS = new java.util.concurrent.ConcurrentHashMap<>();
+
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
@@ -77,13 +79,22 @@ class TicketYaE2EIT {
 
     @Test
     @Order(2)
-    void laIdentidadEsObligatoriaEnLosEndpointsProtegidos() throws Exception {
+    void elLoginEmiteJwtYLaIdentidadEsObligatoriaEnLosEndpointsProtegidos() throws Exception {
+        JsonNode login = ok("POST", "/api/auth/login", Map.of(),
+                Map.of("email", "cliente@ticketya.test", "password", "demo"));
+        assertThat(login.path("token").asText()).isNotBlank();
+        assertThat(login.path("role").asText()).isEqualTo("CLIENT");
+
+        HttpResponse<String> credencialesInvalidas = send("POST", "/api/auth/login", Map.of(),
+                Map.of("email", "cliente@ticketya.test", "password", "incorrecta"));
+        assertThat(credencialesInvalidas.statusCode()).isEqualTo(401);
+
         HttpResponse<String> sinIdentidad = send("POST", "/api/inventory/reservations", Map.of(),
                 Map.of("eventoId", UUID.randomUUID(), "items", List.of()));
         assertThat(sinIdentidad.statusCode()).isEqualTo(401);
         assertThat(json(sinIdentidad).path("code").asText()).isEqualTo("UNAUTHORIZED");
 
-        HttpResponse<String> rolIncorrecto = send("GET", "/api/recommendations", headers(ORGANIZER, "ORGANIZER"), null);
+        HttpResponse<String> rolIncorrecto = send("GET", "/api/recommendations", auth("ORGANIZER"), null);
         assertThat(rolIncorrecto.statusCode()).isEqualTo(403);
         assertThat(json(rolIncorrecto).path("code").asText()).isEqualTo("FORBIDDEN");
     }
@@ -99,23 +110,23 @@ class TicketYaE2EIT {
         asientoId = UUID.fromString(libre.path("asientoId").asText());
 
         // Sin token de fila, inventory rechaza la reserva del evento de alta demanda.
-        HttpResponse<String> sinToken = send("POST", "/api/inventory/reservations", headers(CLIENT, "CLIENT"),
+        HttpResponse<String> sinToken = send("POST", "/api/inventory/reservations", auth("CLIENT"),
                 reservaBody());
         assertThat(sinToken.statusCode()).isEqualTo(403);
         assertThat(json(sinToken).path("code").asText()).isEqualTo("QUEUE_REQUIRED");
 
-        JsonNode ingreso = ok("POST", "/api/queue/events/" + eventoId + "/join", headers(CLIENT, "CLIENT"), null);
+        JsonNode ingreso = ok("POST", "/api/queue/events/" + eventoId + "/join", auth("CLIENT"), null);
         assertThat(ingreso.path("posicion").asInt()).isPositive();
 
         JsonNode habilitado = await(() -> send("GET", "/api/queue/events/" + eventoId + "/position",
-                        headers(CLIENT, "CLIENT"), null),
+                        auth("CLIENT"), null),
                 body -> "HABILITADO".equals(body.path("estado").asText()),
                 "La fila no habilitó al cliente; revisar QUEUE_BATCH_SIZE/QUEUE_INTERVAL_SECONDS del entorno");
         String queueToken = habilitado.path("token").asText();
         assertThat(queueToken).isNotBlank();
 
         JsonNode reserva = ok("POST", "/api/inventory/reservations",
-                merge(headers(CLIENT, "CLIENT"), Map.of("X-Queue-Token", queueToken)), reservaBody());
+                merge(auth("CLIENT"), Map.of("X-Queue-Token", queueToken)), reservaBody());
         reservaId = UUID.fromString(reserva.path("id").asText());
 
         assertThat(reserva.path("estado").asText()).isEqualTo("VIGENTE");
@@ -127,7 +138,7 @@ class TicketYaE2EIT {
     @Order(4)
     void laCompraGeneraUnaEntradaConQrYEsIdempotente() throws Exception {
         String idempotencyKey = UUID.randomUUID().toString();
-        Map<String, String> headers = merge(headers(CLIENT, "CLIENT"), Map.of("Idempotency-Key", idempotencyKey));
+        Map<String, String> headers = merge(auth("CLIENT"), Map.of("Idempotency-Key", idempotencyKey));
         Map<String, Object> body = Map.of(
                 "reservaId", reservaId,
                 "medioPago", "TARJETA",
@@ -151,7 +162,7 @@ class TicketYaE2EIT {
     void elPersonalDeAccesoValidaElQrUnaSolaVez() throws Exception {
         Map<String, Object> body = Map.of("qrCode", qrCode, "eventoId", eventoId);
         HttpResponse<String> primera = send("POST", "/api/orders/access/validate",
-                headers(STAFF, "ACCESS_STAFF"), body);
+                auth("ACCESS_STAFF"), body);
 
         Assumptions.assumeTrue(primera.statusCode() != 401 && primera.statusCode() != 403
                         && primera.statusCode() != 404 && primera.statusCode() != 405,
@@ -159,26 +170,26 @@ class TicketYaE2EIT {
 
         assertThat(primera.statusCode()).isEqualTo(200);
         HttpResponse<String> segunda = send("POST", "/api/orders/access/validate",
-                headers(STAFF, "ACCESS_STAFF"), body);
+                auth("ACCESS_STAFF"), body);
         assertThat(segunda.statusCode()).isEqualTo(409);
     }
 
     @Test
     @Order(6)
     void laCompraAlimentaNotificacionesYRecomendaciones() throws Exception {
-        JsonNode notificaciones = await(() -> send("GET", "/api/notifications?size=50", headers(CLIENT, "CLIENT"), null),
+        JsonNode notificaciones = await(() -> send("GET", "/api/notifications?size=50", auth("CLIENT"), null),
                 body -> hasNotification(body, "orden.pagada"),
                 "No apareció la notificación de orden.pagada; revisar RabbitMQ y el outbox de orders");
 
         JsonNode notificacion = firstNotification(notificaciones, "orden.pagada");
         assertThat(notificacion.path("estado").asText()).isIn("PENDIENTE", "ENVIADA");
 
-        JsonNode recomendaciones = ok("GET", "/api/recommendations", headers(CLIENT, "CLIENT"), null);
+        JsonNode recomendaciones = ok("GET", "/api/recommendations", auth("CLIENT"), null);
         assertThat(recomendaciones.path("clienteId").asText()).isEqualTo(CLIENT);
         assertThat(recomendaciones.path("recomendaciones").isArray()).isTrue();
 
         JsonNode similares = ok("GET", "/api/recommendations/events/" + eventoId + "/similar",
-                headers(CLIENT, "CLIENT"), null);
+                auth("CLIENT"), null);
         assertThat(similares.path("eventoId").asText()).isEqualTo(eventoId.toString());
         assertThat(similares.path("similares").isArray()).isTrue();
     }
@@ -186,7 +197,7 @@ class TicketYaE2EIT {
     private void crearEventoDeAltaDemanda() throws Exception {
         String sufijo = UUID.randomUUID().toString().substring(0, 8);
 
-        JsonNode lugar = ok("POST", "/api/catalog/venues", headers(ADMIN, "ADMIN"), Map.of(
+        JsonNode lugar = ok("POST", "/api/catalog/venues", auth("ADMIN"), Map.of(
                 "nombre", "E2E " + sufijo,
                 "direccion", "Calle de prueba 123",
                 "ciudad", "Tandil",
@@ -194,7 +205,7 @@ class TicketYaE2EIT {
                 "longitud", -59.1332));
         lugarId = UUID.fromString(lugar.path("id").asText());
 
-        JsonNode sector = ok("POST", "/api/catalog/venues/" + lugarId + "/sectors", headers(ADMIN, "ADMIN"), Map.of(
+        JsonNode sector = ok("POST", "/api/catalog/venues/" + lugarId + "/sectors", auth("ADMIN"), Map.of(
                 "nombre", "Platea " + sufijo,
                 "tipo", "NUMERADO",
                 "capacidad", 4,
@@ -212,13 +223,13 @@ class TicketYaE2EIT {
         evento.put("limitePorCliente", 4);
         evento.put("altaDemanda", true);
 
-        JsonNode creado = ok("POST", "/api/catalog/events", headers(ORGANIZER, "ORGANIZER"), evento);
+        JsonNode creado = ok("POST", "/api/catalog/events", auth("ORGANIZER"), evento);
         eventoId = UUID.fromString(creado.path("id").asText());
 
-        ok("PUT", "/api/catalog/events/" + eventoId + "/prices/" + sectorId, headers(ORGANIZER, "ORGANIZER"),
+        ok("PUT", "/api/catalog/events/" + eventoId + "/prices/" + sectorId, auth("ORGANIZER"),
                 Map.of("precio", 15000));
         JsonNode publicado = ok("POST", "/api/catalog/events/" + eventoId + "/publish",
-                headers(ORGANIZER, "ORGANIZER"), null);
+                auth("ORGANIZER"), null);
         assertThat(publicado.path("estado").asText()).isEqualTo("PUBLICADO");
         assertThat(publicado.path("altaDemanda").asBoolean()).isTrue();
     }
@@ -257,8 +268,31 @@ class TicketYaE2EIT {
         return null;
     }
 
-    private Map<String, String> headers(String userId, String role) {
-        return Map.of("X-User-Id", userId, "X-User-Role", role);
+    /** Login real contra el gateway (2.1) y cache del token por rol. */
+    private Map<String, String> auth(String role) {
+        return Map.of("Authorization", "Bearer " + token(role));
+    }
+
+    private String token(String role) {
+        return TOKENS.computeIfAbsent(role, r -> {
+            try {
+                String email = switch (r) {
+                    case "ADMIN" -> "admin@ticketya.test";
+                    case "ORGANIZER" -> "organizador@ticketya.test";
+                    case "ACCESS_STAFF" -> "acceso@ticketya.test";
+                    default -> "cliente@ticketya.test";
+                };
+                JsonNode login = ok("POST", "/api/auth/login", Map.of(),
+                        Map.of("email", email, "password", "demo"));
+                String token = login.path("token").asText();
+                if (token.isBlank()) {
+                    fail("El login de " + email + " no devolvió token");
+                }
+                return token;
+            } catch (Exception ex) {
+                throw new IllegalStateException("No se pudo loguear " + r, ex);
+            }
+        });
     }
 
     private Map<String, String> merge(Map<String, String> base, Map<String, String> extra) {
