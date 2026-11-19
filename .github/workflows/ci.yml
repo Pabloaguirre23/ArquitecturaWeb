@@ -85,14 +85,16 @@ jobs:
           npm run test
 
   compose:
-    name: validar compose de desarrollo
+    name: validar compose
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Validar configuración
-        run: docker compose -f TP-TicketYa/docker-compose.dev.yml config
+        run: |
+          docker compose -f TP-TicketYa/docker-compose.dev.yml config
+          docker compose -f TP-TicketYa/docker-compose.yml config
 
   openapi:
     name: validar OpenAPI
