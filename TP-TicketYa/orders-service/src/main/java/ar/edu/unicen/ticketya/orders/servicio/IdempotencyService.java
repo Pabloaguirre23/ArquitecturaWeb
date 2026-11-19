@@ -105,10 +105,11 @@ public class IdempotencyService {
     }
 
     /**
-     * Guarda la respuesta para los reintentos. Participa de la transacción de
-     * la compra para que la fila y la orden se confirmen juntas.
+     * Guarda la respuesta para los reintentos en una transacción corta propia.
+     * La orden ya quedó PAGADA en {@code OrderEmissionService}; no se mantiene
+     * una conexión abierta durante los pasos HTTP de la saga.
      */
-    @Transactional(propagation = Propagation.MANDATORY)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void completar(String key, OrderResponse response) {
         repository.findById(key).ifPresent(fila -> {
             fila.setEstado("COMPLETADA");

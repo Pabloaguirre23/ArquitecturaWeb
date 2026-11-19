@@ -92,7 +92,12 @@ public class OrderService {
      * <p>La Idempotency-Key se reclama antes de tocar inventory. Si la compra
      * falla, el reclamo se libera para permitir un reintento limpio.</p>
      */
-    @Transactional(noRollbackFor = ApiException.class)
+    /**
+     * La compra no corre dentro de una transacción que abarque los pasos HTTP:
+     * cada paso persiste en su propia transacción corta (REQUIRES_NEW). Con la
+     * transacción externa, la prueba de carga de 500/1000 usuarios agotaba el
+     * pool de conexiones mientras esperaba a inventory/catalog.
+     */
     public OrderResponse crear(CrearOrdenRequest request, UUID clienteId, String idempotencyKey) {
         validarIdempotencyKey(idempotencyKey);
         validarToken(request.token());
