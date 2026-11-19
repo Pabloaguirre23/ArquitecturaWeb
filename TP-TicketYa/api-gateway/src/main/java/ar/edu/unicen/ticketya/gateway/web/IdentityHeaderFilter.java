@@ -48,6 +48,7 @@ public class IdentityHeaderFilter implements GlobalFilter, Ordered {
     private static final Set<String> ROLES = Set.of("CLIENT", "ORGANIZER", "ADMIN", "ACCESS_STAFF");
     private static final Set<String> ADMIN_ONLY = Set.of("ADMIN");
     private static final Set<String> ORGANIZER_ONLY = Set.of("ORGANIZER");
+    private static final Set<String> ORGANIZER_OR_ADMIN = Set.of("ORGANIZER", "ADMIN");
     private static final Set<String> CLIENT_ONLY = Set.of("CLIENT");
     private static final Set<String> ACCESS_STAFF_OR_ADMIN = Set.of("ACCESS_STAFF", "ADMIN");
     private static final Set<String> AUTHENTICATED = Set.of("CLIENT", "ORGANIZER", "ADMIN");
@@ -96,6 +97,7 @@ public class IdentityHeaderFilter implements GlobalFilter, Ordered {
             rule(HttpMethod.POST, "/api/orders/returns/" + ID + "/approve", ADMIN_ONLY),
             rule(HttpMethod.POST, "/api/orders/returns/" + ID + "/reject", ADMIN_ONLY),
             rule(HttpMethod.POST, "/api/orders/access/validate", ACCESS_STAFF_OR_ADMIN),
+            rule(HttpMethod.GET, "/api/orders/reports/events/" + ID, ORGANIZER_OR_ADMIN),
             // queue
             rule(HttpMethod.POST, "/api/queue/events/" + ID + "/join", CLIENT_ONLY),
             rule(HttpMethod.GET, "/api/queue/events/" + ID + "/position", CLIENT_ONLY),

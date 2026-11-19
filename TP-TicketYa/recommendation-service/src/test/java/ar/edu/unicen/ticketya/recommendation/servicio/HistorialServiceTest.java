@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import ar.edu.unicen.ticketya.recommendation.dominio.EventoVisto;
 import ar.edu.unicen.ticketya.recommendation.dominio.HistorialCompra;
 import ar.edu.unicen.ticketya.recommendation.evento.OrdenPagadaEvent;
 import ar.edu.unicen.ticketya.recommendation.evento.OrdenPagadaPayload;
@@ -89,6 +90,27 @@ class HistorialServiceTest {
 
         assertThat(creado).isFalse();
         verify(mongoTemplate, never()).upsert(any(), any(), eq(HistorialCompra.class));
+    }
+
+    @Test
+    void noRegistraUnaOrdenSinEstado() {
+        boolean creado = historialService.registrar(evento("orden.pagada", null, EVENT_ID));
+
+        assertThat(creado).isFalse();
+        verify(mongoTemplate, never()).upsert(any(), any(), eq(HistorialCompra.class));
+        verify(mongoTemplate, never()).upsert(any(), any(), eq(EventoVisto.class));
+    }
+
+    @Test
+    void actualizaElSnapshotEventoVistoConLaCompraPagada() {
+        UpdateResult resultado = mock(UpdateResult.class);
+        when(resultado.getMatchedCount()).thenReturn(0L);
+        when(mongoTemplate.upsert(any(Query.class), any(Update.class), eq(HistorialCompra.class)))
+                .thenReturn(resultado);
+
+        historialService.registrar(evento("orden.pagada", "PAGADA", EVENT_ID));
+
+        verify(mongoTemplate).upsert(any(Query.class), any(Update.class), eq(EventoVisto.class));
     }
 
     @Test

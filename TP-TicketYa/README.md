@@ -14,9 +14,9 @@ Repositorio del curso: <https://github.com/Pabloaguirre23/ArquitecturaWeb> (este
 | `inventory-service` | 8082 | `inventory_db` (5434) | Disponibilidad, reservas temporales y no doble venta |
 | `orders-service` | 8083 | `orders_db` (5435) | Órdenes, pago mock, entradas/QR, devoluciones y cancelación |
 | `recommendation-service` | 8084 | `recommendation_db` (27017, MongoDB) | Preferencias, historial y recomendaciones |
-| `notification-service` | 8085 | `notification_db` (5436) | Esqueleto de notificaciones asíncronas |
+| `notification-service` | 8085 | `notification_db` (5436) | Notificaciones asíncronas con reintentos y DLQ |
 | `rabbitmq` | 5672 / 15672 | — | Bus de eventos (`orden.pagada` → historial) |
-| `queue-service` | 8086 | Redis 7 (6379) | Fila virtual. Esqueleto: health y conexión a Redis |
+| `queue-service` | 8086 | Redis 7 (6379) | Fila virtual: tandas, posición y token de compra |
 
 Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**` y eventos por RabbitMQ; el cliente siempre entra por el gateway. `queue-service` guarda la fila en Redis.
 
@@ -77,7 +77,7 @@ Docker. Para reiniciar sin datos:
 docker compose -f docker-compose.yml down -v
 ```
 
-`queue-service` y la UI opcional se agregan cuando se mergeen sus PRs.
+La UI opcional vive en `web/` y no forma parte del backend entregado.
 
 ### 4. Servicios con Maven
 
@@ -124,7 +124,7 @@ Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
 
 | Variable | Default | Uso |
 |---|---|---|
-| `SERVER_PORT` | 8080/8081/8082/8083/8084 | Puerto del servicio |
+| `SERVER_PORT` | 8080/8081/8082/8083/8084/8085/8086 | Puerto del servicio |
 | `DB_URL` | `jdbc:postgresql://localhost:<5433/5434/5435>/<db>` | Conexión JDBC |
 | `NOTIFICATION_DB_URL` | `jdbc:postgresql://localhost:5436/notification_db` | Conexión JDBC de notification |
 | `DB_USER` | `ticketya` | Usuario de la base |
@@ -140,9 +140,12 @@ Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
 | `ORDERS_URL` | `http://localhost:8083` | Gateway → orders |
 | `RECOMMENDATION_URL` | `http://localhost:8084` | Gateway → recommendation |
 | `NOTIFICATION_URL` | `http://localhost:8085` | Gateway → notification |
-| `CATALOG_FINALIZACION_MS` | `60000` | Frecuencia del job de eventos vencidos |
-| `CATALOG_CANCELACIONES_MS` | `60000` | Frecuencia del reintento de cancelaciones |
+| `CATALOG_SCHEDULER_FINALIZACION_MS` | `60000` | Frecuencia del job de eventos vencidos |
 | `INVENTORY_VENCIMIENTO_MS` | `30000` | Frecuencia del job de reservas vencidas |
+| `DB_POOL_SIZE` | `20` (`40` en compose) | Pool Hikari de orders e inventory |
+| `DB_CONNECTION_TIMEOUT_MS` | `3000`/`5000` | Timeout para obtener conexión |
+| `QUEUE_SCHEDULER_MS` | `5000` | Frecuencia del scheduler de tandas |
+| `JWT_SECRET` / `JWT_TTL` | dev / `8h` | Firma y vigencia del JWT del gateway |
 
 Ver [`.env.example`](.env.example). No se commitea `.env`.
 
@@ -174,7 +177,7 @@ Sin headers, el gateway responde 401 en formato RFC 7807. El contrato completo e
 | `inventory-service/` | Reservas y anti doble venta |
 | `orders-service/` | Compra, pago mock, QR, devoluciones |
 | `recommendation-service/` | Preferencias, historial y recomendaciones (MongoDB) |
-| `notification-service/` | Esqueleto de notificaciones (PostgreSQL + RabbitMQ) |
+| `notification-service/` | Notificaciones asíncronas (PostgreSQL + RabbitMQ + DLQ) |
 | `api-gateway/` | Punto de entrada único |
 | `queue-service/` | Fila virtual sobre Redis |
 | `openspec/` | Especificaciones (propuesta → specs → diseño → tareas) |
@@ -190,6 +193,9 @@ Cada servicio se testea por separado:
 cd catalog-service && mvn test
 cd inventory-service && mvn test
 cd orders-service && mvn test
+cd recommendation-service && mvn test
+cd notification-service && mvn test
+cd queue-service && mvn test
 cd api-gateway && mvn test
 ```
 
@@ -217,11 +223,11 @@ Reglas:
 
 ## Metodología
 
-Desarrollo guiado por especificaciones con [OpenSpec](https://github.com/Fission-AI/OpenSpec). El change activo es `entrega-1-core`:
+Desarrollo guiado por especificaciones con [OpenSpec](https://github.com/Fission-AI/OpenSpec). El change activo es `entrega-2-completo`:
 
 ```bash
-openspec validate entrega-1-core
-openspec status --change entrega-1-core
+openspec validate entrega-2-completo --strict
+openspec status --change entrega-2-completo
 ```
 
 ## Estado
@@ -231,9 +237,12 @@ venta, devoluciones y cancelación). El estado verificable y las observaciones a
 en [`docs/checklist-entrega-1.md`](docs/checklist-entrega-1.md); la estrategia y la evidencia
 de pruebas, en [`docs/pruebas.md`](docs/pruebas.md).
 
-Entrega 2: planificación completa en [`openspec/changes/entrega-2-completo/`](openspec/changes/entrega-2-completo/)
-(propuesta, 15 specs, diseño y 64 tareas) y cronograma en [`docs/plan-entrega-2.md`](docs/plan-entrega-2.md).
-La implementación arranca el 13/11/2026 y la entrega está prevista para el 22/11/2026.
+Entrega 2: en implementación avanzada. JWT, fila virtual, saga/outbox, notificaciones,
+recomendaciones, cache, Docker y CI están integrados; el estado verificable está en
+[`docs/checklist-entrega-2.md`](docs/checklist-entrega-2.md), la estrategia en
+[`docs/pruebas.md`](docs/pruebas.md) y la prueba de carga en
+[`docs/informe-carga.md`](docs/informe-carga.md). Queda pendiente el acceso QR (6.4) y los
+reportes (6.5). Entrega prevista: 22/11/2026.
 
 Entrega: <https://github.com/Pabloaguirre23/ArquitecturaWeb/tree/main/TP-TicketYa>
 

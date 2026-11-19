@@ -12,7 +12,7 @@ public class VencimientoScheduler {
         this.vencimientoService = vencimientoService;
     }
 
-    @Scheduled(fixedDelay = 30_000)
+    @Scheduled(fixedDelayString = "${INVENTORY_VENCIMIENTO_MS:30000}")
     public void liberarReservasVencidas() {
         vencimientoService.liberarVencidas();
     }
