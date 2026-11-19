@@ -20,12 +20,12 @@
 | [`checklist-entrega-2.md`](checklist-entrega-2.md) | Verificación de todo lo pedido para la Entrega 2 | P5 | Día 0 a 10 | En curso (planificación) |
 | [`equipo/entrega-2/`](equipo/entrega-2/README.md) | Briefs por integrante para la Entrega 2 | P5 | Día 0 | Listo |
 | [`features-y-user-stories.md`](features-y-user-stories.md) | Features y US-01 a US-38 con criterios de aceptación | P1/P2/P3 | Día 0 | Listo |
-| [`api-contract.md`](api-contract.md) | Contrato REST: método, ruta, parámetros, códigos y ejemplos JSON | P1/P2/P3 | Día 0 | Listo (1.3) |
+| [`api-contract.md`](api-contract.md) | Contrato REST: método, ruta, parámetros, códigos y ejemplos JSON | P1/P2/P3 | Día 0 | Listo (1.3); v2 con queue y notification (10.6) |
 | [`seguridad.md`](seguridad.md) | Matriz endpoint × rol y evidencia 401/403/200 | P4/P5 | Día 5 a 8 | Parcial: recommendation (2.7); P4 completa el resto |
 | [`eventos.md`](eventos.md) | Sobre de eventos, routing keys, colas/DLQ y payloads | P4/P5 | Día 1 y 3 | Borrador para 1.5; consumidor de 7.3 alineado |
 | [`arquitectura.md`](arquitectura.md) | Diagrama de módulos, secuencia de compra (aprobado/rechazado/vencido), límites de servicio y consistencia | P4/P5 | Día 3 a 9 | Listo; deuda conocida documentada |
-| [`modelo-datos.md`](modelo-datos.md) | ER por microservicio, claves, relaciones y entidades solapadas | P1/P2/P3/P5 | Día 5 | Listo (5.5) |
-| [`decisiones.md`](decisiones.md) | ADR cortas: decisión, alternativas y consecuencias | P4/P5 | Día 5 a 9 | Listo (ADR-001 a ADR-018) |
+| [`modelo-datos.md`](modelo-datos.md) | ER por microservicio, claves, relaciones y entidades solapadas | P1/P2/P3/P5 | Día 5 | Actualizado el Día 6 (10.6): delta de Entrega 2, fila Redis y notificaciones |
+| [`decisiones.md`](decisiones.md) | ADR cortas: decisión, alternativas y consecuencias | P4/P5 | Día 5 a 9 | Listo (ADR-001 a ADR-019) |
 | [`pruebas.md`](pruebas.md) | Estrategia, comandos y evidencia de concurrencia, suite, E2E, multi-instancia y carga | P5 | Día 5 a 9 | En revisión; incluye plan multi-instancia y estrategia de carga temprana |
 | [`evidencia/`](evidencia/) | Salidas de suite, E2E y clone limpio de los Días 4 a 9 | P5 | Día 4 a 9 | Listo hasta el Día 9; se agregan días 2, 3 y 5 de la Entrega 2 |
 | `../openspec/changes/entrega-1-core/` | Propuesta, specs, diseño y tareas del cambio | Todos | Día 0 | Listo |
