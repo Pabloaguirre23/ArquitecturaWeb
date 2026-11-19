@@ -13,14 +13,18 @@ Repositorio del curso: <https://github.com/Pabloaguirre23/ArquitecturaWeb> (este
 | `catalog-service` | 8081 | `catalog_db` (5433) | Lugares, sectores, eventos, precios, publicación y búsqueda |
 | `inventory-service` | 8082 | `inventory_db` (5434) | Disponibilidad, reservas temporales y no doble venta |
 | `orders-service` | 8083 | `orders_db` (5435) | Órdenes, pago mock, entradas/QR, devoluciones y cancelación |
+| `recommendation-service` | 8084 | `recommendation_db` (27017, MongoDB) | Preferencias, historial y recomendaciones |
+| `notification-service` | 8085 | `notification_db` (5436) | Esqueleto de notificaciones asíncronas |
+| `rabbitmq` | 5672 / 15672 | — | Bus de eventos (`orden.pagada` → historial) |
+| `queue-service` | 8086 | Redis 7 (6379) | Fila virtual. Esqueleto: health y conexión a Redis |
 
-Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**`; el cliente siempre entra por el gateway.
+Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**` y eventos por RabbitMQ; el cliente siempre entra por el gateway. `queue-service` guarda la fila en Redis.
 
 ## Requisitos
 
 - **Java 21** (Temurin recomendado)
 - **Maven 3.9+**
-- **Docker Desktop** (para PostgreSQL 16)
+- **Docker Desktop** (para PostgreSQL 16, MongoDB 7, RabbitMQ 3.13 y Redis 7)
 - Git
 
 Verificar:
@@ -46,7 +50,7 @@ docker compose -f docker-compose.dev.yml up -d
 docker compose -f docker-compose.dev.yml ps
 ```
 
-Las tres bases deben quedar `healthy`. Flyway aplica las migraciones al levantar cada servicio.
+Las tres bases PostgreSQL y MongoDB deben quedar `healthy`. Flyway aplica las migraciones al levantar cada servicio; MongoDB crea sus índices al arrancar `recommendation-service`.
 
 Para reiniciar sin datos:
 
@@ -55,14 +59,36 @@ docker compose -f docker-compose.dev.yml down -v
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-### 2. Servicios
+### 3. Todo con Docker (integral)
 
-En tres terminales distintas:
+El compose integral levanta las bases, Redis, MongoDB, RabbitMQ, los seis servicios y el
+gateway:
+
+```bash
+docker compose -f docker-compose.yml up -d --build
+docker compose -f docker-compose.yml ps
+curl http://localhost:8080/actuator/health
+```
+
+Solo el gateway publica el puerto `8080`; las bases y brokers quedan en la red interna de
+Docker. Para reiniciar sin datos:
+
+```bash
+docker compose -f docker-compose.yml down -v
+```
+
+`queue-service` y la UI opcional se agregan cuando se mergeen sus PRs.
+
+### 4. Servicios con Maven
+
+En cinco terminales distintas:
 
 ```bash
 cd catalog-service && mvn spring-boot:run
 cd inventory-service && mvn spring-boot:run
 cd orders-service && mvn spring-boot:run
+cd recommendation-service && mvn spring-boot:run
+cd notification-service && mvn spring-boot:run
 ```
 
 Verificar:
@@ -71,20 +97,24 @@ Verificar:
 curl http://localhost:8081/actuator/health
 curl http://localhost:8082/actuator/health
 curl http://localhost:8083/actuator/health
+curl http://localhost:8084/actuator/health
+curl http://localhost:8085/actuator/health
 ```
 
-### 3. Gateway
+### 5. Gateway
 
 ```bash
 cd api-gateway && mvn spring-boot:run
 curl http://localhost:8080/actuator/health
 ```
 
-### 4. Swagger
+### 6. Swagger
 
 - Catalog: <http://localhost:8081/swagger-ui.html>
 - Inventory: <http://localhost:8082/swagger-ui.html>
 - Orders: <http://localhost:8083/swagger-ui.html>
+- Recommendation: <http://localhost:8084/swagger-ui.html>
+- Notification: <http://localhost:8085/swagger-ui.html>
 
 OpenAPI crudo: `http://localhost:<puerto>/v3/api-docs`.
 
@@ -94,13 +124,22 @@ Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
 
 | Variable | Default | Uso |
 |---|---|---|
-| `SERVER_PORT` | 8081/8082/8083/8080 | Puerto del servicio |
+| `SERVER_PORT` | 8080/8081/8082/8083/8084 | Puerto del servicio |
 | `DB_URL` | `jdbc:postgresql://localhost:<5433/5434/5435>/<db>` | Conexión JDBC |
+| `NOTIFICATION_DB_URL` | `jdbc:postgresql://localhost:5436/notification_db` | Conexión JDBC de notification |
 | `DB_USER` | `ticketya` | Usuario de la base |
 | `DB_PASSWORD` | `ticketya` | Password de la base |
+| `MONGO_URI` | `mongodb://localhost:27017/recommendation_db` | Conexión MongoDB de recommendation |
+| `RABBITMQ_HOST` / `RABBITMQ_PORT` | `localhost` / `5672` | Broker de eventos |
+| `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | `ticketya` / `ticketya` | Credenciales del broker |
+| `INTERNAL_TOKEN` | `ticketya-internal-dev` | Token de los endpoints `/internal/**` |
+| `RECOMMENDATION_SEED_ENABLED` | `true` | Seed de preferencias e historial |
+| `RECOMMENDATION_QUEUE` | `recommendation.history` | Cola del consumidor de `orden.pagada` |
 | `CATALOG_URL` | `http://localhost:8081` | Gateway → catalog |
 | `INVENTORY_URL` | `http://localhost:8082` | Gateway → inventory |
 | `ORDERS_URL` | `http://localhost:8083` | Gateway → orders |
+| `RECOMMENDATION_URL` | `http://localhost:8084` | Gateway → recommendation |
+| `NOTIFICATION_URL` | `http://localhost:8085` | Gateway → notification |
 | `CATALOG_FINALIZACION_MS` | `60000` | Frecuencia del job de eventos vencidos |
 | `CATALOG_CANCELACIONES_MS` | `60000` | Frecuencia del reintento de cancelaciones |
 | `INVENTORY_VENCIMIENTO_MS` | `30000` | Frecuencia del job de reservas vencidas |
@@ -134,10 +173,14 @@ Sin headers, el gateway responde 401 en formato RFC 7807. El contrato completo e
 | `catalog-service/` | Eventos, lugares, sectores, búsqueda |
 | `inventory-service/` | Reservas y anti doble venta |
 | `orders-service/` | Compra, pago mock, QR, devoluciones |
+| `recommendation-service/` | Preferencias, historial y recomendaciones (MongoDB) |
+| `notification-service/` | Esqueleto de notificaciones (PostgreSQL + RabbitMQ) |
 | `api-gateway/` | Punto de entrada único |
+| `queue-service/` | Fila virtual sobre Redis |
 | `openspec/` | Especificaciones (propuesta → specs → diseño → tareas) |
 | `docs/` | Contrato, plan, checklist, arquitectura y briefs del equipo |
-| `docker-compose.dev.yml` | PostgreSQL 16 por servicio |
+| `docker-compose.dev.yml` | PostgreSQL 16 por servicio, MongoDB 7 y RabbitMQ 3.13 |
+| `docker-compose.yml` | Compose integral: seis servicios, gateway, PostgreSQL, MongoDB, RabbitMQ y Redis |
 
 ## Tests
 
@@ -158,8 +201,12 @@ Las pruebas de integración de catalog, concurrencia de inventory e idempotencia
 - [Cómo trabajamos](CONTRIBUTING.md)
 - [Plan día por día — Entrega 1](docs/plan-entrega-1.md)
 - [Checklist verificable de la Entrega 1](docs/checklist-entrega-1.md)
+- [Plan día por día — Entrega 2](docs/plan-entrega-2.md)
+- [Checklist verificable de la Entrega 2](docs/checklist-entrega-2.md)
+- [Briefs de la Entrega 2](docs/equipo/entrega-2/README.md)
 - [Índice de documentación](docs/README.md)
 - [Cambio OpenSpec de la Entrega 1](openspec/changes/entrega-1-core/)
+- [Cambio OpenSpec de la Entrega 2](openspec/changes/entrega-2-completo/)
 
 Reglas:
 
@@ -183,6 +230,10 @@ Entrega 1: núcleo implementado (publicación, búsqueda, compra con reserva y Q
 venta, devoluciones y cancelación). El estado verificable y las observaciones abiertas están
 en [`docs/checklist-entrega-1.md`](docs/checklist-entrega-1.md); la estrategia y la evidencia
 de pruebas, en [`docs/pruebas.md`](docs/pruebas.md).
+
+Entrega 2: planificación completa en [`openspec/changes/entrega-2-completo/`](openspec/changes/entrega-2-completo/)
+(propuesta, 15 specs, diseño y 64 tareas) y cronograma en [`docs/plan-entrega-2.md`](docs/plan-entrega-2.md).
+La implementación arranca el 13/11/2026 y la entrega está prevista para el 22/11/2026.
 
 Entrega: <https://github.com/Pabloaguirre23/ArquitecturaWeb/tree/main/TP-TicketYa>
 

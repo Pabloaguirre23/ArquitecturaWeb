@@ -6,9 +6,9 @@ public interface InventoryClient {
 
     ReservationDto obtenerReserva(UUID reservaId);
 
-    void confirmarReserva(UUID reservaId);
+    void confirmarReserva(UUID reservaId, String idempotencyKey);
 
-    void liberarReserva(UUID reservaId, String motivo);
+    void liberarReserva(UUID reservaId, String motivo, String idempotencyKey);
 
     void devolverItems(ReturnDto devolucion);
 }

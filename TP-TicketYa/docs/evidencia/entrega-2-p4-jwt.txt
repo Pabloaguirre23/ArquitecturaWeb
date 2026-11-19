@@ -1,0 +1,33 @@
+# Evidencia JWT en el gateway (P4, tareas 2.1 y 2.2)
+Fecha: 18/11/2026 15:37
+Entorno: solo el gateway levantado (sin Docker ni servicios). Un 500 significa que el
+filtro dejó pasar la petición y el servicio de destino no está levantado.
+
+## 401 sin token: GET /api/recommendations
+401
+## 401 con token inválido
+401
+## 401 con X-User-* sin token (ya no autentican)
+401
+
+## Login con credenciales inválidas (401)
+401
+## Login con datos incompletos (400)
+400
+## Login CLIENT (200)
+200
+{"token":"<omitido>","role":"CLIENT","email":"cliente@ticketya.test","nombre":"Cliente Demo","expiresAt":"2026-11-19T02:37:47.158782Z"}
+
+## CLIENT pasa el filtro: GET /api/recommendations (500 = servicio no levantado)
+500
+## 403 con token ORGANIZER: GET /api/recommendations
+403
+## 403 con token CLIENT y X-User-Role: ADMIN falsificado: POST /api/catalog/venues
+403
+## Lectura pública sin token pasa el filtro: GET /api/catalog/events (500 = servicio no levantado)
+500
+## 404 endpoint interno por el gateway: GET /internal/preferences/{id}
+404
+
+## Nota: el 200 de punta a punta con un servicio real queda cubierto por
+## HeaderPropagationTest (servidor simulado) y se repite con el compose cuando haya Docker.

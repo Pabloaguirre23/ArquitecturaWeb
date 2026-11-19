@@ -32,6 +32,12 @@ public class Reserva {
     @Column(name = "expires_at", nullable = false)
     private OffsetDateTime expiresAt;
 
+    @Column(name = "queue_jti")
+    private UUID queueJti;
+
+    @Column(nullable = false, length = 20)
+    private String origen = "DIRECTA";
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -76,6 +82,22 @@ public class Reserva {
 
     public void setExpiresAt(OffsetDateTime expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public UUID getQueueJti() {
+        return queueJti;
+    }
+
+    public void setQueueJti(UUID queueJti) {
+        this.queueJti = queueJti;
+    }
+
+    public String getOrigen() {
+        return origen;
+    }
+
+    public void setOrigen(String origen) {
+        this.origen = origen;
     }
 
     public OffsetDateTime getCreatedAt() {

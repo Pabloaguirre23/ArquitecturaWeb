@@ -1,0 +1,91 @@
+# Estabilización del Día 7 — P1 Iván (17/11/2026)
+
+Rama: `feat/entrega-2-p1-ivan-dia-5`
+PR: <https://github.com/Pabloaguirre23/ArquitecturaWeb/pull/27>
+Base del PR: `feat/entrega-2-dia-1`
+
+## Commits de código y documentación
+
+- `0dc2b6b` — `fix(notification): alinear OpenAPI con el contrato runtime (8.4)`
+- `3b93747` — `docs(catalog): corregir OpenAPI, caché, outbox y estado FAILED (3.7)`
+- `dd78240` — `docs(notification): documentar reintentos y converger contrato (8.4)`
+- Este archivo y `tasks.md` se agregan en un commit posterior de evidencia; no cambian código,
+  tests, contratos ni artefactos OpenAPI.
+
+## Entorno
+
+- Windows, Java 21.0.13, Maven 3.9.9.
+- Docker no disponible en el entorno local: se omiten los tests con Testcontainers
+  (`disabledWithoutDocker = true`). En CI con Docker esos tests se ejecutan.
+- Sin secretos, `.env` ni directorios `target/` versionados.
+
+## Comandos y resultados
+
+```bash
+cd catalog-service && mvn test
+cd ../notification-service && mvn test
+```
+
+| Servicio | Resultado |
+|---|---|
+| catalog-service | `Tests run: 132, Failures: 0, Errors: 0, Skipped: 8` — `BUILD SUCCESS` |
+| notification-service | `Tests run: 51, Failures: 0, Errors: 0, Skipped: 1` — `BUILD SUCCESS` |
+
+Los 9 omitidos son exclusivamente los tests de integración con Testcontainers
+(PostgreSQL/Redis en catalog, PostgreSQL/RabbitMQ en notification).
+
+## Qué se estabilizó
+
+### notification-service
+
+- El OpenAPI exportado ahora es determinista: dos corridas consecutivas de
+  `mvn test` dejan `openapi/notification-openapi.json` sin cambios.
+- El customizer deja de reemplazar ciegamente todo contenido 4xx/5xx por el código
+  de estado y genera ejemplos por operación:
+  - `X-User-Id` y `X-User-Role` aparecen como headers obligatorios (el runtime
+    mantiene `required = false` para poder responder su propio `401`).
+  - `instance` apunta a `/api/notifications` o a `/api/notifications/{notificacionId}`
+    según el endpoint.
+  - Los `detail` coinciden con `RequestIdentity` y `ConsultaNotificacionService`.
+  - `GET /api/notifications/{id}` documenta `400 VALIDATION_ERROR` para UUID inválido.
+  - `proximoReintento` y `enviadaAt` se publican como anulables en OpenAPI 3.1.
+- `NotificacionControllerTest` cubre detalle sin identidad (401), inexistente (404)
+  y con UUID mal formado (400). `OpenApiExportTest` valida los valores anteriores,
+  no solo la existencia de nodos.
+- README y `docs/api-contract.md` §7 documentan el scheduler `reenviarPendientes()`
+  cada `NOTIFICATION_RETRY_POLL_MS` (default `10000`), el backoff lineal y el
+  estado `FALLIDA` tras `NOTIFICATION_MAX_ATTEMPTS`.
+
+### catalog-service
+
+- El esquema `ProblemDetail` usa `errors[]` con objetos `{field, message}` y
+  `type` con `https://ticketya.local/errors/<code>`, igual que el runtime.
+- Los ejemplos por endpoint conservan códigos reales: `VENUE_NOT_FOUND` en el
+  detalle de lugar, `EVENT_NOT_CANCELLABLE` al cancelar y `INVENTORY_UNAVAILABLE`
+  al publicar. Los headers de identidad y `X-Internal-Token` aparecen como
+  obligatorios cuando el endpoint los exige.
+- README y `docs/api-contract.md` §3 documentan:
+  - Los tres TTL reales (`CATALOG_CACHE_VENUE_TTL`, `CATALOG_CACHE_EVENT_DETAIL_TTL`,
+    `CATALOG_CACHE_SEARCH_TTL`) en lugar del `CATALOG_CACHE_TTL` obsoleto.
+  - `outbox_event`, los estados `PENDING`/`PUBLISHED`/`FAILED`, `V8__outbox_failed_status.sql`,
+    el backoff y el sobre compartido `docs/ejemplos/evento-publicado.json` (§3.15).
+  - La auditoría best-effort de publicación, edición y cancelación (§3.16).
+  - La corrección de dos afirmaciones obsoletas: reabrir la fila no usa motivo
+    `FINALIZADO`, y un fallo al avisar a orders al cancelar responde `200` con
+    `cancelacionPendiente: true`, no `502 ORDERS_UNAVAILABLE`.
+- `OpenApiExportTest` verifica la forma del esquema y los ejemplos por endpoint.
+
+## Contratos y archivos generados
+
+- `openapi/catalog-openapi.json` y `openapi/notification-openapi.json` se
+  regeneraron ejecutando los tests; no se editaron a mano.
+- `docs/api-contract.md` conserva un único catálogo de errores coherente con el
+  código (se agregó `SECTOR_ALREADY_EXISTS` y se quitó `ORDERS_UNAVAILABLE`).
+
+## Verificación posterior
+
+- `git status --short` sin cambios después de la última corrida de tests.
+- Sin cambios en servicios fuera del alcance P1 (inventory, orders, queue,
+  recommendation o api-gateway).
+- CI del PR no ejecuta checks locales porque el workflow raíz solo dispara al
+  mergear a `main`; la evidencia de las suites queda registrada aquí y en el PR.

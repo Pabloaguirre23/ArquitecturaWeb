@@ -1,7 +1,11 @@
 package ar.edu.unicen.ticketya.inventory.web;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -62,7 +66,7 @@ class InventoryControllerTest {
                 List.of(new ReservationResponse.Item(sectorId, asientoId, 1,
                         new BigDecimal("15000"), new BigDecimal("15000"))),
                 new BigDecimal("15000"));
-        when(reservaService.reservar(any(ReservaRequest.class), any())).thenReturn(response);
+        when(reservaService.reservar(any(ReservaRequest.class), any(), nullable(String.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/inventory/reservations")
                         .header("X-User-Id", CLIENTE)
@@ -75,5 +79,31 @@ class InventoryControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(reservaId.toString()))
                 .andExpect(jsonPath("$.total").value(15000));
+    }
+
+    @Test
+    void unOrganizadorNoReservaNiConsultaNiCancela() throws Exception {
+        String reserva = "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e";
+        mockMvc.perform(post("/api/inventory/reservations")
+                        .header("X-User-Id", CLIENTE)
+                        .header("X-User-Role", "ORGANIZER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"eventoId":"11111111-1111-4111-8111-111111111111",
+                                 "items":[{"sectorId":"22222222-2222-4222-8222-222222222222","cantidad":1}]}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(get("/api/inventory/reservations/" + reserva)
+                        .header("X-User-Id", CLIENTE)
+                        .header("X-User-Role", "ORGANIZER"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(delete("/api/inventory/reservations/" + reserva)
+                        .header("X-User-Id", CLIENTE)
+                        .header("X-User-Role", "ORGANIZER"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        verifyNoInteractions(reservaService);
     }
 }

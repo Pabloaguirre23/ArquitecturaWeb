@@ -285,6 +285,11 @@ erDiagram
 | `devolucion` | `entrada_id` → `entrada` | `estado` en `PENDIENTE`/`PROCESANDO`/`APROBADA`/`RECHAZADA`; índice único parcial `uq_devolucion_abierta`: una sola devolución abierta por entrada |
 | `idempotency_key` | `key` PK | `estado` en `EN_PROCESO`/`COMPLETADA`; `request_hash` detecta cuerpo distinto; `response_status`/`response_body` guardan la respuesta original; `expires_at` para limpieza |
 
+La migración 6.1 agrega a `orden` el snapshot `evento_tipo`, `evento_artistas` y
+`evento_ciudad` (además de los existentes `evento_nombre`/`evento_fecha`) para publicar
+`orden.pagada` completo, según ADR-017 y [`eventos.md`](eventos.md). El origen es el snapshot
+de catalog hacia inventory, que inventory devuelve en la reserva.
+
 Índices: `idx_orden_cliente` (listado propio), `idx_orden_evento` (cancelación de evento), `idx_pago_orden`, `idx_entrada_cliente`, `idx_entrada_evento`, `idx_devolucion_estado` e `idx_idempotency_expira`.
 
 ### Entidades solapadas con otras bases
@@ -299,7 +304,43 @@ erDiagram
 - `OrderIdempotencyIntegrationTest` valida el esquema y la idempotencia concurrente contra PostgreSQL real (Testcontainers).
 - `DevolucionServiceTest`, `OrderQueryServiceTest` y `TicketServiceTest` cubren las transiciones y el aislamiento por cliente.
 
-## 4. Entidades solapadas entre bases
+## 4. recommendation-service (`recommendation_db`, MongoDB)
+
+MongoDB se usa para preferencias e historial porque los documentos tienen listas variables
+(`tipos[]`, `artistas[]`) y las recomendaciones necesitan agregaciones por cliente, evento,
+tipo, artista y ciudad sin migraciones rígidas.
+
+| Colección | Documento | Índices | Uso |
+|---|---|---|---|
+| `preferencias` | `{_id, clienteId, tipos[], artistas[], ciudad, actualizadoEn}` | único `clienteId` (`uk_preferencias_cliente`); `ciudad` (`idx_preferencias_ciudad`) | Gustos declarados por el cliente; como máximo un documento por cliente |
+| `historial_compras` | `{_id, eventId, eventoId, clienteId, tipo, artistas[], ciudad, fechaEvento, ordenId, registradoEn}` | único `(eventId, clienteId, eventoId)` (`uk_historial_evento_cliente_evento`); `(clienteId, fechaEvento)`; `(eventoId, clienteId)` | Compras pagadas para recomendaciones y co-compra; idempotencia por `eventId` |
+| `eventos_vistos` | `{_id: eventoId, nombre, tipo, artistas[], ciudad, fechaEvento, estado, actualizadoEn}` | `(ciudad, tipo)`; `fechaEvento` | Snapshot mínimo para fallback de populares y motivos sin consultar catalog en cada request |
+
+Índices y seed se crean al arrancar el servicio (`MongoIndexInitializer` y
+`RecommendationSeedRunner`); el seed usa `$setOnInsert` para no pisar cambios del cliente.
+`spring.data.mongodb.auto-index-creation` está deshabilitado.
+
+### Reglas y constraints
+
+- Un `clienteId` tiene como máximo un documento en `preferencias`; el índice único lo garantiza.
+- El historial no duplica una compra: la clave `(eventId, clienteId, eventoId)` es única.
+- `eventos_vistos._id` es el `eventoId` del catálogo.
+- El historial se alimenta con `orden.pagada` mediante un upsert con `$setOnInsert`; un
+  duplicado del mismo `eventId` no cambia el documento y `orden.reintegrada` no se registra.
+- El servicio solo lee y escribe su propia base; los datos de eventos llegan por eventos de
+  dominio y los candidatos publicados se consultan a catalog en la tarea 7.4.
+
+### Validación contra el código
+
+- `MongoIndexInitializer` crea los índices de la tabla anterior.
+- `RecommendationMongoIntegrationTest` (Testcontainers `mongo:7`) verifica índices, seed,
+  preferencias y el registro idempotente del historial.
+- `RecommendationRabbitIntegrationTest` (Testcontainers `mongo:7` + `rabbitmq:3.13`) verifica
+  que `orden.pagada` se consuma una sola vez y que un reintegro no entre al historial.
+- `PreferenceServiceTest`, `RecommendationServiceTest`, `HistorialServiceTest` y los tests de
+  controllers cubren validación, ranking, fallback y ownership.
+
+## 5. Entidades solapadas entre bases
 
 | Dato | Dueño | Copia / referencia | Para qué |
 |---|---|---|---|
@@ -307,7 +348,9 @@ erDiagram
 | `sector.id` | catalog | `sector_inventario.sector_id`, `orden_item.sector_id`, `entrada.sector_id` | Disponibilidad y snapshot de compra |
 | `asiento.id` | catalog | `asiento_inventario.asiento_id`, `orden_item.asiento_id`, `entrada.asiento_id` | No doble venta y QR por lugar |
 | `evento.nombre` / `evento.fecha` | catalog | `evento_inventario`, `orden`, `entrada` | Consultas y devoluciones sin llamada cruzada |
+| `evento.tipo` / `artistas` / `ciudad` | catalog | `evento_inventario`, `orden` (migración 6.1) | Ranking de recomendaciones y payload de `orden.pagada` |
 | `reserva.id` | inventory | `orden.reserva_id` | Confirmar, liberar o devolver la reserva |
-| `cliente_id` / `organizador_id` | identidad (fuera de las bases) | `reserva.cliente_id`, `orden.cliente_id`, `entrada.cliente_id`, `evento.organizador_id` | Autorización y consultas propias |
+| `cliente_id` / `organizador_id` | identidad (fuera de las bases) | `reserva.cliente_id`, `orden.cliente_id`, `entrada.cliente_id`, `evento.organizador_id`, `preferencias.clienteId`, `historial_compras.clienteId` | Autorización y consultas propias |
+| `evento.id`, `tipo`, `artistas`, `ciudad`, `fecha` | catalog | `eventos_vistos`, `historial_compras` y eventos de dominio | Recomendaciones y motivos sin llamada cruzada |
 
 Regla de integración: ninguna base tiene FK contra otra. La consistencia se mantiene con snapshots inmutables al momento de la compra y endpoints internos idempotentes (`publicar`, `confirm`, `release`, `returns`, `cancel`). Los diagramas de flujo están en [`arquitectura.md`](arquitectura.md) y las decisiones en [`decisiones.md`](decisiones.md).

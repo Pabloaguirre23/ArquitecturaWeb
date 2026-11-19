@@ -19,6 +19,18 @@ spring:
           uri: ${ORDERS_URL:http://localhost:8083}
           predicates:
             - Path=/api/orders/**
+        - id: recommendation-service
+          uri: ${RECOMMENDATION_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/recommendations/**
+        - id: notification-service
+          uri: ${NOTIFICATION_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/notifications/**
+        - id: queue-service
+          uri: ${QUEUE_URL:http://localhost:8086}
+          predicates:
+            - Path=/api/queue/**
 
 management:
   endpoints:
@@ -28,3 +40,9 @@ management:
   endpoint:
     health:
       show-details: always
+
+ticketya:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:ticketya-dev-secret-change-me-32-bytes-min!!}
+      ttl: ${JWT_TTL:8h}

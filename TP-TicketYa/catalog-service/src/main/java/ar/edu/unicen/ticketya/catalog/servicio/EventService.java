@@ -8,6 +8,8 @@ import ar.edu.unicen.ticketya.catalog.dominio.EventoSectorPrecio;
 import ar.edu.unicen.ticketya.catalog.dominio.Lugar;
 import ar.edu.unicen.ticketya.catalog.dominio.Sector;
 import ar.edu.unicen.ticketya.catalog.dominio.TipoEvento;
+import ar.edu.unicen.ticketya.catalog.config.CacheConfig;
+import ar.edu.unicen.ticketya.catalog.eventos.CatalogEvents;
 import ar.edu.unicen.ticketya.catalog.repositorio.AsientoRepository;
 import ar.edu.unicen.ticketya.catalog.repositorio.EventoParticipanteRepository;
 import ar.edu.unicen.ticketya.catalog.repositorio.EventoRepository;
@@ -17,14 +19,18 @@ import ar.edu.unicen.ticketya.catalog.repositorio.SectorRepository;
 import ar.edu.unicen.ticketya.catalog.web.ApiException;
 import ar.edu.unicen.ticketya.catalog.web.dto.CancelacionResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.CrearEventoRequest;
+import ar.edu.unicen.ticketya.catalog.web.dto.EditarEventoRequest;
 import ar.edu.unicen.ticketya.catalog.web.dto.EventoBusquedaResponse;
+import ar.edu.unicen.ticketya.catalog.web.dto.EventoCandidatoResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.EventoDetalleResponse;
+import ar.edu.unicen.ticketya.catalog.web.dto.EventoReporteResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.EventoResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.Fechas;
 import ar.edu.unicen.ticketya.catalog.web.dto.PageResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.PrecioRequest;
 import ar.edu.unicen.ticketya.catalog.web.dto.PrecioResponse;
 import ar.edu.unicen.ticketya.catalog.web.dto.SectorDetalleResponse;
+import ar.edu.unicen.ticketya.catalog.web.dto.SectorReporteResponse;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -35,7 +41,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -64,7 +72,10 @@ public class EventService {
     private final EventoSectorPrecioRepository precioRepository;
     private final InventoryClient inventoryClient;
     private final OrdersClient ordersClient;
+    private final QueueClient queueClient;
     private final Clock clock;
+    private final CatalogCacheService catalogCacheService;
+    private final OutboxService outboxService;
 
     public EventService(EventoRepository eventoRepository,
                         LugarRepository lugarRepository,
@@ -74,7 +85,11 @@ public class EventService {
                         EventoSectorPrecioRepository precioRepository,
                         InventoryClient inventoryClient,
                         OrdersClient ordersClient,
-                        Clock clock) {
+                        QueueClient queueClient,
+                        Clock clock,
+                        CatalogCacheService catalogCacheService,
+                        OutboxService outboxService) {
+
         this.eventoRepository = eventoRepository;
         this.lugarRepository = lugarRepository;
         this.sectorRepository = sectorRepository;
@@ -83,7 +98,10 @@ public class EventService {
         this.precioRepository = precioRepository;
         this.inventoryClient = inventoryClient;
         this.ordersClient = ordersClient;
+        this.queueClient = queueClient;
         this.clock = clock;
+        this.catalogCacheService = catalogCacheService;
+        this.outboxService = outboxService;
     }
 
     @Transactional
@@ -105,6 +123,7 @@ public class EventService {
         if (request.limitePorCliente() != null) {
             evento.setLimitePorCliente(request.limitePorCliente());
         }
+        evento.setAltaDemanda(Boolean.TRUE.equals(request.altaDemanda()));
         evento = eventoRepository.save(evento);
 
         UUID eventoId = evento.getId();
@@ -137,11 +156,16 @@ public class EventService {
                 .orElseGet(() -> new EventoSectorPrecio(eventoId, sectorId, request.precio()));
         precio.setPrecio(request.precio());
         precio = precioRepository.save(precio);
+        invalidarCachesEvento(eventoId);
         return new PrecioResponse(precio.getEventoId(), precio.getSectorId(), precio.getPrecio());
     }
 
-    @Transactional
     public EventoResponse publicar(UUID eventoId, UUID organizadorId) {
+        return publicar(eventoId, organizadorId, null);
+    }
+
+    @Transactional
+    public EventoResponse publicar(UUID eventoId, UUID organizadorId, String correlationId) {
         Evento evento = buscarEvento(eventoId);
         requireOwner(evento, organizadorId);
         if (evento.getEstado() != EstadoEvento.BORRADOR) {
@@ -163,17 +187,21 @@ public class EventService {
                     "Todos los sectores del lugar deben tener precio antes de publicar", faltantes);
         }
 
-        InventorySnapshot snapshot = armarSnapshot(evento, sectores, precios);
+        long nuevaVersion = evento.getInventarioVersion() + 1;
+        InventorySnapshot snapshot = armarSnapshot(evento, sectores, precios, nuevaVersion);
         try {
             inventoryClient.publicarInventario(snapshot);
         } catch (RuntimeException ex) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "INVENTORY_UNAVAILABLE",
                     "No se pudo confirmar el inventario del evento; el evento sigue en borrador", List.of());
         }
-
+        evento.setInventarioVersion(nuevaVersion);
         evento.setEstado(EstadoEvento.PUBLICADO);
         evento = eventoRepository.save(evento);
         Lugar lugar = lugarRepository.findById(evento.getLugarId()).orElseThrow();
+        registrarEventoOutbox(CatalogEvents.EVENTO_PUBLICADO, evento, correlationId);
+        invalidarCachesEvento(eventoId);
+        abrirFilaSiCorresponde(evento);
         return EventoResponse.from(evento, lugar.getNombre(), lugar.getCiudad(),
                 participanteRepository.findByEventoIdOrderByNombreAsc(eventoId).stream()
                         .map(EventoParticipante::getNombre).toList(),
@@ -182,61 +210,189 @@ public class EventService {
                         .toList());
     }
 
+    public EventoResponse editarEvento(UUID eventoId, EditarEventoRequest request, UUID organizadorId) {
+        return editarEvento(eventoId, request, organizadorId, null);
+    }
+
+    @Transactional
+    public EventoResponse editarEvento(UUID eventoId, EditarEventoRequest request, UUID organizadorId,
+                                       String correlationId) {
+        Evento evento = buscarEvento(eventoId);
+        requireOwner(evento, organizadorId);
+        if (evento.getEstado() == EstadoEvento.CANCELADO || evento.getEstado() == EstadoEvento.FINALIZADO) {
+            throw ApiException.conflict("EVENT_NOT_EDITABLE",
+                    "No se puede editar un evento " + evento.getEstado().name().toLowerCase());
+        }
+        boolean publicado = evento.getEstado() == EstadoEvento.PUBLICADO
+                || evento.getEstado() == EstadoEvento.AGOTADO;
+
+        if (request.fecha() != null) {
+            if (!request.fecha().isAfter(OffsetDateTime.now(clock))) {
+                throw validacion("fecha", "debe ser una fecha futura");
+            }
+            evento.setFecha(request.fecha());
+        }
+        if (request.nombre() != null) {
+            String nombre = request.nombre().trim();
+            if (nombre.isEmpty()) {
+                throw validacion("nombre", "no puede estar vacío");
+            }
+            evento.setNombre(nombre);
+        }
+        if (request.descripcion() != null) {
+            evento.setDescripcion(request.descripcion());
+        }
+        if (request.tipo() != null) {
+            evento.setTipo(request.tipo());
+        }
+        if (request.limitePorCliente() != null) {
+            if (request.limitePorCliente() <= 0) {
+                throw validacion("limitePorCliente", "debe ser mayor a cero");
+            }
+            evento.setLimitePorCliente(request.limitePorCliente());
+        }
+        if (request.altaDemanda() != null && request.altaDemanda() != evento.isAltaDemanda()) {
+            if (evento.getEstado() != EstadoEvento.BORRADOR) {
+                throw ApiException.conflict("EVENT_NOT_EDITABLE",
+                        "La marca de alta demanda solo se puede cambiar antes de publicar");
+            }
+            evento.setAltaDemanda(request.altaDemanda());
+        }
+        if (request.lugarId() != null && !request.lugarId().equals(evento.getLugarId())) {
+            Lugar nuevoLugar = lugarRepository.findById(request.lugarId())
+                    .orElseThrow(() -> ApiException.notFound("VENUE_NOT_FOUND",
+                            "No existe el lugar " + request.lugarId()));
+            if (publicado) {
+                throw ApiException.conflict("EVENT_NOT_EDITABLE",
+                        "No se puede cambiar el lugar de un evento publicado con inventario activo");
+            }
+            evento.setLugarId(nuevoLugar.getId());
+        }
+
+        if (request.participantes() != null) {
+            if (request.participantes().isEmpty()) {
+                throw validacion("participantes", "debe tener al menos un participante");
+            }
+            participanteRepository.deleteByEventoId(eventoId);
+            List<EventoParticipante> participantes = request.participantes().stream()
+                    .map(String::trim)
+                    .map(nombre -> new EventoParticipante(eventoId, nombre))
+                    .toList();
+            participanteRepository.saveAll(participantes);
+        }
+
+        List<EventoParticipante> participantes = participanteRepository
+                .findByEventoIdOrderByNombreAsc(eventoId);
+        List<EventoSectorPrecio> precios = precioRepository.findByEventoId(eventoId);
+
+        if (publicado) {
+            List<Sector> sectores = sectorRepository.findByLugarIdOrderByNombreAsc(evento.getLugarId());
+            Map<UUID, EventoSectorPrecio> preciosPorSector = precios.stream()
+                    .collect(Collectors.toMap(EventoSectorPrecio::getSectorId, Function.identity()));
+            List<Map<String, Object>> faltantes = sectores.stream()
+                    .filter(sector -> !preciosPorSector.containsKey(sector.getId()))
+                    .map(sector -> Map.<String, Object>of(
+                            "field", "sectorId",
+                            "message", "falta el precio de " + sector.getNombre()))
+                    .toList();
+            if (sectores.isEmpty() || !faltantes.isEmpty()) {
+                throw new ApiException(HttpStatus.CONFLICT, "EVENT_INCOMPLETE",
+                        "Todos los sectores del lugar deben tener precio antes de editar el inventario",
+                        faltantes);
+            }
+
+            long nuevaVersion = evento.getInventarioVersion() + 1;
+            InventorySnapshot snapshot = armarSnapshot(evento, sectores, preciosPorSector, nuevaVersion);
+            try {
+                inventoryClient.publicarInventario(snapshot);
+            } catch (RuntimeException ex) {
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "INVENTORY_UNAVAILABLE",
+                        "No se pudo actualizar el inventario del evento", List.of());
+            }
+            evento.setInventarioVersion(nuevaVersion);
+        }
+
+        evento = eventoRepository.save(evento);
+        Lugar lugar = lugarRepository.findById(evento.getLugarId())
+                .orElseThrow(() -> ApiException.notFound("VENUE_NOT_FOUND", "No existe el lugar del evento"));
+        if (publicado) {
+            registrarEventoOutbox(CatalogEvents.EVENTO_ACTUALIZADO, evento, correlationId);
+            abrirFilaSiCorresponde(evento);
+        }
+        invalidarCachesEvento(eventoId);
+        return EventoResponse.from(evento, lugar.getNombre(), lugar.getCiudad(),
+                participantes.stream().map(EventoParticipante::getNombre).toList(),
+                precios.stream()
+                        .map(precio -> new PrecioResponse(precio.getEventoId(), precio.getSectorId(),
+                                precio.getPrecio()))
+                        .toList());
+    }
+
+    public CatalogCacheService.CacheResult<EventoDetalleResponse> detalleCacheable(UUID eventoId) {
+        CatalogCacheService.CacheResult<EventoDetalleEstatico> estatico = catalogCacheService.getOrLoad(
+                CacheConfig.EVENT_DETAIL_STATIC, eventoId,
+                () -> cargarDetalleEstatico(eventoId));
+        Map<UUID, Integer> disponibilidad = obtenerDisponibilidad(eventoId);
+        EventoDetalleResponse response = componerDetalle(estatico.value(), disponibilidad);
+        return new CatalogCacheService.CacheResult<>(response, estatico.header());
+    }
+
     @Transactional(readOnly = true)
-    public EventoDetalleResponse detalle(UUID eventoId) {
+    public EventoDetalleEstatico cargarDetalleEstatico(UUID eventoId) {
         Evento evento = buscarEvento(eventoId);
         if (evento.getEstado() != EstadoEvento.PUBLICADO && evento.getEstado() != EstadoEvento.AGOTADO) {
             throw ApiException.notFound("EVENT_NOT_FOUND", "No existe un evento visible con id " + eventoId);
         }
         Lugar lugar = lugarRepository.findById(evento.getLugarId())
                 .orElseThrow(() -> ApiException.notFound("VENUE_NOT_FOUND", "No existe el lugar del evento"));
+        Map<UUID, Sector> sectores = sectorRepository.findByLugarIdOrderByNombreAsc(evento.getLugarId()).stream()
+                .collect(Collectors.toMap(Sector::getId, Function.identity(), (a, b) -> a, LinkedHashMap::new));
+        List<EventoDetalleEstatico.SectorEstatico> sectoresResponse = new ArrayList<>();
+        precioRepository.findByEventoId(eventoId).forEach(precio -> {
+            Sector sector = sectores.get(precio.getSectorId());
+            if (sector != null) {
+                sectoresResponse.add(new EventoDetalleEstatico.SectorEstatico(
+                        sector.getId(), sector.getNombre(), sector.getTipo(),
+                        precio.getPrecio(), sector.getCapacidad()));
+            }
+        });
+        List<String> participantes = participanteRepository.findByEventoIdOrderByNombreAsc(eventoId).stream()
+                .map(EventoParticipante::getNombre).toList();
+        return new EventoDetalleEstatico(
+                evento.getId(), evento.getNombre(), evento.getDescripcion(), evento.getTipo(),
+                evento.getLugarId(), lugar.getNombre(), lugar.getCiudad(), evento.getOrganizadorId(),
+                Fechas.argentina(evento.getFecha()), evento.getEstado(), evento.getLimitePorCliente(),
+                evento.isAltaDemanda(), participantes, sectoresResponse);
+    }
 
-        Map<UUID, Integer> disponibilidad;
+    private Map<UUID, Integer> obtenerDisponibilidad(UUID eventoId) {
         try {
-            disponibilidad = inventoryClient.obtenerDisponibilidad(eventoId);
+            return inventoryClient.obtenerDisponibilidad(eventoId);
         } catch (RuntimeException ex) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "INVENTORY_UNAVAILABLE",
                     "No se pudo obtener la disponibilidad del evento", List.of());
         }
+    }
 
-        Map<UUID, Sector> sectores = sectorRepository.findByLugarIdOrderByNombreAsc(evento.getLugarId()).stream()
-                .collect(Collectors.toMap(Sector::getId, Function.identity(), (a, b) -> a, LinkedHashMap::new));
-        Map<UUID, BigDecimal> precios = precioRepository.findByEventoId(eventoId).stream()
-                .collect(Collectors.toMap(EventoSectorPrecio::getSectorId, EventoSectorPrecio::getPrecio));
-
-        List<SectorDetalleResponse> sectoresResponse = new ArrayList<>();
-        precios.forEach((sectorId, precio) -> {
-            Sector sector = sectores.get(sectorId);
-            if (sector != null) {
-                sectoresResponse.add(new SectorDetalleResponse(
-                        sector.getId(),
-                        sector.getNombre(),
-                        sector.getTipo(),
-                        precio,
-                        sector.getCapacidad(),
-                        disponibilidad.getOrDefault(sectorId, 0)));
-            }
-        });
-
+    private EventoDetalleResponse componerDetalle(EventoDetalleEstatico estatico, Map<UUID, Integer> disponibilidad) {
+        List<SectorDetalleResponse> sectores = estatico.sectores().stream()
+                .map(s -> new SectorDetalleResponse(s.sectorId(), s.nombre(), s.tipo(), s.precio(),
+                        s.capacidad(), disponibilidad.getOrDefault(s.sectorId(), 0)))
+                .toList();
         return new EventoDetalleResponse(
-                evento.getId(),
-                evento.getNombre(),
-                evento.getDescripcion(),
-                evento.getTipo(),
-                evento.getLugarId(),
-                lugar.getNombre(),
-                lugar.getCiudad(),
-                evento.getOrganizadorId(),
-                ar.edu.unicen.ticketya.catalog.web.dto.Fechas.argentina(evento.getFecha()),
-                evento.getEstado(),
-                evento.getLimitePorCliente(),
-                participanteRepository.findByEventoIdOrderByNombreAsc(eventoId).stream()
-                        .map(EventoParticipante::getNombre).toList(),
-                sectoresResponse);
+                estatico.id(), estatico.nombre(), estatico.descripcion(), estatico.tipo(),
+                estatico.lugarId(), estatico.lugarNombre(), estatico.ciudad(), estatico.organizadorId(),
+                estatico.fecha(), estatico.estado(), estatico.limitePorCliente(), estatico.altaDemanda(),
+                estatico.participantes(), sectores);
+    }
+
+
+    public CancelacionResponse cancelar(UUID eventoId) {
+        return cancelar(eventoId, null);
     }
 
     @Transactional
-    public CancelacionResponse cancelar(UUID eventoId) {
+    public CancelacionResponse cancelar(UUID eventoId, String correlationId) {
         Evento evento = buscarEvento(eventoId);
         if (evento.getEstado() == EstadoEvento.CANCELADO || evento.getEstado() == EstadoEvento.FINALIZADO) {
             throw ApiException.conflict("EVENT_NOT_CANCELLABLE",
@@ -264,6 +420,7 @@ public class EventService {
                 inventarioOk = false;
                 log.warn("No se pudo frenar la venta del evento {} en inventory; queda pendiente", eventoId, ex);
             }
+            cerrarFilaSiCorresponde(evento, "CANCELADO");
         }
         // Solo se avisa a orders después de cerrar la venta en inventory: si inventory
         // falla, no se reintegran entradas mientras el evento todavía se puede comprar.
@@ -277,6 +434,8 @@ public class EventService {
         }
         evento.setCancelacionPendiente(pendiente);
         evento = eventoRepository.save(evento);
+        registrarEventoOutbox(CatalogEvents.EVENTO_CANCELADO, evento, correlationId);
+        invalidarCachesEvento(eventoId);
         return new CancelacionResponse(evento.getId(), evento.getEstado(), evento.isCancelacionPendiente());
     }
 
@@ -303,6 +462,12 @@ public class EventService {
             evento.setEstado(EstadoEvento.PUBLICADO);
         }
         eventoRepository.save(evento);
+        invalidarCachesEvento(eventoId);
+        if (agotado) {
+            cerrarFilaSiCorresponde(evento, "AGOTADO");
+        } else {
+            abrirFilaSiCorresponde(evento);
+        }
     }
 
     @Transactional
@@ -314,6 +479,7 @@ public class EventService {
             try {
                 inventoryClient.actualizarEstado(evento.getId(), "FINALIZADO");
                 evento.setEstado(EstadoEvento.FINALIZADO);
+                cerrarFilaSiCorresponde(evento, "FINALIZADO");
                 cerrados.add(evento);
             } catch (HttpClientErrorException ex) {
                 int status = ex.getStatusCode().value();
@@ -321,6 +487,7 @@ public class EventService {
                     log.warn("Inventory ya estaba terminal o no tenía el evento {}; se finaliza en catálogo igual",
                             evento.getId(), ex);
                     evento.setEstado(EstadoEvento.FINALIZADO);
+                    cerrarFilaSiCorresponde(evento, "FINALIZADO");
                     cerrados.add(evento);
                 } else {
                     log.warn("Inventory rechazó la finalización del evento {}; queda {} para reintentar",
@@ -333,6 +500,7 @@ public class EventService {
         }
         if (!cerrados.isEmpty()) {
             eventoRepository.saveAll(cerrados);
+            cerrados.forEach(e -> invalidarCachesEvento(e.getId()));
         }
         return cerrados.size();
     }
@@ -369,12 +537,21 @@ public class EventService {
                 }
             }
             if (ok) {
+                cerrarFilaSiCorresponde(evento, "CANCELADO");
                 evento.setCancelacionPendiente(false);
                 eventoRepository.save(evento);
                 reintentadas++;
             }
         }
         return reintentadas;
+    }
+
+    public CatalogCacheService.CacheResult<PageResponse<EventoBusquedaResponse>> buscarCacheable(
+            TipoEvento tipo, UUID organizadorId, String participante, String ciudad,
+            OffsetDateTime fechaDesde, OffsetDateTime fechaHasta, String orden, int page, int size) {
+        String key = searchKey(tipo, organizadorId, participante, ciudad, fechaDesde, fechaHasta, orden, page, size);
+        return catalogCacheService.getOrLoad(CacheConfig.EVENT_SEARCH, key,
+                () -> buscar(tipo, organizadorId, participante, ciudad, fechaDesde, fechaHasta, orden, page, size));
     }
 
     @Transactional(readOnly = true)
@@ -441,6 +618,7 @@ public class EventService {
                     lugar.getNombre(),
                     Fechas.argentina(evento.getFecha()),
                     evento.getEstado(),
+                    evento.isAltaDemanda(),
                     precioDesde));
         }
 
@@ -451,6 +629,71 @@ public class EventService {
         int totalPaginas = (int) Math.ceil((double) total / size);
         return new PageResponse<>(List.copyOf(resultados.subList(desde, hasta)),
                 page, size, total, totalPaginas);
+    }
+
+    @Transactional(readOnly = true)
+    public EventoReporteResponse reporteEvento(UUID eventoId) {
+        Evento evento = buscarEvento(eventoId);
+        Lugar lugar = lugarRepository.findById(evento.getLugarId())
+                .orElseThrow(() -> ApiException.notFound("VENUE_NOT_FOUND", "No existe el lugar del evento"));
+        Map<UUID, BigDecimal> precios = precioRepository.findByEventoId(eventoId).stream()
+                .collect(Collectors.toMap(EventoSectorPrecio::getSectorId, EventoSectorPrecio::getPrecio));
+        List<SectorReporteResponse> sectores = sectorRepository
+                .findByLugarIdOrderByNombreAsc(evento.getLugarId()).stream()
+                .map(sector -> new SectorReporteResponse(sector.getId(), sector.getNombre(), sector.getTipo(),
+                        sector.getCapacidad(), precios.get(sector.getId())))
+                .toList();
+        List<String> participantes = participanteRepository.findByEventoIdOrderByNombreAsc(eventoId).stream()
+                .map(EventoParticipante::getNombre)
+                .toList();
+        return new EventoReporteResponse(evento.getId(), evento.getNombre(), evento.getOrganizadorId(),
+                evento.getLugarId(), lugar.getNombre(), lugar.getCiudad(), evento.getFecha(), evento.getEstado(),
+                participantes, sectores);
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventoCandidatoResponse> candidatos(TipoEvento tipo, String artista, String ciudad,
+                                                    OffsetDateTime fechaDesde, OffsetDateTime fechaHasta, int size) {
+        if (size < 1 || size > TAMANIO_MAXIMO_PAGINA) {
+            throw validacion("size", "debe estar entre 1 y " + TAMANIO_MAXIMO_PAGINA);
+        }
+        if (fechaDesde != null && fechaHasta != null && fechaDesde.isAfter(fechaHasta)) {
+            throw ApiException.badRequest("INVALID_DATE_RANGE", "fechaDesde no puede ser posterior a fechaHasta");
+        }
+        String artistaNormalizado = normalizar(artista);
+        String ciudadNormalizada = normalizar(ciudad);
+        String artistaFiltro = artistaNormalizado == null ? "%" : "%" + escaparLike(artistaNormalizado) + "%";
+        String ciudadFiltro = ciudadNormalizada == null ? "%" : escaparLike(ciudadNormalizada);
+        OffsetDateTime desdeFiltro = fechaDesde == null ? OffsetDateTime.now(clock) : fechaDesde;
+        OffsetDateTime hastaFiltro = fechaHasta == null ? FECHA_MAXIMA : fechaHasta;
+
+        List<Evento> eventos = eventoRepository.buscarCandidatos(ESTADOS_VISIBLES, tipo != null,
+                tipo == null ? TipoEvento.OTRO : tipo, artistaNormalizado != null, artistaFiltro,
+                ciudadFiltro, desdeFiltro, hastaFiltro);
+        if (eventos.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Lugar> lugares = lugarRepository
+                .findAllById(eventos.stream().map(Evento::getLugarId).collect(Collectors.toSet())).stream()
+                .collect(Collectors.toMap(Lugar::getId, Function.identity()));
+        Map<UUID, List<String>> artistas = participanteRepository
+                .findByEventoIdIn(eventos.stream().map(Evento::getId).toList()).stream()
+                .collect(Collectors.groupingBy(EventoParticipante::getEventoId,
+                        Collectors.mapping(EventoParticipante::getNombre, Collectors.toList())));
+
+        return eventos.stream()
+                .filter(evento -> lugares.containsKey(evento.getLugarId()))
+                .limit(size)
+                .map(evento -> new EventoCandidatoResponse(
+                        evento.getId().toString(),
+                        evento.getNombre(),
+                        evento.getTipo() == null ? null : evento.getTipo().name(),
+                        artistas.getOrDefault(evento.getId(), List.of()),
+                        lugares.get(evento.getLugarId()).getCiudad(),
+                        evento.getFecha().toInstant(),
+                        evento.getEstado() == null ? null : evento.getEstado().name(),
+                        evento.isAltaDemanda()))
+                .toList();
     }
 
     private Comparator<EventoBusquedaResponse> comparador(OrdenBusqueda orden) {
@@ -484,7 +727,7 @@ public class EventService {
     }
 
     private InventorySnapshot armarSnapshot(Evento evento, List<Sector> sectores,
-                                             Map<UUID, EventoSectorPrecio> precios) {
+                                             Map<UUID, EventoSectorPrecio> precios, long version) {
         List<InventorySnapshot.SectorSnapshot> sectoresSnapshot = new ArrayList<>();
         for (Sector sector : sectores) {
             List<InventorySnapshot.AsientoSnapshot> asientos = asientoRepository
@@ -504,8 +747,9 @@ public class EventService {
                 evento.getId(),
                 evento.getNombre(),
                 evento.getFecha(),
+                evento.isAltaDemanda(),
                 evento.getLimitePorCliente(),
-                1L,
+                version,
                 sectoresSnapshot);
     }
 
@@ -528,4 +772,81 @@ public class EventService {
         return new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR",
                 "La solicitud tiene campos inválidos", List.of(Map.of("field", field, "message", message)));
     }
+    private String searchKey(TipoEvento tipo, UUID organizadorId, String participante, String ciudad,
+                             OffsetDateTime fechaDesde, OffsetDateTime fechaHasta, String orden, int page, int size) {
+        StringJoiner j = new StringJoiner("|");
+        j.add("tipo=" + (tipo == null ? "" : tipo.name()));
+        j.add("org=" + (organizadorId == null ? "" : organizadorId));
+        j.add("part=" + normalizar(participante));
+        j.add("ciudad=" + normalizar(ciudad));
+        j.add("desde=" + Objects.toString(fechaDesde, ""));
+        j.add("hasta=" + Objects.toString(fechaHasta, ""));
+        j.add("orden=" + (orden == null ? "" : orden));
+        j.add("page=" + page);
+        j.add("size=" + size);
+        return j.toString();
+    }
+
+    private void invalidarCachesEvento(UUID eventoId) {
+        if (catalogCacheService != null) {
+            catalogCacheService.evictEventCaches(eventoId);
+        }
+    }
+    private void registrarEventoOutbox(String type, Evento evento, String correlationId) {
+        if (outboxService == null) {
+            return;
+        }
+        String ciudad = lugarRepository.findById(evento.getLugarId())
+                .map(Lugar::getCiudad)
+                .orElse(null);
+        List<String> artistas = participanteRepository.findByEventoIdOrderByNombreAsc(evento.getId())
+                .stream()
+                .map(EventoParticipante::getNombre)
+                .toList();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("eventoId", evento.getId().toString());
+        payload.put("nombre", evento.getNombre());
+        payload.put("tipo", evento.getTipo() == null ? null : evento.getTipo().name());
+        payload.put("artistas", artistas);
+        payload.put("ciudad", ciudad);
+        payload.put("fechaEvento", evento.getFecha() == null ? null : evento.getFecha().toInstant().toString());
+        payload.put("organizadorId", evento.getOrganizadorId().toString());
+        payload.put("estado", evento.getEstado() == null ? null : evento.getEstado().name());
+        String correlacion = correlationId == null || correlationId.isBlank()
+                ? UUID.randomUUID().toString()
+                : correlationId;
+        outboxService.register(type, evento.getId(), correlacion, payload);
+    }
+
+    /**
+     * Abre la fila solo para eventos de alta demanda. La apertura es idempotente,
+     * así que también sirve como reintento al editar un evento ya publicado o al
+     * volver de AGOTADO a PUBLICADO.
+     */
+    private void abrirFilaSiCorresponde(Evento evento) {
+        if (!evento.isAltaDemanda()) {
+            return;
+        }
+        try {
+            queueClient.abrir(evento.getId());
+        } catch (RuntimeException ex) {
+            // Fallback: queue-service caído no puede impedir la publicación ni la edición.
+            log.warn("No se pudo abrir la fila del evento {}; la operación continúa y se reintentará en la próxima edición",
+                    evento.getId(), ex);
+        }
+    }
+
+    /** Cierra la fila de un evento de alta demanda; un fallo nunca revierte la operación. */
+    private void cerrarFilaSiCorresponde(Evento evento, String motivo) {
+        if (!evento.isAltaDemanda()) {
+            return;
+        }
+        try {
+            queueClient.cerrar(evento.getId(), motivo);
+        } catch (RuntimeException ex) {
+            log.warn("No se pudo cerrar la fila del evento {} (motivo {}); se reintentará con el evento",
+                    evento.getId(), motivo, ex);
+        }
+    }
+
 }

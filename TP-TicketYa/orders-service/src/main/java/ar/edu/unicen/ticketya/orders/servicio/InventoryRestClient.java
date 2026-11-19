@@ -33,17 +33,19 @@ public class InventoryRestClient implements InventoryClient {
     }
 
     @Override
-    public void confirmarReserva(UUID reservaId) {
+    public void confirmarReserva(UUID reservaId, String idempotencyKey) {
         restClient.post()
                 .uri("/internal/reservations/{reservaId}/confirm", reservaId)
+                .header("Idempotency-Key", idempotencyKey)
                 .retrieve()
                 .toBodilessEntity();
     }
 
     @Override
-    public void liberarReserva(UUID reservaId, String motivo) {
+    public void liberarReserva(UUID reservaId, String motivo, String idempotencyKey) {
         restClient.post()
                 .uri("/internal/reservations/{reservaId}/release", reservaId)
+                .header("Idempotency-Key", idempotencyKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new ReleaseDto(motivo))
                 .retrieve()

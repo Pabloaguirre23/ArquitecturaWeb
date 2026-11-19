@@ -74,7 +74,7 @@ class ReservaServiceTest {
     void setUp() {
         reservaService = new ReservaService(eventoRepository, sectorRepository, asientoRepository,
                 reservaRepository, reservaItemRepository, jdbcTemplate, limitePorCliente,
-                vencimientoService, disponibilidadSincronizador, clock);
+                vencimientoService, disponibilidadSincronizador, null, clock);
     }
 
     @Test
