@@ -31,14 +31,23 @@ spring:
           uri: ${QUEUE_URL:http://localhost:8086}
           predicates:
             - Path=/api/queue/**
-        - id: recommendation-service
-          uri: ${RECOMMENDATION_URL:http://localhost:8084}
-          predicates:
-            - Path=/api/recommendations/**
-        - id: notification-service
-          uri: ${NOTIFICATION_URL:http://localhost:8085}
-          predicates:
-            - Path=/api/notifications/**
+      httpclient:
+        connect-timeout: 2000
+        response-timeout: 10s
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowed-origins:
+              - "*"
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowed-headers:
+              - "*"
 
 management:
   endpoints:
