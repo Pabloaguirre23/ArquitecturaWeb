@@ -404,6 +404,14 @@ select[aria-invalid='true'] {
   margin: 30px 0 16px;
 }
 
+.results-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .results-head h2 {
   margin: 0;
   font-size: 1.35rem;

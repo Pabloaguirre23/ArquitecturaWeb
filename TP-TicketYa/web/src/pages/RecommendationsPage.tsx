@@ -77,6 +77,15 @@ export function RecommendationsPage() {
     )
   }
 
+  // Los tipos son un filtro inmediato sobre la lista ya rankeada por el backend/mock.
+  // El resto de las preferencias (artistas/ciudad) sigue participando del ranking.
+  const visibles =
+    tipos.length === 0
+      ? recommendations
+      : recommendations.filter((item) =>
+          tipos.some((tipo) => tipo.toLowerCase() === item.tipo.toLowerCase()),
+        )
+
   function toggleTipo(valor: string) {
     setSaved(false)
     setSaveError(null)
@@ -137,12 +146,12 @@ export function RecommendationsPage() {
       <section className="card preference-card" aria-labelledby="preferences-title">
         <div className="results-head">
           <h2 id="preferences-title">Tus preferencias</h2>
-          <span className="muted">Se usan para ordenar las sugerencias</span>
+          <span className="muted">Filtrá por tipo y guardá para personalizar el orden</span>
         </div>
 
         <form className="preferences-form" onSubmit={handleSave}>
           <fieldset className="field preference-types">
-            <legend>Tipos de evento</legend>
+            <legend>Filtrar por tipo</legend>
             <div className="checkbox-row">
               {EVENT_TYPE_OPTIONS.map((option) => (
                 <label key={option.value}>
@@ -207,9 +216,24 @@ export function RecommendationsPage() {
 
       <div className="results-head">
         <h2>Para vos</h2>
-        <span className="muted" aria-live="polite">
-          {recommendations.length} sugerencia{recommendations.length === 1 ? '' : 's'}
-        </span>
+        <div className="results-actions">
+          {tipos.length > 0 && (
+            <button
+              className="btn btn-ghost btn-small"
+              type="button"
+              onClick={() => {
+                setTipos([])
+                setSaved(false)
+                setSaveError(null)
+              }}
+            >
+              Ver todos
+            </button>
+          )}
+          <span className="muted" aria-live="polite">
+            {visibles.length} sugerencia{visibles.length === 1 ? '' : 's'}
+          </span>
+        </div>
       </div>
 
       {loading && <Loading label="Armando tus recomendaciones…" />}
@@ -218,17 +242,25 @@ export function RecommendationsPage() {
         <ErrorState message={error} onRetry={() => window.location.reload()} />
       )}
 
-      {!loading && !error && recommendations.length === 0 && (
+      {!loading && !error && visibles.length === 0 && (
         <EmptyState
-          title="Todavía no hay recomendaciones"
-          description="Probá cargar tus artistas y ciudad favoritos, o volvé más tarde cuando haya más eventos publicados."
-          actionLabel="Ver eventos"
+          title={
+            recommendations.length === 0
+              ? 'Todavía no hay recomendaciones'
+              : 'No hay eventos de los tipos elegidos'
+          }
+          description={
+            recommendations.length === 0
+              ? 'Probá cargar tus artistas y ciudad favoritos, o volvé más tarde cuando haya más eventos publicados.'
+              : 'Probá con otro tipo o tocá “Ver todos” para quitar el filtro.'
+          }
+          actionLabel={recommendations.length === 0 ? 'Ver eventos' : undefined}
         />
       )}
 
-      {!loading && !error && recommendations.length > 0 && (
+      {!loading && !error && visibles.length > 0 && (
         <div className="event-grid">
-          {recommendations.map((item) => (
+          {visibles.map((item) => (
             <RecommendationCard key={item.eventoId} item={item} />
           ))}
         </div>
