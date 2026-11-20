@@ -17,6 +17,8 @@ public interface EntradaRepository extends JpaRepository<Entrada, UUID> {
 
     List<Entrada> findByOrdenId(UUID ordenId);
 
+    List<Entrada> findByEventoId(UUID eventoId);
+
     List<Entrada> findByEventoIdAndEstado(UUID eventoId, EstadoEntrada estado);
 
     long countByEventoIdAndEstado(UUID eventoId, EstadoEntrada estado);

@@ -13,4 +13,6 @@ public interface ReintegroRepository extends JpaRepository<Reintegro, UUID> {
     boolean existsByPagoIdAndEntradaId(UUID pagoId, UUID entradaId);
 
     List<Reintegro> findByEstado(EstadoReintegro estado);
+
+    List<Reintegro> findByPagoIdInAndEstado(List<UUID> pagoIds, EstadoReintegro estado);
 }
