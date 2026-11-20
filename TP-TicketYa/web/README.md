@@ -149,6 +149,29 @@ web/
   nginx.conf
 ```
 
+## Modern Web Guidance
+
+Se corrió el CLI oficial (`npx modern-web-guidance@latest legacy-scan .`): **0 hallazgos** en
+38 guías calificadas (el scan saltea docs/tests y cubre ~20 % del corpus). Después se
+aplicaron las mejoras P0/P1 de los guides de `forms`, `autofill-sign-in-form`,
+`responsive-table` y `security`:
+
+- **Login:** `autocomplete="username"`, `name`, `spellcheck="false"`, toggle
+  “Mostrar/Ocultar” contraseña y error de credenciales a nivel de formulario (sin marcar los
+  dos campos como `aria-invalid`).
+- **Buscador:** `type="search"`, `name`, `enterkeyhint="search"` y
+  `autocomplete="address-level2"` en ciudad.
+- **Reportes:** wrapper con `role="region"`, `tabIndex=0` y `aria-labelledby` al caption;
+  header sticky y layout apilado con `@container` en pantallas angostas.
+- **Nginx:** CSP, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` y
+  `X-Frame-Options`.
+
+Quedan como deuda P2 (post-entrega): navbar con Popover en mobile, view transitions entre
+rutas, container queries en cards, code splitting por ruta y una utility compartida de
+`:user-invalid` + `aria-invalid`. El detalle está en
+[`../docs/equipo/plan-19-20-11/MWG-UI-REVIEW.md`](../docs/equipo/plan-19-20-11/MWG-UI-REVIEW.md)
+si se copia ese reporte al repo.
+
 ## Variables
 
 | Variable | Default | Uso |

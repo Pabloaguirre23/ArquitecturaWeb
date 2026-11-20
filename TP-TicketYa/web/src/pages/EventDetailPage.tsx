@@ -323,11 +323,13 @@ export function EventDetailPage() {
               <label htmlFor="quantity">Cantidad de lugares</label>
               <input
                 id="quantity"
+                name="cantidad"
                 type="number"
                 min={1}
                 max={maxQuantity}
                 step={1}
                 inputMode="numeric"
+                enterKeyHint="done"
                 value={quantityInput}
                 aria-invalid={invalidQuantity}
                 aria-describedby="quantity-hint"

@@ -153,11 +153,12 @@ export function CheckoutPage() {
             <span>{formatCurrency(reservation.total)}</span>
           </div>
 
-          <form className="form-stack checkout-form" onSubmit={handleSubmit}>
+          <form className="form-stack checkout-form" onSubmit={handleSubmit} aria-busy={loading}>
             <div className="field">
               <label htmlFor="medioPago">Medio de pago</label>
               <select
                 id="medioPago"
+                name="medioPago"
                 value={medioPago}
                 onChange={(event) => setMedioPago(event.target.value as MedioPago)}
               >
@@ -174,6 +175,7 @@ export function CheckoutPage() {
                 <label htmlFor="paymentToken">Resultado simulado de la pasarela</label>
                 <select
                   id="paymentToken"
+                  name="paymentToken"
                   value={paymentToken}
                   onChange={(event) => setPaymentToken(event.target.value)}
                 >

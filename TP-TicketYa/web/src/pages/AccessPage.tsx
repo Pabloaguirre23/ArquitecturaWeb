@@ -56,15 +56,18 @@ export function AccessPage() {
         </p>
       </div>
 
-      <form className="card form-stack" onSubmit={handleSubmit}>
+      <form className="card form-stack" onSubmit={handleSubmit} aria-busy={cargando}>
         <div className="field">
           <label htmlFor="qr-code">Código QR</label>
           <input
             id="qr-code"
+            name="qrCode"
             value={qrCode}
             onChange={(event) => setQrCode(event.target.value)}
             placeholder="235e9e9e-3451-4605-94a1-ae9cd55aef18"
             autoComplete="off"
+            spellCheck={false}
+            enterKeyHint="next"
             aria-invalid={Boolean(error)}
             aria-describedby={error ? 'access-error' : undefined}
             required
@@ -74,10 +77,13 @@ export function AccessPage() {
           <label htmlFor="evento-id">ID del evento</label>
           <input
             id="evento-id"
+            name="eventoId"
             value={eventoId}
             onChange={(event) => setEventoId(event.target.value)}
             placeholder="d0000000-0000-4000-8000-000000000001"
             autoComplete="off"
+            spellCheck={false}
+            enterKeyHint="go"
             required
           />
         </div>

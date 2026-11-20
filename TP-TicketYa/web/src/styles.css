@@ -290,6 +290,21 @@ p {
   gap: 6px;
 }
 
+.password-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.password-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.password-row .btn {
+  flex: 0 0 auto;
+}
+
 .field label {
   color: var(--muted);
   font-size: 0.72rem;
@@ -1074,7 +1089,21 @@ select[aria-invalid='true'] {
 }
 
 .report-table {
-  overflow-x: auto;
+  overflow: auto;
+  max-block-size: min(70vh, 520px);
+  container-type: inline-size;
+}
+
+.report-table:focus-visible {
+  outline: 3px solid #8b7cff;
+  outline-offset: 2px;
+}
+
+.report-table thead th {
+  position: sticky;
+  inset-block-start: 0;
+  background: var(--surface);
+  z-index: 1;
 }
 
 .report-table table {
@@ -1106,6 +1135,59 @@ select[aria-invalid='true'] {
 .report-table tfoot td {
   border-bottom: 0;
   font-weight: 700;
+}
+
+@container (width < 600px) {
+  .report-table table,
+  .report-table thead,
+  .report-table tbody,
+  .report-table tfoot,
+  .report-table tr,
+  .report-table th,
+  .report-table td {
+    display: block;
+  }
+
+  .report-table thead {
+    display: none;
+  }
+
+  .report-table tr {
+    margin-block-end: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+
+  .report-table tbody th,
+  .report-table tfoot th {
+    padding: 0 0 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    font-size: 1rem;
+  }
+
+  .report-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 6px 0;
+    border-bottom: 0;
+    text-align: right;
+  }
+
+  .report-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  .report-table tfoot tr {
+    background: #fafbff;
+  }
 }
 
 .sr-only {

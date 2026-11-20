@@ -11,6 +11,7 @@ export function LoginPage() {
   const location = useLocation()
   const [email, setEmail] = useState(USE_MOCKS ? DEMO_EMAIL : '')
   const [password, setPassword] = useState(USE_MOCKS ? DEMO_PASSWORD : '')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -41,16 +42,19 @@ export function LoginPage() {
         <h1>Ingresá a tu cuenta</h1>
         <p>Comprá entradas, elegí tus lugares y consultá tus compras.</p>
 
-        <form className="form-stack" onSubmit={handleSubmit}>
+        <form className="form-stack" onSubmit={handleSubmit} aria-busy={loading}>
           <div className="field">
             <label htmlFor="email">Email</label>
             <input
               id="email"
+              name="email"
               type="email"
-              autoComplete="email"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="next"
               value={email}
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? 'login-error' : undefined}
               onChange={(event) => setEmail(event.target.value)}
               required
             />
@@ -58,16 +62,27 @@ export function LoginPage() {
 
           <div className="field">
             <label htmlFor="password">Contraseña</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? 'login-error' : undefined}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
+            <div className="password-row">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                enterKeyHint="go"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+              <button
+                className="btn btn-ghost btn-small"
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-controls="password"
+                aria-pressed={showPassword}
+              >
+                {showPassword ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
           </div>
 
           {USE_MOCKS && (
