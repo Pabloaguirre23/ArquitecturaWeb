@@ -218,6 +218,7 @@ services:
       QUEUE_URL: http://queue-service:8086
       JWT_SECRET: ${JWT_SECRET:-ticketya-dev-secret-change-me-32-bytes-min!!}
       JWT_TTL: ${JWT_TTL:-8h}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
     ports:
       - "8080:8080"
     depends_on:

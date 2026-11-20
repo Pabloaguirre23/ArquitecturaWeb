@@ -172,14 +172,17 @@ Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
 | `DB_CONNECTION_TIMEOUT_MS` | `3000`/`5000` | Timeout para obtener conexión |
 | `QUEUE_SCHEDULER_MS` | `5000` | Frecuencia del scheduler de tandas |
 | `JWT_SECRET` / `JWT_TTL` | dev / `8h` | Firma y vigencia del JWT del gateway |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Orígenes permitidos por CORS en el gateway |
 
 Ver [`.env.example`](.env.example). No se commitea `.env`.
 
-`INTERNAL_TOKEN`, `QUEUE_TOKEN_SECRET` y `JWT_SECRET` tienen **defaults de desarrollo** en
+`INTERNAL_TOKEN` y `QUEUE_TOKEN_SECRET` tienen **defaults de desarrollo** en
 `docker-compose.yml` y en `.env.example` (se interpolan como `${VAR:-...}`). No son secretos de
 producción: para cualquier entorno que no sea la VM local, definirlos en `.env` y no reutilizar
 los valores de ejemplo. Los servicios internos y el gateway también aceptan las variables por
 entorno; el compose es el que provee el default cuando falta.
+`JWT_SECRET` **no tiene default en el gateway**: si falta, el gateway no arranca (fail-fast). El compose
+le pasa el valor de desarrollo; fuera del compose hay que definirlo.
 
 ## Prueba rápida del gateway
 
