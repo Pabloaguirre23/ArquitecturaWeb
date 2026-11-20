@@ -30,6 +30,7 @@ public class OutboxPublisher {
     private final int batchSize;
     private final int maxAttempts;
     private final long baseBackoffSeconds;
+    private final long publishedRetentionHours;
 
     public OutboxPublisher(OutboxEventRepository repository,
                            RabbitTemplate rabbitTemplate,
@@ -37,7 +38,8 @@ public class OutboxPublisher {
                            Clock clock,
                            @Value("${catalog.outbox.batch-size:50}") int batchSize,
                            @Value("${catalog.outbox.max-attempts:10}") int maxAttempts,
-                           @Value("${catalog.outbox.base-backoff-seconds:5}") long baseBackoffSeconds) {
+                           @Value("${catalog.outbox.base-backoff-seconds:5}") long baseBackoffSeconds,
+                           @Value("${catalog.outbox.published-retention-hours:24}") long publishedRetentionHours) {
         this.repository = repository;
         this.rabbitTemplate = rabbitTemplate;
         this.objectMapper = objectMapper;
@@ -45,6 +47,7 @@ public class OutboxPublisher {
         this.batchSize = batchSize;
         this.maxAttempts = maxAttempts;
         this.baseBackoffSeconds = baseBackoffSeconds;
+        this.publishedRetentionHours = publishedRetentionHours;
     }
 
     @Scheduled(fixedDelayString = "${catalog.outbox.publish-ms:2000}")
@@ -72,6 +75,15 @@ public class OutboxPublisher {
                     event.setStatus(OutboxStatus.PENDING);
                 }
             }
+        }
+        // Sin purga, la tabla crece indefinidamente: lo publicado hace más
+        // de la retención ya no sirve y se borra. FAILED se conserva como señal
+        // de revisión manual (docs/eventos.md §4).
+        int purgados = repository.purgePublicadosAntesDe(OutboxStatus.PUBLISHED,
+                now.minusHours(publishedRetentionHours));
+        if (purgados > 0) {
+            log.info("Purgados {} eventos de outbox PUBLISHED anteriores a {}",
+                    purgados, now.minusHours(publishedRetentionHours));
         }
     }
 

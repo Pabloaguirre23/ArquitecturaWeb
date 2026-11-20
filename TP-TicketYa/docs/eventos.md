@@ -1,12 +1,14 @@
 # Eventos de dominio y RabbitMQ
 
 Contrato del sobre de eventos y de los payloads que comparten los servicios. Es la base de
-la tarea **1.5** y debe quedar congelado antes de que los productores (3.2, 6.3) y los
-consumidores (7.3, 8.2) avancen por separado.
+la tarea **1.5**; los productores (3.2, 6.3) y los consumidores (7.3, 8.2, 8.3) ya están
+implementados y validados contra este esquema.
 
-- **Estado:** borrador para validar por P4 (dueño de 1.5), P1, P3 y P5. Los consumidores ya
-  implementados usan este esquema; cualquier cambio se discute acá y se actualiza el fixture
-  [`ejemplos/orden-pagada.json`](ejemplos/orden-pagada.json).
+- **Estado:** congelado en la práctica. P1 y P3 verificaron sus productores con tests de
+  contrato y P5 el consumidor de recommendation; queda la firma formal de la tarea 1.5 por
+  P4. Cualquier cambio se discute acá y se actualizan los fixtures
+  [`ejemplos/orden-pagada.json`](ejemplos/orden-pagada.json) y
+  [`ejemplos/evento-publicado.json`](ejemplos/evento-publicado.json) en el mismo PR.
 - **Broker:** RabbitMQ 3.13, exchange `ticketya.events` de tipo `topic`.
 - **Entrega:** al menos una vez. Los consumidores deduplican por `eventId`.
 
@@ -90,13 +92,13 @@ se compensa, se publica `orden.reintegrada` en lugar de `orden.pagada`.
 | `fechaEvento` | sí | Filtro de eventos futuros y orden. |
 | `estado` | sí | Debe ser `PAGADA`; otro valor no se registra en el historial. |
 
-**Origen de los datos:** orders ya guarda `eventoNombre` y `eventoFecha` como snapshot. Para
-`eventoTipo`, `artistas` y `ciudad` la decisión es **snapshot al comprar** (ADR-017): catalog
-los incluye en el snapshot de publicación hacia inventory, inventory los devuelve en la
-reserva y orders los persiste en `orden` (migración 6.1). Si el equipo prefiere el atajo,
-orders puede consultar el endpoint interno de catalog (3.5) al crear la orden y guardar el
-mismo snapshot; lo que no se acepta es que recommendation los busque después, porque el
-historial quedaría incompleto si catalog está caído.
+**Origen de los datos (decisión implementada, ADR-017):** snapshot al comprar. catalog
+incluye `eventoTipo`, `artistas` y `ciudad` en el snapshot de publicación hacia inventory,
+inventory los devuelve en la reserva y orders los persiste en `orden` (migración V5, 6.1).
+`eventoNombre` y `fechaEvento` ya formaban parte de ese snapshot. recommendation **nunca**
+vuelve a consultar catalog: el historial 7.3 se arma solo con este payload, así que sigue
+completo aunque catalog esté caído. El endpoint interno de catalog (3.5) queda como apoyo
+puntual de orders/reportes, no como fuente del historial.
 
 ### 3.2 `orden.reintegrada`
 
@@ -139,9 +141,9 @@ suscripto: el historial solo registra compras pagadas.
 
 ```json
 {
-  "devolucionId": "9a1b...",
+  "devolucionId": "9a1b0000-0000-4000-8000-000000000001",
   "ordenId": "f0000000-0000-4000-8000-000000000001",
-  "entradaId": "7c2d...",
+  "entradaId": "7c2d0000-0000-4000-8000-000000000001",
   "clienteId": "33333333-3333-4333-8333-333333333333",
   "monto": 25000.00
 }
@@ -153,7 +155,7 @@ Binding hacia `notification.order` pendiente de declarar en notification-service
 
 ```json
 {
-  "entradaId": "7c2d...",
+  "entradaId": "7c2d0000-0000-4000-8000-000000000001",
   "eventoId": "d0000000-0000-4000-8000-000000000001",
   "validadoPor": "55555555-5555-4555-8555-555555555555",
   "utilizadaEn": "2027-03-14T23:10:00Z"
@@ -170,31 +172,47 @@ entrega.
   `PUBLICADO`; si RabbitMQ falla, reintenta con backoff y conserva el mismo `eventId`.
 - **Consumidor:** guarda o aplica el efecto una sola vez por `eventId` (o por la clave única
   de negocio). En recommendation la clave es `(eventId, clienteId, eventoId)`; en
-  notification será `eventId` + tipo de aviso.
+  notification es `(event_id, tipo, destinatario_id)`, el índice único de la tabla
+  `notificacion`.
 - **Errores:** los mensajes inválidos o las excepciones no se reencolan infinitamente; van a
   la DLQ de la cola. La DLQ se revisa manualmente y se reintenta solo después de corregir la
   causa.
 - **Orden:** no se garantiza orden entre eventos. Cada payload debe ser autosuficiente.
+- **Correlación:** el `correlationId` del sobre se propaga como `X-Correlation-Id` por el
+  gateway, los clientes REST, los logs y las bitácoras (9.2 en catalog, 9.3 en orders), de
+  modo que una compra se pueda seguir de punta a punta.
 
 ## 5. Test de contrato
 
-- Fixture compartido: [`ejemplos/orden-pagada.json`](ejemplos/orden-pagada.json).
-- `recommendation-service` tiene un test que lee ese fixture y lo deserializa con el mismo
-  `OrdenPagadaEvent` del listener (`OrdenPagadaEventContractTest`). Si el contrato cambia, el
-  test falla y obliga a actualizar el fixture y el consumidor en el mismo PR.
-- Productores y notification-service deben agregar su test equivalente al implementar 3.2,
-  6.3 y 8.2.
-- El test de integración con RabbitMQ (`RecommendationRabbitIntegrationTest`) valida el
-  consumo real, el duplicado y el reintegro.
+- Fixtures compartidos: [`ejemplos/orden-pagada.json`](ejemplos/orden-pagada.json) y
+  [`ejemplos/evento-publicado.json`](ejemplos/evento-publicado.json).
+- Productores: `orders-service` (`OrdenPagadaContractTest`) y `catalog-service`
+  (`EventoPublicadoEventContractTest`) deserializan los fixtures con el mismo sobre que
+  publican desde el outbox.
+- Consumidores: `notification-service` (`OrdenPagadaEventContractTest`,
+  `EventoPublicadoEventContractTest`) y `recommendation-service`
+  (`OrdenPagadaEventContractTest`) leen los mismos fixtures con el evento del listener. Si el
+  contrato cambia, alguno de estos tests falla y obliga a actualizar fixtures, productores y
+  consumidores en el mismo PR.
+- `RecommendationRabbitIntegrationTest` valida el consumo real, el duplicado y el reintegro;
+  la suite E2E (`TicketYaE2EIT`) comprueba de punta a punta que orders publica y notification
+  y recommendation consumen `orden.pagada`.
 
-## 6. Pendientes y responsables
+## 6. Estado y deuda
 
-| Pendiente | Dueño | Tarea |
-|---|---|---|
-| Congelar este documento y agregar el test de contrato del productor | P4 | 1.5 |
-| Declarar los bindings de `orden.reintegrada` y `devolucion.aprobada` en notification-service | P1 | 8.2 |
-| Publicar `orden.pagada` desde el outbox de orders con el payload de §3.1 | P3 | 6.3 |
-| Publicar `evento.*` desde catalog | P1 | 3.2 |
-| Consumir `orden.pagada` para notificaciones | P1 | 8.2 |
-| Validar el snapshot `eventoTipo`/`artistas`/`ciudad` en orders | P3 + P1/P2 | 6.1 / 3.5 |
-| Confirmar que el broker y las colas se declaran en el compose integral | P4 | 9.6 |
+| Ítem | Dueño | Tarea | Estado |
+|---|---|---|---|
+| Congelar este documento | P4 | 1.5 | Contenido estable y revisado por P1/P3/P5; queda la marca formal de P4 en el checklist. |
+| Publicar `orden.pagada` desde el outbox de orders (§3.1) | P3 | 6.3 | Hecho en PR #25; `OrdenPagadaContractTest` y suite E2E verdes. |
+| Publicar `evento.*` desde catalog (§3.3) | P1 | 3.2 | Hecho en PR #27; `OutboxPublisherTest` y test de contrato verdes. |
+| Consumir `orden.pagada` en notification (§3.1) | P1 | 8.2 | Hecho: dedupe por `(event_id, tipo, destinatario_id)` y DLQ. |
+| Consumir `evento.*` y avisar por artista favorito (§3.3) | P1 | 8.3 | Hecho; usa `GET /internal/preferences?artista=&ciudad=` (api-contract §6.3.1). |
+| Validar el snapshot `eventoTipo`/`artistas`/`ciudad` en orders | P3 + P1/P2 | 6.1 / 3.5 | Hecho; verificado por `MigracionV5IntegrationTest` y la E2E del Día 7. |
+| Declarar broker, colas y DLQ en el compose | P4 | 9.6 | Hecho: 13 contenedores healthy y healthchecks verdes. |
+
+No queda otro pendiente de contrato acá: los tests de contrato del productor ya existen en
+catalog (3.2) y orders (6.3). La deuda abierta de observabilidad y Postman (9.1, 9.3, 9.4 y
+10.2) se sigue en `tasks.md`, no en este documento.
+
+`entrada.utilizada` (§3.5) sigue sin consumidor: está reservada para la bitácora de 9.3 y no
+debe agregarse una cola nueva sin actualizar esta tabla y el compose.

@@ -27,8 +27,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Exporta el OpenAPI generado por springdoc a openapi/catalog-openapi.json
- * (relativo a la raíz del repositorio, un nivel arriba de catalog-service).
+ * Verifica que el OpenAPI generado por springdoc coincida con el contrato
+ * commiteado en openapi/catalog-openapi.json (un nivel arriba de
+ * catalog-service); el build no debe regenerarlo como side-effect.
  */
 @WebMvcTest(controllers = {VenueController.class, EventController.class, InternalEventController.class,
         InternalCatalogController.class})
@@ -106,9 +107,14 @@ class OpenApiExportTest {
         assertThat(esHeaderObligatorio(documento, "/paths/~1internal~1events~1{eventoId}~1report/get",
                 "X-Internal-Token")).isTrue();
 
-        Path destino = Path.of("..", "openapi", "catalog-openapi.json");
-        Files.createDirectories(destino.getParent());
-        Files.writeString(destino, json, StandardCharsets.UTF_8);
+        // El JSON commiteado es el contrato publicado: se compara en lugar de
+        // regenerarlo para que el build no escriba archivos como side-effect.
+        // Si cambia el OpenAPI, correr el export una vez y commitear el resultado.
+        Path commiteado = Path.of("..", "openapi", "catalog-openapi.json");
+        assertThat(commiteado).exists();
+        JsonNode esperado = new ObjectMapper().readTree(
+                Files.readString(commiteado, StandardCharsets.UTF_8));
+        assertThat(documento).isEqualTo(esperado);
     }
 
     private boolean esHeaderObligatorio(JsonNode documento, String operacion, String nombre) {

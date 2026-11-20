@@ -192,6 +192,7 @@ public class EventService {
         try {
             inventoryClient.publicarInventario(snapshot);
         } catch (RuntimeException ex) {
+            log.warn("Inventory no confirmó la publicación del evento {}; queda en borrador", eventoId, ex);
             throw new ApiException(HttpStatus.BAD_GATEWAY, "INVENTORY_UNAVAILABLE",
                     "No se pudo confirmar el inventario del evento; el evento sigue en borrador", List.of());
         }
@@ -306,6 +307,7 @@ public class EventService {
             try {
                 inventoryClient.publicarInventario(snapshot);
             } catch (RuntimeException ex) {
+                log.warn("Inventory no confirmó la edición del evento {}", eventoId, ex);
                 throw new ApiException(HttpStatus.BAD_GATEWAY, "INVENTORY_UNAVAILABLE",
                         "No se pudo actualizar el inventario del evento", List.of());
             }
@@ -369,6 +371,7 @@ public class EventService {
         try {
             return inventoryClient.obtenerDisponibilidad(eventoId);
         } catch (RuntimeException ex) {
+            log.warn("Inventory no respondió la disponibilidad del evento {}", eventoId, ex);
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "INVENTORY_UNAVAILABLE",
                     "No se pudo obtener la disponibilidad del evento", List.of());
         }

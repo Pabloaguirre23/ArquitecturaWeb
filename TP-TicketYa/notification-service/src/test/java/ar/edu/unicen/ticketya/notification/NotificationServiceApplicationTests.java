@@ -2,8 +2,16 @@ package ar.edu.unicen.ticketya.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ar.edu.unicen.ticketya.notification.dominio.EstadoNotificacion;
+import ar.edu.unicen.ticketya.notification.dominio.Notificacion;
+import ar.edu.unicen.ticketya.notification.repositorio.NotificacionRepository;
+import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -51,6 +59,12 @@ class NotificationServiceApplicationTests {
     @Autowired
     private TestRestTemplate restTemplate;
 
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    @Autowired
+    private NotificacionRepository notificacionRepository;
+
     @Test
     void elHealthReportaBaseYBrokerConectados() {
         ResponseEntity<Map> response = restTemplate.getForEntity("/actuator/health", Map.class);
@@ -63,5 +77,65 @@ class NotificationServiceApplicationTests {
         assertThat(components).isNotNull();
         assertThat(((Map<?, ?>) components.get("db")).get("status")).isEqualTo("UP");
         assertThat(((Map<?, ?>) components.get("rabbit")).get("status")).isEqualTo("UP");
+    }
+
+    /**
+     * Mensaje venenoso con broker real: una orden.pagada con estado inválido se
+     * rechaza sin reencolar, agota los reintentos del consumidor y termina en
+     * notification.order.dlq sin generar notificaciones.
+     */
+    @Test
+    void unMensajeVenenosoTerminaEnLaDlqSinNotificar() {
+        UUID eventId = UUID.randomUUID();
+        UUID clienteId = UUID.randomUUID();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("ordenId", UUID.randomUUID().toString());
+        payload.put("clienteId", clienteId.toString());
+        payload.put("eventoId", UUID.randomUUID().toString());
+        payload.put("estado", "PENDIENTE");
+        Map<String, Object> sobre = new LinkedHashMap<>();
+        sobre.put("eventId", eventId.toString());
+        sobre.put("type", "orden.pagada");
+        sobre.put("occurredAt", "2026-11-15T12:00:00Z");
+        sobre.put("correlationId", eventId.toString());
+        sobre.put("version", 1);
+        sobre.put("payload", payload);
+
+        rabbitTemplate.convertAndSend("ticketya.events", "orden.pagada", sobre);
+
+        org.springframework.amqp.core.Message muerto = rabbitTemplate.receive("notification.order.dlq", 20_000);
+        assertThat(muerto).isNotNull();
+        assertThat(new String(muerto.getBody())).contains(eventId.toString());
+        Optional<Notificacion> notificacion = notificacionRepository
+                .findByEventIdAndTipoAndDestinatarioId(eventId, "orden.pagada", clienteId);
+        assertThat(notificacion).isEmpty();
+    }
+
+    /**
+     * Regresión de auditoría: updated_at debe reflejar el último cambio y no
+     * quedar congelado en el valor del INSERT (columna con DEFAULT now()).
+     */
+    @Test
+    void actualizarUnaNotificacionMueveUpdatedAt() throws InterruptedException {
+        Notificacion notificacion = new Notificacion();
+        notificacion.setEventId(UUID.randomUUID());
+        notificacion.setTipo("orden.pagada");
+        notificacion.setDestinatarioId(UUID.randomUUID());
+        notificacion.setDestinatarioEmail("cliente@example.com");
+        notificacion.setAsunto("asunto");
+        notificacion.setContenido("contenido");
+        notificacion.setEstado(EstadoNotificacion.PENDIENTE);
+        Notificacion creada = notificacionRepository.save(notificacion);
+
+        Notificacion antes = notificacionRepository.findById(creada.getId()).orElseThrow();
+        assertThat(antes.getUpdatedAt()).isNotNull();
+
+        Thread.sleep(50);
+        antes.setEstado(EstadoNotificacion.ENVIADA);
+        antes.setEnviadaAt(OffsetDateTime.now());
+        notificacionRepository.save(antes);
+
+        Notificacion despues = notificacionRepository.findById(creada.getId()).orElseThrow();
+        assertThat(despues.getUpdatedAt()).isAfter(antes.getUpdatedAt());
     }
 }

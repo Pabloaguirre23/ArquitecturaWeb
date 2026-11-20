@@ -16,6 +16,8 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Topología de la tarea 1.5 para las notificaciones de compra:
  * exchange topic -> notification.order -> notification.order.dlq.
+ * La cola de órdenes consume orden.pagada, orden.reintegrada y
+ * devolucion.aprobada según docs/eventos.md §2.
  */
 @Configuration
 public class RabbitConfig {
@@ -23,6 +25,8 @@ public class RabbitConfig {
     public static final String EXCHANGE = "ticketya.events";
     public static final String DLX = "ticketya.events.dlx";
     public static final String ROUTING_KEY_ORDEN_PAGADA = "orden.pagada";
+    public static final String ROUTING_KEY_ORDEN_REINTEGRADA = "orden.reintegrada";
+    public static final String ROUTING_KEY_DEVOLUCION_APROBADA = "devolucion.aprobada";
     public static final String ROUTING_KEY_EVENTO_ACTUALIZADO = "evento.actualizado";
     public static final String ROUTING_KEY_EVENTO_CANCELADO = "evento.cancelado";
     public static final String ROUTING_KEY_EVENTO_PUBLICADO = "evento.publicado";
@@ -60,6 +64,24 @@ public class RabbitConfig {
         return BindingBuilder.bind(notificationOrderQueue)
                 .to(ticketyaEventsExchange)
                 .with(ROUTING_KEY_ORDEN_PAGADA);
+    }
+
+    @Bean
+    public Binding notificationOrderReintegradaBinding(
+            @Qualifier("notificationOrderQueue") Queue notificationOrderQueue,
+            TopicExchange ticketyaEventsExchange) {
+        return BindingBuilder.bind(notificationOrderQueue)
+                .to(ticketyaEventsExchange)
+                .with(ROUTING_KEY_ORDEN_REINTEGRADA);
+    }
+
+    @Bean
+    public Binding notificationOrderDevolucionAprobadaBinding(
+            @Qualifier("notificationOrderQueue") Queue notificationOrderQueue,
+            TopicExchange ticketyaEventsExchange) {
+        return BindingBuilder.bind(notificationOrderQueue)
+                .to(ticketyaEventsExchange)
+                .with(ROUTING_KEY_DEVOLUCION_APROBADA);
     }
 
     @Bean
