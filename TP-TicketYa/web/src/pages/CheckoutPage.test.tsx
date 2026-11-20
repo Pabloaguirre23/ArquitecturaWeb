@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
+import { AuthProvider } from '../auth/AuthProvider'
+import { writeAuth } from '../auth/storage'
 import { CheckoutPage } from './CheckoutPage'
 import { saveReservation } from '../utils/reservationStorage'
 
@@ -58,6 +60,14 @@ describe('CheckoutPage', () => {
   })
 
   it('muestra el evento y el QR de la orden con la forma real del backend', async () => {
+    writeAuth({
+      token: 'test-token',
+      user: {
+        email: 'cliente@ticketya.test',
+        role: 'CLIENT',
+        nombre: 'Cliente Demo',
+      },
+    })
     saveReservation({
       id: 'reserva-1',
       eventoId: 'd0000000-0000-4000-8000-000000000001',
@@ -85,7 +95,9 @@ describe('CheckoutPage', () => {
     await act(async () => {
       createdRoot.render(
         <MemoryRouter>
-          <CheckoutPage />
+          <AuthProvider>
+            <CheckoutPage />
+          </AuthProvider>
         </MemoryRouter>,
       )
     })

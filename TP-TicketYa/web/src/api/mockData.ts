@@ -381,16 +381,18 @@ export async function mockLogin(email: string, password: string): Promise<LoginR
   if (!email.trim() || !password.trim()) {
     throw new ApiError(400, 'Email y contraseña son obligatorios.', 'VALIDATION_ERROR')
   }
-  const role = email.trim().toLowerCase().startsWith('organizador')
-    ? 'ORGANIZER'
-    : email.trim().toLowerCase().startsWith('acceso')
-      ? 'ACCESS_STAFF'
-      : 'CLIENT'
+  const normalized = email.trim().toLowerCase()
+  const demo = [
+    { prefijo: 'admin', role: 'ADMIN', nombre: 'Admin Demo' },
+    { prefijo: 'organizador', role: 'ORGANIZER', nombre: 'Organizador Demo' },
+    { prefijo: 'acceso', role: 'ACCESS_STAFF', nombre: 'Acceso Demo' },
+    { prefijo: 'cliente', role: 'CLIENT', nombre: 'Cliente Demo' },
+  ].find((usuario) => normalized.startsWith(usuario.prefijo))
   return {
     token: `demo.${crypto.randomUUID()}`,
-    role,
+    role: demo?.role ?? 'CLIENT',
     email,
-    nombre: email.split('@')[0],
+    nombre: demo?.nombre ?? email.split('@')[0],
     expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
   }
 }

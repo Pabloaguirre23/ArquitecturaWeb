@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
+import { homeForRole, roleLabel } from '../auth/roles'
 import { useAuth } from '../auth/useAuth'
 import { USE_MOCKS } from '../config'
 import { DemoBanner } from './DemoBanner'
@@ -14,7 +15,7 @@ export function Layout() {
 
       <header className="site-header">
         <div className="container header-inner">
-          <Link className="brand" to="/">
+          <Link className="brand" to={isAuthenticated ? homeForRole(user?.role) : '/'}>
             <span className="brand-mark" aria-hidden="true">
               T
             </span>
@@ -22,11 +23,13 @@ export function Layout() {
           </Link>
 
           <nav className="nav" aria-label="Navegación principal">
-            <NavLink to="/" end>
-              Buscar
-            </NavLink>
+            {(!isAuthenticated || user?.role === 'CLIENT') && (
+              <NavLink to="/" end>
+                Buscar
+              </NavLink>
+            )}
             {isAuthenticated && user?.role === 'CLIENT' && <NavLink to="/para-vos">Para vos</NavLink>}
-            {isAuthenticated && <NavLink to="/tickets">Mis entradas</NavLink>}
+            {isAuthenticated && user?.role === 'CLIENT' && <NavLink to="/tickets">Mis entradas</NavLink>}
             {isAuthenticated && (user?.role === 'ACCESS_STAFF' || user?.role === 'ADMIN') && (
               <NavLink to="/access">Control de acceso</NavLink>
             )}
@@ -41,6 +44,7 @@ export function Layout() {
                 <span className="user-chip" title={user?.email}>
                   {user?.nombre ?? user?.email}
                 </span>
+                <span className="role-chip">{roleLabel(user?.role)}</span>
                 <button className="btn btn-ghost btn-small" type="button" onClick={logout}>
                   Salir
                 </button>

@@ -314,4 +314,20 @@ El gateway mantiene estos cuatro usuarios **en memoria** (`DemoUserStore`), con 
 `demo` hasheada con BCrypt. No hay `auth_db` ni alta de cuentas: es una simplificación de demo
 para el TP (ver ADR-020 en [`docs/decisiones.md`](docs/decisiones.md)).
 
+### Roles y navegación
+
+Después del login, cada rol aterriza en su servicio y ve solo lo suyo:
+
+| Rol | Home | Navegación |
+|---|---|---|
+| `CLIENT` | `/` | Buscar, Para vos, Mis entradas; puede comprar |
+| `ORGANIZER` | `/reports` | Reportes |
+| `ACCESS_STAFF` | `/access` | Control de acceso |
+| `ADMIN` | `/reports` | Control de acceso, Reportes |
+
+La compra y “Mis entradas” están limitadas a `CLIENT`; el `ADMIN` ve ambos paneles de staff.
+El catálogo público sigue disponible por URL para staff, pero no se muestra como solapa.
+En “Para vos”, los tipos de evento filtran la lista al instante (“Ver todos” limpia el filtro) y
+“Guardar preferencias” persiste la selección para el ranking.
+
 Los asientos numerados usan IDs determinísticos: `c0000000-0000-4000-8000-[sector][fila][numero]000000`. La colección [`postman/TicketYa.postman_collection.json`](postman/TicketYa.postman_collection.json) recorre los flujos de catálogo y compra (aprobada, rechazada, pago lento y cancelación) y guarda los IDs que crea.

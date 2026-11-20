@@ -36,7 +36,7 @@ function clampQuantity(value: string, max: number): number {
 export function EventDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, isAuthenticated } = useAuth()
   const [event, setEvent] = useState<EventDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -196,9 +196,10 @@ export function EventDetailPage() {
   const canContinue =
     Boolean(selectedSector) &&
     (selectedSector?.tipo === 'NUMERADO' ? selectedSeats.size > 0 : quantity >= 1)
+  const puedeComprar = isAuthenticated && user?.role === 'CLIENT'
 
   async function handleContinue() {
-    if (!event || !selectedSector) {
+    if (!event || !selectedSector || !puedeComprar) {
       return
     }
     if (selectedSector.tipo === 'NO_NUMERADO' && quantity < 1) {
@@ -372,15 +373,32 @@ export function EventDetailPage() {
                   {reserveError}
                 </p>
               )}
-              <button
-                className="btn btn-primary"
-                type="button"
-                disabled={!canContinue || reserving}
-                onClick={handleContinue}
-              >
-                {reserving ? 'Reservando…' : 'Continuar al pago'}
-              </button>
-              <p className="hint">Los lugares se reservan por 10 minutos mientras pagás.</p>
+              {puedeComprar ? (
+                <>
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    disabled={!canContinue || reserving}
+                    onClick={handleContinue}
+                  >
+                    {reserving ? 'Reservando…' : 'Continuar al pago'}
+                  </button>
+                  <p className="hint">Los lugares se reservan por 10 minutos mientras pagás.</p>
+                </>
+              ) : (
+                <p className="hint">
+                  {isAuthenticated ? (
+                    'Esta cuenta no compra entradas. Para reservar, ingresá con una cuenta CLIENT.'
+                  ) : (
+                    <>
+                      <Link to="/login" state={{ from: { pathname: `/events/${id}` } }}>
+                        Ingresá
+                      </Link>{' '}
+                      para comprar.
+                    </>
+                  )}
+                </p>
+              )}
             </>
           ) : (
             <p className="muted">Elegí un sector para ver el total.</p>

@@ -20,6 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     writeAuth(stored)
     setAuth(stored)
+    return stored.user
   }, [])
 
   const logout = useCallback(() => {

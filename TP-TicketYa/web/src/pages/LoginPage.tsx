@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { homeForRole } from '../auth/roles'
 import { useAuth } from '../auth/useAuth'
 import { DEMO_EMAIL, DEMO_PASSWORD, USE_MOCKS } from '../config'
 import { errorMessage } from '../utils/errors'
 
 export function LoginPage() {
-  const { login, isAuthenticated } = useAuth()
+  const { login, isAuthenticated, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail] = useState(USE_MOCKS ? DEMO_EMAIL : '')
@@ -15,10 +16,10 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/'
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname
 
   if (isAuthenticated) {
-    return <Navigate to={from} replace />
+    return <Navigate to={from ?? homeForRole(user?.role)} replace />
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -26,8 +27,8 @@ export function LoginPage() {
     setError(null)
     setLoading(true)
     try {
-      await login(email, password)
-      navigate(from, { replace: true })
+      const logged = await login(email, password)
+      navigate(from ?? homeForRole(logged.role), { replace: true })
     } catch (caught) {
       setError(errorMessage(caught))
     } finally {
