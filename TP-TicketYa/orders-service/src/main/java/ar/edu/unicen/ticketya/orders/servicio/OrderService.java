@@ -54,6 +54,7 @@ public class OrderService {
     private final SagaCompraService sagaCompraService;
     private final IdempotencyService idempotencyService;
     private final Clock clock;
+    private final AuditService auditService;
 
     public OrderService(OrdenRepository ordenRepository,
                         OrdenItemRepository ordenItemRepository,
@@ -68,7 +69,8 @@ public class OrderService {
                         OrderCompensationService orderCompensationService,
                         SagaCompraService sagaCompraService,
                         IdempotencyService idempotencyService,
-                        Clock clock) {
+                        Clock clock,
+                        AuditService auditService) {
         this.ordenRepository = ordenRepository;
         this.ordenItemRepository = ordenItemRepository;
         this.entradaRepository = entradaRepository;
@@ -83,6 +85,7 @@ public class OrderService {
         this.sagaCompraService = sagaCompraService;
         this.idempotencyService = idempotencyService;
         this.clock = clock;
+        this.auditService = auditService;
     }
 
     /**
@@ -184,6 +187,8 @@ public class OrderService {
         try {
             // La orden pasa a PAGADA en la misma transacción que emite las entradas.
             List<Entrada> entradas = orderEmissionService.marcarPagadaYEmitir(orden, items);
+            // Misma correlación que el evento del outbox; la bitácora es best-effort.
+            auditService.compraAprobada(orden, clienteId);
             return toResponse(orden, items, entradas);
         } catch (RuntimeException ex) {
             sagaCompraService.registrarError(orden.getId(), "Emisión: no se pudieron emitir las entradas");
@@ -311,7 +316,11 @@ public class OrderService {
             }
             actualizarEstadoPago(pago);
         }
-        return new CancelacionEventoResponse(eventoId, enReintegro.size(), reintegrosAprobados);
+        CancelacionEventoResponse respuesta =
+                new CancelacionEventoResponse(eventoId, enReintegro.size(), reintegrosAprobados);
+        auditService.cancelacionEvento(eventoId, respuesta.entradasAfectadas(),
+                respuesta.reintegrosSolicitados());
+        return respuesta;
     }
 
     private void actualizarEstadoPago(Pago pago) {

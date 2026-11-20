@@ -47,6 +47,7 @@ public class DevolucionService {
     private final PaymentGateway paymentGateway;
     private final OutboxService outboxService;
     private final Clock clock;
+    private final AuditService auditService;
 
     public DevolucionService(DevolucionRepository devolucionRepository,
                              EntradaRepository entradaRepository,
@@ -56,7 +57,8 @@ public class DevolucionService {
                              InventoryClient inventoryClient,
                              PaymentGateway paymentGateway,
                              OutboxService outboxService,
-                             Clock clock) {
+                             Clock clock,
+                             AuditService auditService) {
         this.devolucionRepository = devolucionRepository;
         this.entradaRepository = entradaRepository;
         this.pagoRepository = pagoRepository;
@@ -66,6 +68,7 @@ public class DevolucionService {
         this.paymentGateway = paymentGateway;
         this.outboxService = outboxService;
         this.clock = clock;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -94,6 +97,7 @@ public class DevolucionService {
         devolucion.setMotivo(motivo == null ? null : motivo.trim());
         devolucion.setCreatedAt(OffsetDateTime.now(clock));
         devolucion = devolucionRepository.save(devolucion);
+        auditService.devolucionSolicitada(devolucion, clienteId);
         return ReturnResponse.from(devolucion);
     }
 
@@ -103,6 +107,11 @@ public class DevolucionService {
      */
     @Transactional(noRollbackFor = ApiException.class)
     public ReturnResponse aprobar(UUID devolucionId) {
+        return aprobar(devolucionId, null);
+    }
+
+    @Transactional(noRollbackFor = ApiException.class)
+    public ReturnResponse aprobar(UUID devolucionId, UUID adminId) {
         Devolucion devolucion = buscar(devolucionId);
         if (devolucion.getEstado() == EstadoDevolucion.APROBADA
                 || devolucion.getEstado() == EstadoDevolucion.RECHAZADA) {
@@ -146,11 +155,17 @@ public class DevolucionService {
         // El aviso de reintegro se persiste con el cambio a APROBADA, no después.
         outboxService.registrar(OrderDomainEvents.DEVOLUCION_APROBADA, devolucion.getId(),
                 OrderDomainEvents.devolucionAprobada(devolucion, entrada, monto));
+        auditService.devolucionAprobada(devolucion, entrada, adminId, monto);
         return ReturnResponse.from(devolucion);
     }
 
     @Transactional
     public ReturnResponse rechazar(UUID devolucionId) {
+        return rechazar(devolucionId, null);
+    }
+
+    @Transactional
+    public ReturnResponse rechazar(UUID devolucionId, UUID adminId) {
         Devolucion devolucion = buscar(devolucionId);
         if (devolucion.getEstado() == EstadoDevolucion.APROBADA
                 || devolucion.getEstado() == EstadoDevolucion.RECHAZADA) {
@@ -163,6 +178,7 @@ public class DevolucionService {
         devolucion.setEstado(EstadoDevolucion.RECHAZADA);
         devolucion.setResolvedAt(OffsetDateTime.now(clock));
         devolucion = devolucionRepository.save(devolucion);
+        auditService.devolucionRechazada(devolucion, adminId);
         return ReturnResponse.from(devolucion);
     }
 

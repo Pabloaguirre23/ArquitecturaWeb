@@ -52,7 +52,7 @@ class ReturnControllerTest {
     @Test
     void adminPuedeAprobarYRecibeElEstado() throws Exception {
         UUID devolucionId = UUID.randomUUID();
-        when(devolucionService.aprobar(devolucionId))
+        when(devolucionService.aprobar(eq(devolucionId), eq(UUID.fromString(ADMIN))))
                 .thenReturn(new ReturnResponse(devolucionId, UUID.randomUUID(),
                         EstadoDevolucion.APROBADA, "No puedo",
                         OffsetDateTime.parse("2026-11-06T12:00:00-03:00"),

@@ -76,7 +76,7 @@ public class ReturnController {
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
         identity.requireRole("ADMIN");
-        return devolucionService.aprobar(devolucionId);
+        return devolucionService.aprobar(devolucionId, identity.userId());
     }
 
     @PostMapping("/returns/{devolucionId}/reject")
@@ -91,6 +91,6 @@ public class ReturnController {
             @RequestHeader(value = "X-User-Role", required = false) String role) {
         RequestIdentity identity = RequestIdentity.require(userId, role);
         identity.requireRole("ADMIN");
-        return devolucionService.rechazar(devolucionId);
+        return devolucionService.rechazar(devolucionId, identity.userId());
     }
 }
