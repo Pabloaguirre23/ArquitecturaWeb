@@ -15,8 +15,10 @@ public class OpenApiConfig {
                 .title("TicketYa - orders-service")
                 .version("1.0.0")
                 .description("""
-                        Órdenes, pago mock, entradas con QR, devoluciones y cancelación de evento.
-                        Los endpoints públicos se consumen a través del gateway en /api/orders/**.
+                        Órdenes, pago mock, entradas con QR, control de acceso, reportes del organizador,
+                        devoluciones y cancelación de evento.
+                        Los endpoints públicos se consumen a través del gateway en /api/orders/** con
+                        Authorization: Bearer <jwt>; el gateway inyecta X-User-Id y X-User-Role.
                         Los errores usan RFC 7807 (application/problem+json) con los campos code y errors[].
                         """)
                 .license(new License().name("Uso académico - UNICEN")));

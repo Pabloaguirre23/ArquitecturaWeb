@@ -19,6 +19,8 @@ Servicio de órdenes, pagos, entradas/QR y compensaciones de TicketYa.
 | POST | `/api/orders/tickets/{entradaId}/returns` | dueño | Solicita la devolución de una entrada |
 | POST | `/api/orders/returns/{devolucionId}/approve` | ADMIN | Libera el lugar, invalida la entrada y reintegra |
 | POST | `/api/orders/returns/{devolucionId}/reject` | ADMIN | Rechaza la devolución; la entrada sigue válida |
+| POST | `/api/orders/access/validate` | ACCESS_STAFF o ADMIN | Consume una entrada por QR una sola vez (6.4) |
+| GET | `/api/orders/reports/events/{eventoId}` | ORGANIZER dueño o ADMIN | Reporte de ventas, ocupación y recaudación (6.5) |
 | POST | `/internal/events/{eventoId}/cancel` | interno | Marca las entradas vendidas `EN_REINTEGRO` y solicita los reintegros |
 
 ## Flujo de compra
@@ -106,6 +108,39 @@ los campos que no se pudieron completar quedan en `null`/lista vacía en el even
   evento y compensaciones) cada minuto, sin marcar nada como aprobado antes de la pasarela.
 - Una devolución `PROCESANDO` no se puede rechazar: responde `409 RETURN_IN_PROGRESS`.
 
+## Control de acceso y reportes (Entrega 2)
+
+### Acceso con QR (6.4)
+
+`POST /api/orders/access/validate` recibe `{"qrCode": "<uuid>", "eventoId": "<uuid>"}` y solo
+acepta `ACCESS_STAFF` o `ADMIN`. La entrada se consume con un `UPDATE` condicional atómico
+(`estado = 'VALIDA' AND used_at IS NULL`), nunca con `find` + `save`: dos escaneos concurrentes
+del mismo QR dan exactamente un `200` y un `409`.
+
+- `200`: entrada `UTILIZADA`, con `usedAt` y `usedBy`.
+- `404 TICKET_NOT_FOUND`, `409 TICKET_ALREADY_USED`, `409 TICKET_WRONG_EVENT`,
+  `409 TICKET_NOT_VALID`, `401 UNAUTHORIZED`, `403 FORBIDDEN`.
+- Cada intento escribe `INGRESO_VALIDADO` o `INGRESO_RECHAZADO` en `audit_log` con el motivo,
+  el usuario, el rol y `X-Correlation-Id`. La auditoría es best-effort: usa una transacción
+  propia (`REQUIRES_NEW`) y un fallo suyo nunca revierte el ingreso.
+
+### Reporte del organizador (6.5)
+
+`GET /api/orders/reports/events/{eventoId}` responde por sector `vendidas`, `devueltas`, `netas`,
+`ocupacion` (`netas / capacidad`; `null` si no hay capacidad) y `recaudacion`, más los totales
+del evento. `vendidas` cuenta las entradas de órdenes `PAGADA` (incluye las devueltas después),
+`devueltas` usa el estado `DEVUELTA` o una devolución aprobada, y `recaudacion` descuenta los
+reintegros `APROBADO`. Un evento sin ventas devuelve ceros y ocupación `0`.
+
+La capacidad y los nombres de sector se leen de `GET /internal/events/{eventoId}/report` de
+catalog con `X-Internal-Token` (timeouts de 1 s / 2 s) y se guardan 60 s en caché. Si catalog
+no responde, se usa la caché o el snapshot de `orden` y la respuesta marca
+`datosDesactualizados: true`; si no se puede verificar el dueño ni con el snapshot, responde
+`503 CATALOG_UNAVAILABLE`. El evento inexistente en catalog responde `404 EVENT_NOT_FOUND`.
+
+Solo el `ORGANIZER` dueño o un `ADMIN` puede consultarlo; un organizador ajeno recibe
+`403 NOT_EVENT_OWNER` y un `CLIENT` recibe `403 FORBIDDEN`.
+
 ## Modelo
 
 `orden`, `orden_item`, `pago`, `entrada`, `devolucion`, `idempotency_key` y `reintegro`.
@@ -123,7 +158,8 @@ La migración `V5` de la Entrega 2 agrega el snapshot de compra (`cliente_email`
 | `DB_URL` | `jdbc:postgresql://localhost:5435/orders_db` | Conexión JDBC |
 | `DB_USER` / `DB_PASSWORD` | `ticketya` | Credenciales |
 | `INVENTORY_URL` | `http://localhost:8082` | Cliente interno hacia inventory |
-| `CATALOG_URL` | `http://localhost:8081` | Cliente a catalog para enriquecer el snapshot del evento |
+| `CATALOG_URL` | `http://localhost:8081` | Cliente a catalog para enriquecer el snapshot y el reporte (6.5) |
+| `INTERNAL_TOKEN` | `ticketya-internal-dev` | `X-Internal-Token` enviado al reporte interno de catalog |
 | `ORDERS_SAGAS_RETRY_DELAY_MS` | `60000` | Frecuencia del reintento de sagas `COMPENSANDO` |
 | `ORDERS_SAGAS_MAX_INTENTOS` | `10` | Reintentos de compensación antes de `FALLIDA` |
 | `RABBITMQ_HOST` / `RABBITMQ_PORT` | `localhost` / `5672` | Broker del outbox |
@@ -145,9 +181,11 @@ mvn spring-boot:run
 curl http://localhost:8083/actuator/health
 ```
 
-`mvn test` incluye `OrderIdempotencyIntegrationTest`, `OrderTransactionIntegrationTest` y
-`OrderTransactionEmissionIntegrationTest`, que usan PostgreSQL 16 con Testcontainers. Cubren
-reintentos concurrentes, pasarela caída y un fallo real del repositorio dentro de la emisión
-(la compensación queda persistida). Si Docker no está disponible, se omiten.
+`mvn test` incluye `OrderIdempotencyIntegrationTest`, `OrderTransactionIntegrationTest`,
+`OrderTransactionEmissionIntegrationTest`, `AccessConcurrencyIntegrationTest` (dos escaneos
+concurrentes del mismo QR) y `ReportIntegrationTest` (devolución y fallback de catalog), que usan
+PostgreSQL 16 con Testcontainers. Cubren reintentos concurrentes, pasarela caída y un fallo real
+del repositorio dentro de la emisión (la compensación queda persistida). Si Docker no está
+disponible, se omiten.
 
 Swagger UI: <http://localhost:8083/swagger-ui.html> · OpenAPI: <http://localhost:8083/v3/api-docs>

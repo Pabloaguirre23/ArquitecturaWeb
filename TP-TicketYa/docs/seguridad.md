@@ -75,6 +75,32 @@ Abrir la fila ya lo exigía.
 | `GET /api/queue/events/{id}/position` | `401` | `403 FORBIDDEN` | `200` si está en la fila | n/a |
 | `GET /internal/reservations/{id}` | n/a | n/a | n/a | `401` sin `X-Internal-Token` o con uno inválido; `200` con el token |
 
+## orders-service (tareas 6.4 y 6.5)
+
+Además del filtro del gateway, orders exige `X-User-Id` (UUID) y `X-User-Role` como defensa en
+profundidad: sin ellos responde `401 UNAUTHORIZED` aunque la ruta sea pública en otro servicio.
+Las rutas nuevas solo aceptan los roles listados; un `CLIENT` nunca puede validar QR ni consultar
+reportes.
+
+| Endpoint | Sin identidad | Rol no habilitado | Dueño / rol habilitado |
+|---|---|---|---|
+| `POST /api/orders/access/validate` | `401 UNAUTHORIZED` | `403 FORBIDDEN` (ej. `CLIENT`, `ORGANIZER`) | `200` con `ACCESS_STAFF` o `ADMIN` |
+| `GET /api/orders/reports/events/{eventoId}` | `401 UNAUTHORIZED` | `403 FORBIDDEN` (ej. `CLIENT`, `ACCESS_STAFF`) | `200` con `ORGANIZER` dueño o `ADMIN` |
+| `GET /api/orders/reports/events/{eventoId}` de otro organizador | `401 UNAUTHORIZED` | n/a | `403 NOT_EVENT_OWNER` |
+
+Notas:
+
+- El reporte autoriza comparando `X-User-Id` con el `organizadorId` de catalog (o con el snapshot
+  `orden.evento_organizador_id` si catalog no responde). `ADMIN` pasa siempre.
+- El servidor llama a catalog con `X-Internal-Token` (`INTERNAL_TOKEN`, default
+  `ticketya-internal-dev`); esa cabecera la descarta el gateway y nunca debe venir del cliente.
+- Si catalog cae se sirve la caché de 60 s o el snapshot local y se marca
+  `datosDesactualizados: true`; sin dueño verificable responde `503 CATALOG_UNAVAILABLE`.
+- El QR se consume con un `UPDATE` condicional, por lo que un segundo escaneo recibe
+  `409 TICKET_ALREADY_USED` y se registra como `INGRESO_RECHAZADO`.
+- Evidencia automática: `AccessControllerTest`, `AccessConcurrencyIntegrationTest`,
+  `ReportControllerTest`, `ReportCalculationTest` y `ReportIntegrationTest`.
+
 ## api-gateway (tareas 2.1 y 2.2)
 
 `POST /api/auth/login` lo atiende el propio gateway (no es una ruta proxy). Devuelve un JWT HS256
@@ -101,6 +127,7 @@ Para el resto de las rutas, el filtro del gateway aplica estas reglas:
 | `POST /api/orders`, `GET /api/orders/**`, devoluciones | `401` | `403` | autenticado |
 | `POST /api/orders/returns/{id}/approve` y `/reject` | `401` | `403` | ADMIN |
 | `POST /api/orders/access/validate` | `401` | `403` | ACCESS_STAFF o ADMIN |
+| `GET /api/orders/reports/events/{eventoId}` | `401` | `403` | ORGANIZER o ADMIN |
 | `GET /api/notifications` y `/{id}` | `401` | `403` | CLIENT |
 
 Las filas de inventory, queue y recommendation están en las secciones de arriba.
