@@ -4,9 +4,8 @@ Contrato del sobre de eventos y de los payloads que comparten los servicios. Es 
 la tarea **1.5**; los productores (3.2, 6.3) y los consumidores (7.3, 8.2, 8.3) ya están
 implementados y validados contra este esquema.
 
-- **Estado:** congelado en la práctica. P1 y P3 verificaron sus productores con tests de
-  contrato y P5 el consumidor de recommendation; queda la firma formal de la tarea 1.5 por
-  P4. Cualquier cambio se discute acá y se actualizan los fixtures
+- **Estado:** congelado el 20/11/2026. Validado por P1 (catalog/notification), P3 (orders) y
+  P5 (consumers/E2E). Cualquier cambio se discute acá y se actualizan los fixtures
   [`ejemplos/orden-pagada.json`](ejemplos/orden-pagada.json) y
   [`ejemplos/evento-publicado.json`](ejemplos/evento-publicado.json) en el mismo PR.
 - **Broker:** RabbitMQ 3.13, exchange `ticketya.events` de tipo `topic`.
@@ -50,8 +49,8 @@ Exchange: `ticketya.events` (topic, durable). Dead-letter exchange: `ticketya.ev
 |---|---|---|---|
 | `orden.pagada` | `notification.order` | notification-service (8.2) | `notification.order.dlq` |
 | `orden.pagada` | `recommendation.history` | recommendation-service (7.3) | `recommendation.history.dlq` |
-| `orden.reintegrada` | `notification.order` | pendiente (8.2): binding no declarado aún | `notification.order.dlq` |
-| `devolucion.aprobada` | `notification.order` | pendiente (8.2): binding no declarado aún | `notification.order.dlq` |
+| `orden.reintegrada` | `notification.order` | notification-service (8.2) | `notification.order.dlq` |
+| `devolucion.aprobada` | `notification.order` | notification-service (8.2) | `notification.order.dlq` |
 | `evento.actualizado` | `notification.event` | notification-service (8.3) | `notification.event.dlq` |
 | `evento.cancelado` | `notification.event` | notification-service (8.3) | `notification.event.dlq` |
 | `evento.publicado` | `notification.favorite` | notification-service (8.3) | `notification.favorite.dlq` |
@@ -149,7 +148,7 @@ suscripto: el historial solo registra compras pagadas.
 }
 ```
 
-Binding hacia `notification.order` pendiente de declarar en notification-service (8.2).
+notification-service lo recibe en `notification.order` (8.2).
 
 ### 3.5 `entrada.utilizada`
 
@@ -202,7 +201,7 @@ entrega.
 
 | Ítem | Dueño | Tarea | Estado |
 |---|---|---|---|
-| Congelar este documento | P4 | 1.5 | Contenido estable y revisado por P1/P3/P5; queda la marca formal de P4 en el checklist. |
+| Congelar este documento | P4 | 1.5 | Hecho el 20/11/2026: contenido revisado por P1/P3/P5 y firmado por P4. |
 | Publicar `orden.pagada` desde el outbox de orders (§3.1) | P3 | 6.3 | Hecho en PR #25; `OrdenPagadaContractTest` y suite E2E verdes. |
 | Publicar `evento.*` desde catalog (§3.3) | P1 | 3.2 | Hecho en PR #27; `OutboxPublisherTest` y test de contrato verdes. |
 | Consumir `orden.pagada` en notification (§3.1) | P1 | 8.2 | Hecho: dedupe por `(event_id, tipo, destinatario_id)` y DLQ. |
