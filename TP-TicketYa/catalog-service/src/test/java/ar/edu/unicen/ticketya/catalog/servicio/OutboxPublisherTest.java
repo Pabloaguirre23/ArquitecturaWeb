@@ -43,7 +43,8 @@ class OutboxPublisherTest {
 
     @BeforeEach
     void setUp() {
-        publisher = new OutboxPublisher(repository, rabbitTemplate, new ObjectMapper(), CLOCK, 50, 3, 5);
+        publisher = new OutboxPublisher(repository, rabbitTemplate, new ObjectMapper(), CLOCK,
+                50, 3, 5, 24);
     }
 
     @Test
@@ -59,6 +60,16 @@ class OutboxPublisherTest {
         assertThat(evento.getPublishedAt()).isEqualTo(NOW);
         assertThat(evento.getLastError()).isNull();
         assertThat(evento.getAttempts()).isZero();
+    }
+
+    @Test
+    void purgaLosPublicadosMasAntiguosQueLaRetencion() {
+        OutboxEvent evento = evento(0);
+        when(repository.lockPending(NOW, 50)).thenReturn(List.of(evento));
+
+        publisher.publishPending();
+
+        verify(repository).purgePublicadosAntesDe(OutboxStatus.PUBLISHED, NOW.minusHours(24));
     }
 
     @Test

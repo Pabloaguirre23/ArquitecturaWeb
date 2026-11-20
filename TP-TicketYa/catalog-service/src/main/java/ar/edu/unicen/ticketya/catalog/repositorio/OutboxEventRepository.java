@@ -1,11 +1,13 @@
 package ar.edu.unicen.ticketya.catalog.repositorio;
 
 import ar.edu.unicen.ticketya.catalog.dominio.OutboxEvent;
+import ar.edu.unicen.ticketya.catalog.dominio.OutboxStatus;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -19,4 +21,8 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> 
             for update skip locked
             """, nativeQuery = true)
     List<OutboxEvent> lockPending(@Param("now") OffsetDateTime now, @Param("limit") int limit);
+
+    @Modifying
+    @Query("delete from OutboxEvent e where e.status = :estado and e.publishedAt < :antes")
+    int purgePublicadosAntesDe(@Param("estado") OutboxStatus estado, @Param("antes") OffsetDateTime antes);
 }

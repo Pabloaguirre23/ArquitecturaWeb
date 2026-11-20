@@ -11,8 +11,10 @@ import ar.edu.unicen.ticketya.notification.dominio.Notificacion;
 import ar.edu.unicen.ticketya.notification.servicio.CompradorEventoService;
 import ar.edu.unicen.ticketya.notification.servicio.DestinatarioEmail;
 import ar.edu.unicen.ticketya.notification.servicio.NotificationService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,8 @@ import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 @ExtendWith(MockitoExtension.class)
 class OrdenPagadaListenerTest {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
+
     @Mock
     private NotificationService notificationService;
 
@@ -36,7 +40,7 @@ class OrdenPagadaListenerTest {
     @BeforeEach
     void setUp() {
         listener = new OrdenPagadaListener(notificationService, compradorEventoService,
-                new DestinatarioEmail("ticketya.local"));
+                new DestinatarioEmail("ticketya.local"), MAPPER);
     }
 
     @Test
@@ -47,15 +51,15 @@ class OrdenPagadaListenerTest {
         when(notificationService.crearYEnviar(any(Notificacion.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        listener.escuchar(evento(eventId, clienteId, eventoId, OrdenPagadaEvent.TIPO,
-                OrdenPagadaPayload.ESTADO_PAGADA, null));
+        listener.escuchar(evento(eventId.toString(), OrdenEvent.ORDEN_PAGADA,
+                payloadPagada(clienteId, eventoId, OrdenPagadaPayload.ESTADO_PAGADA, null)));
 
         ArgumentCaptor<Notificacion> captor = ArgumentCaptor.forClass(Notificacion.class);
         verify(notificationService).crearYEnviar(captor.capture());
         verify(compradorEventoService).registrar(any(OrdenPagadaPayload.class));
         Notificacion notificacion = captor.getValue();
         assertThat(notificacion.getEventId()).isEqualTo(eventId);
-        assertThat(notificacion.getTipo()).isEqualTo(OrdenPagadaEvent.TIPO);
+        assertThat(notificacion.getTipo()).isEqualTo(OrdenEvent.ORDEN_PAGADA);
         assertThat(notificacion.getDestinatarioId()).isEqualTo(clienteId);
         assertThat(notificacion.getDestinatarioEmail())
                 .isEqualTo("cliente-" + clienteId + "@ticketya.local");
@@ -69,8 +73,9 @@ class OrdenPagadaListenerTest {
         when(notificationService.crearYEnviar(any(Notificacion.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        listener.escuchar(evento(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                OrdenPagadaEvent.TIPO, OrdenPagadaPayload.ESTADO_PAGADA, "cliente@example.com"));
+        listener.escuchar(evento(UUID.randomUUID().toString(), OrdenEvent.ORDEN_PAGADA,
+                payloadPagada(UUID.randomUUID(), UUID.randomUUID(),
+                        OrdenPagadaPayload.ESTADO_PAGADA, "cliente@example.com")));
 
         ArgumentCaptor<Notificacion> captor = ArgumentCaptor.forClass(Notificacion.class);
         verify(notificationService).crearYEnviar(captor.capture());
@@ -78,58 +83,167 @@ class OrdenPagadaListenerTest {
     }
 
     @Test
-    void unEstadoDistintoDePagadaVaALaDlqSinNotificar() {
-        OrdenPagadaEvent evento = evento(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                OrdenPagadaEvent.TIPO, "PENDIENTE", null);
+    void laReintegradaAvisaElReintegroSinRegistrarComprador() {
+        UUID eventId = UUID.randomUUID();
+        UUID clienteId = UUID.randomUUID();
+        when(notificationService.crearYEnviar(any(Notificacion.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        listener.escuchar(evento(eventId.toString(), OrdenEvent.ORDEN_REINTEGRADA,
+                payloadReintegrada(clienteId, new BigDecimal("25000.00"), "PAGO_RECHAZADO")));
+
+        ArgumentCaptor<Notificacion> captor = ArgumentCaptor.forClass(Notificacion.class);
+        verify(notificationService).crearYEnviar(captor.capture());
+        Notificacion notificacion = captor.getValue();
+        assertThat(notificacion.getEventId()).isEqualTo(eventId);
+        assertThat(notificacion.getTipo()).isEqualTo(OrdenEvent.ORDEN_REINTEGRADA);
+        assertThat(notificacion.getDestinatarioId()).isEqualTo(clienteId);
+        assertThat(notificacion.getAsunto()).contains("Reintegro de la orden");
+        assertThat(notificacion.getContenido())
+                .contains("reintegrada")
+                .contains("25000.00")
+                .contains("PAGO_RECHAZADO");
+        assertThat(notificacion.getCorrelationId()).isEqualTo("corr-1");
+        verifyNoInteractions(compradorEventoService);
+    }
+
+    @Test
+    void laReintegradaSinClienteVaALaDlqSinNotificar() {
+        OrdenEvent evento = evento(UUID.randomUUID().toString(), OrdenEvent.ORDEN_REINTEGRADA,
+                payloadReintegrada(null, null, null));
 
         assertThatThrownBy(() -> listener.escuchar(evento))
                 .isInstanceOf(AmqpRejectAndDontRequeueException.class);
-        verifyNoInteractions(notificationService);
+        verifyNoInteractions(notificationService, compradorEventoService);
+    }
+
+    @Test
+    void laDevolucionAprobadaConfirmaElReintegroAlCliente() {
+        UUID eventId = UUID.randomUUID();
+        UUID clienteId = UUID.randomUUID();
+        when(notificationService.crearYEnviar(any(Notificacion.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        listener.escuchar(evento(eventId.toString(), OrdenEvent.DEVOLUCION_APROBADA,
+                payloadDevolucion(clienteId, new BigDecimal("25000.00"))));
+
+        ArgumentCaptor<Notificacion> captor = ArgumentCaptor.forClass(Notificacion.class);
+        verify(notificationService).crearYEnviar(captor.capture());
+        Notificacion notificacion = captor.getValue();
+        assertThat(notificacion.getEventId()).isEqualTo(eventId);
+        assertThat(notificacion.getTipo()).isEqualTo(OrdenEvent.DEVOLUCION_APROBADA);
+        assertThat(notificacion.getDestinatarioId()).isEqualTo(clienteId);
+        assertThat(notificacion.getAsunto()).contains("Devolución aprobada");
+        assertThat(notificacion.getContenido())
+                .contains("Se aprobó la devolución")
+                .contains("25000.00");
+        assertThat(notificacion.getCorrelationId()).isEqualTo("corr-1");
+        verifyNoInteractions(compradorEventoService);
+    }
+
+    @Test
+    void laDevolucionAprobadaSinClienteVaALaDlqSinNotificar() {
+        OrdenEvent evento = evento(UUID.randomUUID().toString(), OrdenEvent.DEVOLUCION_APROBADA,
+                payloadDevolucion(null, null));
+
+        assertThatThrownBy(() -> listener.escuchar(evento))
+                .isInstanceOf(AmqpRejectAndDontRequeueException.class);
+        verifyNoInteractions(notificationService, compradorEventoService);
+    }
+
+    @Test
+    void unEstadoDistintoDePagadaVaALaDlqSinNotificar() {
+        OrdenEvent evento = evento(UUID.randomUUID().toString(), OrdenEvent.ORDEN_PAGADA,
+                payloadPagada(UUID.randomUUID(), UUID.randomUUID(), "PENDIENTE", null));
+
+        assertThatThrownBy(() -> listener.escuchar(evento))
+                .isInstanceOf(AmqpRejectAndDontRequeueException.class);
+        verifyNoInteractions(notificationService, compradorEventoService);
     }
 
     @Test
     void unTipoInesperadoVaALaDlqSinNotificar() {
-        OrdenPagadaEvent evento = evento(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                "orden.reintegrada", OrdenPagadaPayload.ESTADO_PAGADA, null);
+        OrdenEvent evento = evento(UUID.randomUUID().toString(), "entrada.utilizada",
+                payloadPagada(UUID.randomUUID(), UUID.randomUUID(),
+                        OrdenPagadaPayload.ESTADO_PAGADA, null));
 
         assertThatThrownBy(() -> listener.escuchar(evento))
                 .isInstanceOf(AmqpRejectAndDontRequeueException.class);
-        verifyNoInteractions(notificationService);
+        verifyNoInteractions(notificationService, compradorEventoService);
     }
 
     @Test
     void unPayloadSinClienteVaALaDlqSinNotificar() {
-        OrdenPagadaEvent evento = new OrdenPagadaEvent(UUID.randomUUID().toString(),
-                OrdenPagadaEvent.TIPO, Instant.parse("2026-11-15T12:00:00Z"), "corr-1", 1,
-                new OrdenPagadaPayload(UUID.randomUUID().toString(), null, UUID.randomUUID().toString(),
-                        "Festival", "FESTIVAL", List.of(), "Tandil",
-                        Instant.parse("2027-03-15T00:00:00Z"), OrdenPagadaPayload.ESTADO_PAGADA, null));
+        ObjectNode payload = MAPPER.createObjectNode();
+        payload.put("ordenId", UUID.randomUUID().toString());
+        payload.put("eventoId", UUID.randomUUID().toString());
+        payload.put("eventoNombre", "Festival");
+        payload.put("eventoTipo", "FESTIVAL");
+        payload.put("ciudad", "Tandil");
+        payload.put("estado", OrdenPagadaPayload.ESTADO_PAGADA);
+        OrdenEvent evento = evento(UUID.randomUUID().toString(), OrdenEvent.ORDEN_PAGADA, payload);
 
         assertThatThrownBy(() -> listener.escuchar(evento))
                 .isInstanceOf(AmqpRejectAndDontRequeueException.class);
-        verifyNoInteractions(notificationService);
+        verifyNoInteractions(notificationService, compradorEventoService);
     }
 
     @Test
     void unEventIdQueNoEsUuidVaALaDlqSinNotificar() {
-        OrdenPagadaEvent evento = new OrdenPagadaEvent("no-es-uuid", OrdenPagadaEvent.TIPO,
-                Instant.parse("2026-11-15T12:00:00Z"), "corr-1", 1,
-                new OrdenPagadaPayload(UUID.randomUUID().toString(), UUID.randomUUID().toString(),
-                        UUID.randomUUID().toString(), "Festival", "FESTIVAL", List.of(), "Tandil",
-                        Instant.parse("2027-03-15T00:00:00Z"), OrdenPagadaPayload.ESTADO_PAGADA, null));
+        OrdenEvent evento = evento("no-es-uuid", OrdenEvent.ORDEN_PAGADA,
+                payloadPagada(UUID.randomUUID(), UUID.randomUUID(),
+                        OrdenPagadaPayload.ESTADO_PAGADA, null));
 
         assertThatThrownBy(() -> listener.escuchar(evento))
                 .isInstanceOf(AmqpRejectAndDontRequeueException.class);
-        verifyNoInteractions(notificationService);
+        verifyNoInteractions(notificationService, compradorEventoService);
     }
 
-    private OrdenPagadaEvent evento(UUID eventId, UUID clienteId, UUID eventoId, String tipo,
-                                    String estado, String clienteEmail) {
-        OrdenPagadaPayload payload = new OrdenPagadaPayload(UUID.randomUUID().toString(),
-                clienteId.toString(), eventoId.toString(), "Festival de Rock Tandil 2027", "FESTIVAL",
-                List.of("Los Piojos"), "Tandil", Instant.parse("2027-03-15T00:00:00Z"), estado,
-                clienteEmail);
-        return new OrdenPagadaEvent(eventId.toString(), tipo, Instant.parse("2026-11-15T12:00:00Z"),
+    private OrdenEvent evento(String eventId, String tipo, ObjectNode payload) {
+        return new OrdenEvent(eventId, tipo, Instant.parse("2026-11-15T12:00:00Z"),
                 "corr-1", 1, payload);
+    }
+
+    private ObjectNode payloadPagada(UUID clienteId, UUID eventoId, String estado, String email) {
+        ObjectNode payload = MAPPER.createObjectNode();
+        payload.put("ordenId", UUID.randomUUID().toString());
+        payload.put("clienteId", clienteId == null ? null : clienteId.toString());
+        payload.put("eventoId", eventoId.toString());
+        payload.put("eventoNombre", "Festival de Rock Tandil 2027");
+        payload.put("eventoTipo", "FESTIVAL");
+        payload.putArray("artistas").add("Los Piojos");
+        payload.put("ciudad", "Tandil");
+        payload.put("fechaEvento", "2027-03-15T00:00:00Z");
+        payload.put("estado", estado);
+        if (email != null) {
+            payload.put("clienteEmail", email);
+        }
+        return payload;
+    }
+
+    private ObjectNode payloadReintegrada(UUID clienteId, BigDecimal monto, String motivo) {
+        ObjectNode payload = MAPPER.createObjectNode();
+        payload.put("ordenId", UUID.randomUUID().toString());
+        payload.put("clienteId", clienteId == null ? null : clienteId.toString());
+        payload.put("eventoId", UUID.randomUUID().toString());
+        if (monto != null) {
+            payload.put("monto", monto);
+        }
+        if (motivo != null) {
+            payload.put("motivo", motivo);
+        }
+        return payload;
+    }
+
+    private ObjectNode payloadDevolucion(UUID clienteId, BigDecimal monto) {
+        ObjectNode payload = MAPPER.createObjectNode();
+        payload.put("devolucionId", UUID.randomUUID().toString());
+        payload.put("ordenId", UUID.randomUUID().toString());
+        payload.put("entradaId", UUID.randomUUID().toString());
+        payload.put("clienteId", clienteId == null ? null : clienteId.toString());
+        if (monto != null) {
+            payload.put("monto", monto);
+        }
+        return payload;
     }
 }

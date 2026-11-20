@@ -209,10 +209,10 @@ entrega.
 | Consumir `evento.*` y avisar por artista favorito (§3.3) | P1 | 8.3 | Hecho; usa `GET /internal/preferences?artista=&ciudad=` (api-contract §6.3.1). |
 | Validar el snapshot `eventoTipo`/`artistas`/`ciudad` en orders | P3 + P1/P2 | 6.1 / 3.5 | Hecho; verificado por `MigracionV5IntegrationTest` y la E2E del Día 7. |
 | Declarar broker, colas y DLQ en el compose | P4 | 9.6 | Hecho: 13 contenedores healthy y healthchecks verdes. |
-| Logging JSON y MDC con `X-Correlation-Id` en los siete servicios | P4 + dueños de servicio | 9.1 | Pendiente: Tiago define `logback-spring.xml` y cada dueño replica el MDC en su servicio. |
-| `audit_log` de orders con la correlación de la compra | P3 | 9.3 | Pendiente: la tabla ya existe en V5; falta registrar compra, devolución, cancelación e ingreso QR y dejar evidencia. |
-| Loki/Promtail/Grafana y búsqueda por correlación | P4 | 9.4 | Pendiente. |
-| Colección Postman/Newman v2 por servicio | P3 + dueños | 10.2 | Pendiente: Tiago arma el esqueleto y cada dueño su carpeta. |
+
+No queda otro pendiente de contrato acá: los tests de contrato del productor ya existen en
+catalog (3.2) y orders (6.3). La deuda abierta de observabilidad y Postman (9.1, 9.3, 9.4 y
+10.2) se sigue en `tasks.md`, no en este documento.
 
 `entrada.utilizada` (§3.5) sigue sin consumidor: está reservada para la bitácora de 9.3 y no
 debe agregarse una cola nueva sin actualizar esta tabla y el compose.

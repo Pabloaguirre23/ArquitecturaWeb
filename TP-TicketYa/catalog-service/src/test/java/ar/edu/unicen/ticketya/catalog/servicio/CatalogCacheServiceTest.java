@@ -27,6 +27,8 @@ import org.springframework.cache.support.SimpleValueWrapper;
 import org.springframework.data.redis.cache.RedisCache;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class CatalogCacheServiceTest {
@@ -103,6 +105,35 @@ class CatalogCacheServiceTest {
                 .when(cache).clear();
 
         cacheService.evictEventCaches(eventoId);
+
+        verify(cache).evict(eventoId);
+        verify(cache).clear();
+    }
+
+    @Test
+    void dentroDeUnaTransaccionElEvictSeDifiereAlCommit() {
+        UUID eventoId = UUID.randomUUID();
+        when(cacheManager.getCache("event-detail-static")).thenReturn(cache);
+        when(cacheManager.getCache("event-search")).thenReturn(cache);
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            cacheService.evictEventCaches(eventoId);
+
+            // Todavía no: dentro de la transacción la caché conserva el valor
+            // viejo y ningún lector puede haber re-cacheado el nuevo.
+            verify(cache, org.mockito.Mockito.never()).evict(eventoId);
+            verify(cache, org.mockito.Mockito.never()).clear();
+
+            for (TransactionSynchronization sincronizacion :
+                    TransactionSynchronizationManager.getSynchronizations()) {
+                sincronizacion.afterCommit();
+            }
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
 
         verify(cache).evict(eventoId);
         verify(cache).clear();
