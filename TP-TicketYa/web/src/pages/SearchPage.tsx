@@ -111,11 +111,16 @@ export function SearchPage() {
       </section>
 
       <section className="search-panel" aria-label="Buscador de eventos">
-        <form className="filters" role="search" onSubmit={handleSubmit}>
+        <form className="filters" role="search" onSubmit={handleSubmit} aria-busy={loading}>
           <div className="field field-wide">
             <label htmlFor="q">Artista, evento o lugar</label>
             <input
               id="q"
+              name="q"
+              type="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              spellCheck={false}
               value={filters.q}
               onChange={(event) => updateFilter('q', event.target.value)}
               placeholder="Ej. Festival de Rock"
@@ -126,6 +131,7 @@ export function SearchPage() {
             <label htmlFor="tipo">Tipo</label>
             <select
               id="tipo"
+              name="tipo"
               value={filters.tipo}
               onChange={(event) => updateFilter('tipo', event.target.value)}
             >
@@ -142,6 +148,9 @@ export function SearchPage() {
             <label htmlFor="ciudad">Ciudad</label>
             <input
               id="ciudad"
+              name="ciudad"
+              autoComplete="address-level2"
+              spellCheck={false}
               value={filters.ciudad}
               onChange={(event) => updateFilter('ciudad', event.target.value)}
               placeholder="Tandil"
@@ -152,6 +161,7 @@ export function SearchPage() {
             <label htmlFor="fechaDesde">Desde</label>
             <input
               id="fechaDesde"
+              name="fechaDesde"
               type="date"
               value={filters.fechaDesde}
               aria-invalid={Boolean(dateError)}
@@ -164,6 +174,7 @@ export function SearchPage() {
             <label htmlFor="fechaHasta">Hasta</label>
             <input
               id="fechaHasta"
+              name="fechaHasta"
               type="date"
               value={filters.fechaHasta}
               aria-invalid={Boolean(dateError)}
@@ -176,6 +187,7 @@ export function SearchPage() {
             <label htmlFor="sort">Orden</label>
             <select
               id="sort"
+              name="sort"
               value={filters.sort}
               onChange={(event) => updateFilter('sort', event.target.value)}
             >

@@ -54,15 +54,18 @@ export function ReportsPage() {
         </p>
       </div>
 
-      <form className="card form-stack" onSubmit={handleSubmit}>
+      <form className="card form-stack" onSubmit={handleSubmit} aria-busy={cargando}>
         <div className="field">
           <label htmlFor="report-evento">ID del evento</label>
           <input
             id="report-evento"
+            name="eventoId"
             value={eventoId}
             onChange={(event) => setEventoId(event.target.value)}
             placeholder="d0000000-0000-4000-8000-000000000001"
             autoComplete="off"
+            spellCheck={false}
+            enterKeyHint="go"
             required
           />
         </div>
@@ -81,9 +84,16 @@ export function ReportsPage() {
             </p>
           )}
 
-          <div className="card report-table">
+          <div
+            className="card report-table"
+            role="region"
+            aria-labelledby="report-caption"
+            tabIndex={0}
+          >
             <table>
-              <caption className="sr-only">Reporte por sector del evento {reporte.eventoId}</caption>
+              <caption id="report-caption" className="sr-only">
+                Reporte por sector del evento {reporte.eventoId}
+              </caption>
               <thead>
                 <tr>
                   <th scope="col">Sector</th>
@@ -99,28 +109,28 @@ export function ReportsPage() {
                 {reporte.sectores.map((sector) => (
                   <tr key={sector.sectorId}>
                     <th scope="row">{sector.sectorNombre}</th>
-                    <td>{sector.capacidad ?? '—'}</td>
-                    <td>{sector.vendidas}</td>
-                    <td>{sector.devueltas}</td>
-                    <td>{sector.netas}</td>
-                    <td>
+                    <td data-label="Capacidad">{sector.capacidad ?? '—'}</td>
+                    <td data-label="Vendidas">{sector.vendidas}</td>
+                    <td data-label="Devueltas">{sector.devueltas}</td>
+                    <td data-label="Netas">{sector.netas}</td>
+                    <td data-label="Ocupación">
                       {sector.ocupacion === null
                         ? 'No disponible'
                         : `${Math.round(sector.ocupacion * 100)} %`}
                     </td>
-                    <td>{formatCurrency(sector.recaudacion)}</td>
+                    <td data-label="Recaudación">{formatCurrency(sector.recaudacion)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
                   <th scope="row">Total</th>
-                  <td>—</td>
-                  <td>{reporte.totales.vendidas}</td>
-                  <td>{reporte.totales.devueltas}</td>
-                  <td>{reporte.totales.netas}</td>
-                  <td>—</td>
-                  <td>{formatCurrency(reporte.totales.recaudacion)}</td>
+                  <td data-label="Capacidad">—</td>
+                  <td data-label="Vendidas">{reporte.totales.vendidas}</td>
+                  <td data-label="Devueltas">{reporte.totales.devueltas}</td>
+                  <td data-label="Netas">{reporte.totales.netas}</td>
+                  <td data-label="Ocupación">—</td>
+                  <td data-label="Recaudación">{formatCurrency(reporte.totales.recaudacion)}</td>
                 </tr>
               </tfoot>
             </table>
