@@ -73,6 +73,19 @@ class GatewayRevisionTest {
     }
 
     @Test
+    void unaLecturaPublicaConSlashFinalNoExigeToken() {
+        client.get().uri("/api/catalog/events/")
+                .exchange()
+                .expectStatus().value(s -> assertThat(s).isNotIn(401, 403));
+    }
+
+    @Test
+    void unUuidDeformeNoMatcheaNingunaRegla() {
+        llamar("PUT", "/api/catalog/events/" + "-".repeat(36), "ORGANIZER")
+                .expectStatus().isForbidden();
+    }
+
+    @Test
     void unCorrelationIdInvalidoSeReemplaza() {
         client.post().uri("/api/orders")
                 .header("X-Correlation-Id", "malo")

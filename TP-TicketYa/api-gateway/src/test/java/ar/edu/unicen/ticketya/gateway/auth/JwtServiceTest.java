@@ -6,7 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.Date;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,20 @@ class JwtServiceTest {
         JwtService service = new JwtService(SECRET, Duration.ofHours(1));
 
         assertThatThrownBy(() -> service.parse(token)).isInstanceOf(JwtException.class);
+    }
+
+    @Test
+    void rechazaUnTokenSinFirmaAlgNone() {
+        String header = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8));
+        String payload = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(("{\"sub\":\"" + USER.id() + "\",\"role\":\"CLIENT\","
+                        + "\"email\":\"cliente@ticketya.test\"}").getBytes(StandardCharsets.UTF_8));
+        String sinFirma = header + "." + payload + ".";
+
+        JwtService service = new JwtService(SECRET, Duration.ofHours(1));
+
+        assertThatThrownBy(() -> service.parse(sinFirma)).isInstanceOf(JwtException.class);
     }
 
     @Test
