@@ -6,6 +6,7 @@ import type { AccessValidation } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { USE_MOCKS } from '../config'
 import { errorMessage } from '../utils/errors'
 import { formatDate } from '../utils/format'
 
@@ -83,10 +84,17 @@ export function AccessPage() {
         <button className="btn btn-primary" type="submit" disabled={cargando}>
           {cargando ? 'Validando…' : 'Validar entrada'}
         </button>
-        <p className="hint">
-          En modo demo: un QR que empieza con <code>usado-</code> simula 409, con{' '}
-          <code>otro-</code> simula otro evento y con <code>no-</code> simula 404.
-        </p>
+        {USE_MOCKS ? (
+          <p className="hint">
+            En modo demo: un QR que empieza con <code>usado-</code> simula 409, con{' '}
+            <code>otro-</code> simula otro evento y con <code>no-</code> simula 404.
+          </p>
+        ) : (
+          <p className="hint">
+            Copiá el código QR y el ID del evento desde “Mis entradas” con el botón
+            “Copiar QR + evento” y pegalos acá.
+          </p>
+        )}
       </form>
 
       {error && (
