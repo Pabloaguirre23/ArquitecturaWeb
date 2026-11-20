@@ -395,7 +395,7 @@ Riesgo residual: si P4 está saturado con JWT (2.1–2.3), el compose de integra
 de carga se reasignan a P5/P2. El compose integral no debe ser un cuello de botella de una
 sola persona.
 
-## 12. Módulo `integration-tests` (10.1, Días 5–7)
+## 12. Módulo `integration-tests` (10.1, Días 5–8)
 
 El módulo `TP-TicketYa/integration-tests` ejecuta flujos HTTP contra el gateway real, sin
 mocks de servicios. Se activa con `TICKETYA_E2E=true`; si no, los tests se omiten para no
@@ -417,18 +417,19 @@ TICKETYA_E2E=true mvn -B -ntp verify
 ```
 
 Resultado del Día 5: 2 tests (health + búsqueda), 0 fallos.
-Resultado del Día 7 (19/11): **8 tests, 0 fallos, 1 omitido**; el omitido es el acceso QR
-porque `POST /api/orders/access/validate` (6.4) todavía no existe. La suite se corrió antes y
-después de mergear el JWT del PR #29: la segunda corrida hace login real y usa
-`Authorization: Bearer`. Evidencia completa en
-[`evidencia/entrega-2-dia-7.txt`](evidencia/entrega-2-dia-7.txt).
+Resultado del **Día 8 (20/11/2026)**: **8 tests, 0 fallos, 0 omitidos**. Incluye el acceso QR
+(primer escaneo 200, segundo 409) y el reporte del evento con totales; ya no queda ningún
+flujo salteado. La fila se levantó con `QUEUE_BATCH_SIZE=1 QUEUE_INTERVAL_SECONDS=2
+QUEUE_SCHEDULER_MS=500`; sin esos valores el test de fila puede quedar `EN_ESPERA` y agotar el
+timeout. Evidencia completa en
+[`evidencia/entrega-2-dia-8.txt`](evidencia/entrega-2-dia-8.txt).
 
-La corrida detectó y corrigió un problema del compose integral: `catalog-service` no recibía
-`REDIS_HOST`, intentaba conectarse a `localhost:6379` dentro del contenedor y quedaba
+La corrida del Día 7 detectó y corrigió un problema del compose integral: `catalog-service` no
+recibía `REDIS_HOST`, intentaba conectarse a `localhost:6379` dentro del contenedor y quedaba
 `unhealthy`; el gateway no se creaba por el `depends_on`. Con `REDIS_HOST=redis` los 13
 contenedores quedaron healthy.
 
 Estado de los cinco flujos: login JWT y búsqueda ✅ (2.1/2.2 mergeadas en el PR #29);
-fila → reserva ✅; compra → QR ✅; acceso QR ⏳ (6.4); compra →
-recomendación/notificación ✅; reporte por evento ⏳ (6.5). El detalle y los comandos están
+fila → reserva ✅; compra → QR ✅; acceso QR ✅ (6.4); compra →
+recomendación/notificación ✅; reporte por evento ✅ (6.5). El detalle y los comandos están
 en [`../integration-tests/README.md`](../integration-tests/README.md).

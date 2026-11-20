@@ -1,0 +1,38 @@
+Día 8 — 20/11/2026 — cierre de 10.1 (P5)
+==========================================
+
+Entorno
+-------
+- Compose integral reconstruido desde la rama de integración con los PR #41 a #47.
+- 15 contenedores healthy (7 servicios, gateway, web, 4 PostgreSQL, MongoDB, RabbitMQ, Redis).
+- Fila levantada con tandas cortas para el test:
+  QUEUE_BATCH_SIZE=1 QUEUE_INTERVAL_SECONDS=2 QUEUE_SCHEDULER_MS=500
+
+Comando
+-------
+cd TP-TicketYa/integration-tests
+TICKETYA_E2E=true mvn -B -ntp verify
+
+Resultado
+---------
+GatewayCatalogIT
+  Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+
+TicketYaE2EIT
+  Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
+
+Total
+  Tests run: 8, Failures: 0, Errors: 0, Skipped: 0
+  BUILD SUCCESS
+
+Cobertura
+---------
+- Búsqueda pública de catalog por el gateway.
+- Login JWT y 401/403 en endpoints protegidos.
+- Fila virtual → reserva de un evento de alta demanda.
+- Compra → QR e idempotencia del POST /api/orders.
+- Acceso QR: primer escaneo 200, segundo 409; reporte del evento con totales.
+- Compra → notificación (orden.pagada) y recomendaciones/similares.
+
+Nota: la primera corrida sin QUEUE_BATCH_SIZE/QUEUE_INTERVAL_SECONDS falló porque la fila
+quedó EN_ESPERA; con los valores de arriba pasó en 6 s. No es un fallo de código.

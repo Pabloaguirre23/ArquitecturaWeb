@@ -3,7 +3,7 @@
 Pruebas end-to-end de TicketYa contra el **gateway** y los servicios reales. Es el módulo de
 la tarea **10.1** (P5). No usa mocks de servicios: valida el flujo por el puerto 8080.
 
-## Estado (Día 7 — 19/11/2026)
+## Estado (Día 8 — 20/11/2026)
 
 | Flujo | Clase / test | Estado |
 |---|---|---|
@@ -11,13 +11,14 @@ la tarea **10.1** (P5). No usa mocks de servicios: valida el flujo por el puerto
 | Login → JWT, búsqueda y 401/403 | `TicketYaE2EIT.elLoginEmiteJwtYLaIdentidadEsObligatoriaEnLosEndpointsProtegidos` | Verde con `Authorization: Bearer` (2.1/2.2 mergeadas) |
 | Fila → reserva de alta demanda | `TicketYaE2EIT.laFilaHabilitaLaReservaDeUnEventoDeAltaDemanda` | Verde |
 | Compra → QR e idempotencia | `TicketYaE2EIT.laCompraGeneraUnaEntradaConQrYEsIdempotente` | Verde |
-| Acceso QR con un solo uso | `TicketYaE2EIT.elPersonalDeAccesoValidaElQrUnaSolaVez` | Se omite mientras 6.4 no esté expuesta |
+| Acceso QR con un solo uso + reporte | `TicketYaE2EIT.elPersonalDeAccesoValidaElQrUnaSolaVez` | Verde: doble escaneo (200/409) y totales del reporte |
 | Compra → notificación y recomendaciones | `TicketYaE2EIT.laCompraAlimentaNotificacionesYRecomendaciones` | Verde |
 
-Corrida del 19/11 contra el compose integral: **8 tests, 0 fallos, 1 omitido** (acceso QR).
-Se corrió dos veces: antes del merge del JWT (headers `X-User-*`) y después (login real y
-`Authorization: Bearer`), con el mismo resultado. La evidencia completa está en
-[`../docs/evidencia/entrega-2-dia-7.txt`](../docs/evidencia/entrega-2-dia-7.txt).
+Corrida del **20/11/2026** contra el compose integral: **8 tests, 0 fallos, 0 omitidos**.
+Incluye el acceso QR y el reporte que antes se salteaban. La fila se levantó con
+`QUEUE_BATCH_SIZE=1 QUEUE_INTERVAL_SECONDS=2 QUEUE_SCHEDULER_MS=500`; sin esos valores el
+test de fila puede agotar el timeout. Evidencia:
+[`../docs/evidencia/entrega-2-dia-8.txt`](../docs/evidencia/entrega-2-dia-8.txt).
 
 Los tests se saltan si no se define `TICKETYA_E2E=true`, para que un `mvn test` sin entorno
 no falle.
