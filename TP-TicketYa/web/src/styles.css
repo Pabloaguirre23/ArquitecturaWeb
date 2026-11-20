@@ -163,6 +163,18 @@ p {
   font-weight: 600;
 }
 
+.role-chip {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef0ff;
+  color: var(--brand);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .demo-banner {
   border-bottom: 1px solid #fed7aa;
   background: #fff7ed;

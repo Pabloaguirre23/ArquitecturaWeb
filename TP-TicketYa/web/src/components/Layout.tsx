@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
+import { roleLabel } from '../auth/roles'
 import { useAuth } from '../auth/useAuth'
 import { USE_MOCKS } from '../config'
 import { DemoBanner } from './DemoBanner'
@@ -26,7 +27,7 @@ export function Layout() {
               Buscar
             </NavLink>
             {isAuthenticated && user?.role === 'CLIENT' && <NavLink to="/para-vos">Para vos</NavLink>}
-            {isAuthenticated && <NavLink to="/tickets">Mis entradas</NavLink>}
+            {isAuthenticated && user?.role === 'CLIENT' && <NavLink to="/tickets">Mis entradas</NavLink>}
             {isAuthenticated && (user?.role === 'ACCESS_STAFF' || user?.role === 'ADMIN') && (
               <NavLink to="/access">Control de acceso</NavLink>
             )}
@@ -41,6 +42,7 @@ export function Layout() {
                 <span className="user-chip" title={user?.email}>
                   {user?.nombre ?? user?.email}
                 </span>
+                <span className="role-chip">{roleLabel(user?.role)}</span>
                 <button className="btn btn-ghost btn-small" type="button" onClick={logout}>
                   Salir
                 </button>

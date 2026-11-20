@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { createOrder } from '../api/orders'
 import type { MedioPago, Order, Reservation } from '../api/types'
+import { useAuth } from '../auth/useAuth'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
 import { QrPlaceholder } from '../components/QrPlaceholder'
@@ -19,6 +20,7 @@ const paymentOptions: Array<{ value: MedioPago; label: string }> = [
 ]
 
 export function CheckoutPage() {
+  const { user } = useAuth()
   const [reservation] = useState<Reservation | null>(() => readReservation())
   const [medioPago, setMedioPago] = useState<MedioPago>('TARJETA')
   const [paymentToken, setPaymentToken] = useState('APROBADO')
@@ -26,6 +28,15 @@ export function CheckoutPage() {
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  if (user && user.role !== 'CLIENT') {
+    return (
+      <EmptyState
+        title="Solo para clientes"
+        description="La compra de entradas es un servicio para cuentas CLIENT. Esta sesión no puede iniciar un checkout."
+      />
+    )
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getTickets } from '../api/orders'
 import type { Ticket } from '../api/types'
+import { useAuth } from '../auth/useAuth'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
@@ -10,6 +11,7 @@ import { errorMessage } from '../utils/errors'
 import { formatDate } from '../utils/format'
 
 export function TicketsPage() {
+  const { user } = useAuth()
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -30,6 +32,10 @@ export function TicketsPage() {
   }
 
   useEffect(() => {
+    if (user?.role !== 'CLIENT') {
+      setLoading(false)
+      return
+    }
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -54,7 +60,16 @@ export function TicketsPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [user?.role])
+
+  if (user && user.role !== 'CLIENT') {
+    return (
+      <EmptyState
+        title="Solo para clientes"
+        description="Las entradas pertenecen a la cuenta del cliente que compró. Esta vista es para usuarios CLIENT."
+      />
+    )
+  }
 
   return (
     <div className="page-gap">
