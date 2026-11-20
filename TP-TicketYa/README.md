@@ -279,12 +279,13 @@ venta, devoluciones y cancelación). El estado verificable y las observaciones a
 en [`docs/checklist-entrega-1.md`](docs/checklist-entrega-1.md); la estrategia y la evidencia
 de pruebas, en [`docs/pruebas.md`](docs/pruebas.md).
 
-Entrega 2: en implementación avanzada. JWT, fila virtual, saga/outbox, notificaciones,
+Entrega 2: JWT, fila virtual, saga/outbox, acceso QR, reportes, notificaciones,
 recomendaciones, cache, Docker y CI están integrados; el estado verificable está en
 [`docs/checklist-entrega-2.md`](docs/checklist-entrega-2.md), la estrategia en
 [`docs/pruebas.md`](docs/pruebas.md) y la prueba de carga en
-[`docs/informe-carga.md`](docs/informe-carga.md). Queda pendiente el acceso QR (6.4) y los
-reportes (6.5). Entrega prevista: 22/11/2026.
+[`docs/informe-carga.md`](docs/informe-carga.md). La suite E2E corre 8/8 sin omitidos contra
+el compose. Quedan como deuda declarada 6.6 (circuit breaker), 9.1/9.4 (logging JSON y
+Loki/Grafana), 10.2 (Postman completo) y 10.8 (clone limpio/tag). Entrega prevista: 22/11/2026.
 
 Entrega: <https://github.com/Pabloaguirre23/ArquitecturaWeb/tree/main/TP-TicketYa>
 
