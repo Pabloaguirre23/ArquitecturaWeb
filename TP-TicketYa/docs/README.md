@@ -17,7 +17,7 @@
 | [`plan-entrega-1.md`](plan-entrega-1.md) | Cronograma día por día, responsables y riesgos | P4 | Día 0 | Listo |
 | [`checklist-entrega-1.md`](checklist-entrega-1.md) | Verificación de todo lo pedido para la Entrega 1 | P4 | Día 0 a 9 | En revisión (observaciones 9/11) |
 | [`plan-entrega-2.md`](plan-entrega-2.md) | Cronograma 13–22/11, carga por integrante, ruta crítica y riesgos | P5 | Día 0 | Listo (planificación) |
-| [`checklist-entrega-2.md`](checklist-entrega-2.md) | Verificación de todo lo pedido para la Entrega 2 | P5 | Día 0 a 10 | Revisado 20/11; 6.6/9.1/9.4/10.2/10.8 declarados pendientes |
+| [`checklist-entrega-2.md`](checklist-entrega-2.md) | Verificación de todo lo pedido para la Entrega 2 | P5 | Día 0 a 10 | Revisado 20/11; 1.1/2.8/6.6/9.1/9.4/10.2/10.8 declarados pendientes |
 | [`equipo/entrega-2/`](equipo/entrega-2/README.md) | Briefs por integrante para la Entrega 2 | P5 | Día 0 | Listo |
 | [`features-y-user-stories.md`](features-y-user-stories.md) | Features y US-01 a US-38 con criterios de aceptación | P1/P2/P3 | Día 0 | Listo |
 | [`api-contract.md`](api-contract.md) | Contrato REST: método, ruta, parámetros, códigos y ejemplos JSON | P1/P2/P3 | Día 0 | Congelado 20/11/2026 (1.3); acceso/reportes incluidos |
