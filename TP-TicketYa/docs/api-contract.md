@@ -1,8 +1,8 @@
-# Contrato REST — TicketYa (Entrega 1 + avance Entrega 2)
+# Contrato REST — TicketYa (Entrega 2 — congelado 20/11/2026)
 
 Este documento es la **vista humana** del contrato. La fuente machine-readable es el OpenAPI de cada servicio (`/v3/api-docs` y Swagger UI en `/swagger-ui.html`). Los dos se actualizan en el mismo PR.
 
-- **Estado:** congelado el Día 0 (2/11/2026) para la Entrega 1. La Entrega 2 agrega endpoints por tarea y el contrato v2 se congela en la tarea 1.3.
+- **Estado:** Entrega 2, congelado el 20/11/2026. Todo cambio posterior se hace por PR con aviso a los dueños de cada servicio.
 - **Entrada única:** `http://localhost:8080` (api-gateway). Los servicios no se consumen directo desde el cliente.
 - **Prefijos:** `/api/catalog/**`, `/api/inventory/**`, `/api/orders/**`, `/api/recommendations/**` y, en la Entrega 2, `/api/auth/**`, `/api/queue/**`, `/api/notifications/**` y `/api/orders/access|reports/**`.
 - **Internos:** `/internal/**`, solo entre servicios, nunca expuestos por el gateway. Exigen `X-Internal-Token`.
