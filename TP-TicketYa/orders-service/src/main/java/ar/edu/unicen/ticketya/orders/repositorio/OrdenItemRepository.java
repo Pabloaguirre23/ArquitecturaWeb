@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface OrdenItemRepository extends JpaRepository<OrdenItem, UUID> {
 
     List<OrdenItem> findByOrdenId(UUID ordenId);
+
+    List<OrdenItem> findByOrdenIdIn(List<UUID> ordenIds);
 }

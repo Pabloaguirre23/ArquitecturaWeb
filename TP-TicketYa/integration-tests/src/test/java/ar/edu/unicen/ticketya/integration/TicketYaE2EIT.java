@@ -166,6 +166,13 @@ class TicketYaE2EIT {
         HttpResponse<String> segunda = send("POST", "/api/orders/access/validate",
                 auth("ACCESS_STAFF"), body);
         assertThat(segunda.statusCode()).isEqualTo(409);
+
+        JsonNode reporte = ok("GET", "/api/orders/reports/events/" + eventoId,
+                auth("ORGANIZER"), null);
+        assertThat(reporte.path("eventoId").asText()).isEqualTo(eventoId.toString());
+        assertThat(reporte.path("sectores").isArray()).isTrue();
+        assertThat(reporte.path("totales").path("vendidas").asInt()).isGreaterThanOrEqualTo(1);
+        assertThat(reporte.path("totales").path("netas").asInt()).isGreaterThanOrEqualTo(1);
     }
 
     @Test

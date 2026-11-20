@@ -1,6 +1,8 @@
 package ar.edu.unicen.ticketya.orders.repositorio;
 
+import ar.edu.unicen.ticketya.orders.dominio.EstadoOrden;
 import ar.edu.unicen.ticketya.orders.dominio.Orden;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -12,4 +14,6 @@ public interface OrdenRepository extends JpaRepository<Orden, UUID> {
     Optional<Orden> findByIdAndClienteId(UUID id, UUID clienteId);
 
     Page<Orden> findByClienteIdOrderByCreatedAtDesc(UUID clienteId, Pageable pageable);
+
+    List<Orden> findByEventoIdAndEstado(UUID eventoId, EstadoOrden estado);
 }
