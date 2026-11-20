@@ -15,6 +15,8 @@ El change de OpenSpec es
 | `/checkout` | Confirmación de la compra y pago mock |
 | `/tickets` | Mis entradas con QR |
 | `/para-vos` | Preferencias y recomendaciones explicables |
+| `/access` | Control de acceso: validar QR (ACCESS_STAFF/ADMIN) |
+| `/reports` | Reporte por evento y sector (ORGANIZER/ADMIN) |
 
 ## Requisitos
 

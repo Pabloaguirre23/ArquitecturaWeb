@@ -1,9 +1,11 @@
 import { ApiError } from './client'
 import { readAuth } from '../auth/storage'
 import type {
+  AccessValidation,
   CreateOrderRequest,
   CreateReservationItem,
   EventDetail,
+  EventReport,
   EventSummary,
   LoginResponse,
   Order,
@@ -379,9 +381,14 @@ export async function mockLogin(email: string, password: string): Promise<LoginR
   if (!email.trim() || !password.trim()) {
     throw new ApiError(400, 'Email y contraseña son obligatorios.', 'VALIDATION_ERROR')
   }
+  const role = email.trim().toLowerCase().startsWith('organizador')
+    ? 'ORGANIZER'
+    : email.trim().toLowerCase().startsWith('acceso')
+      ? 'ACCESS_STAFF'
+      : 'CLIENT'
   return {
     token: `demo.${crypto.randomUUID()}`,
-    role: 'CLIENT',
+    role,
     email,
     nombre: email.split('@')[0],
     expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
@@ -476,4 +483,71 @@ export function mockTickets(): PageResponse<Ticket> {
 
 export function clearMockReservation(): void {
   sessionStorage.removeItem(MOCK_RESERVATION_KEY)
+}
+
+export async function mockAccessValidation(qrCode: string, eventoId: string): Promise<AccessValidation> {
+  await new Promise((resolve) => window.setTimeout(resolve, 350))
+  if (!qrCode.trim() || !eventoId.trim()) {
+    throw new ApiError(400, 'El QR y el evento son obligatorios.', 'VALIDATION_ERROR')
+  }
+  if (qrCode.startsWith('usado-')) {
+    throw new ApiError(409, 'La entrada ya fue utilizada.', 'TICKET_ALREADY_USED')
+  }
+  if (qrCode.startsWith('otro-')) {
+    throw new ApiError(409, 'La entrada pertenece a otro evento.', 'TICKET_WRONG_EVENT')
+  }
+  if (qrCode.startsWith('no-')) {
+    throw new ApiError(404, 'No existe una entrada con ese QR.', 'TICKET_NOT_FOUND')
+  }
+  return {
+    entradaId: crypto.randomUUID(),
+    ordenId: crypto.randomUUID(),
+    eventoId,
+    sectorId: crypto.randomUUID(),
+    estado: 'UTILIZADA',
+    usedAt: new Date().toISOString(),
+    usedBy: '55555555-5555-4555-8555-555555555555',
+  }
+}
+
+export async function mockEventReport(eventoId: string): Promise<EventReport> {
+  await new Promise((resolve) => window.setTimeout(resolve, 450))
+  if (!eventoId.trim()) {
+    throw new ApiError(400, 'El evento es obligatorio.', 'VALIDATION_ERROR')
+  }
+  const sectores = [
+    {
+      sectorId: 'b0000000-0000-4000-8000-000000000001',
+      sectorNombre: 'Platea A',
+      capacidad: 100,
+      vendidas: 40,
+      devueltas: 5,
+      netas: 35,
+      ocupacion: 0.35,
+      recaudacion: 525000,
+    },
+    {
+      sectorId: 'b0000000-0000-4000-8000-000000000002',
+      sectorNombre: 'Campo',
+      capacidad: 200,
+      vendidas: 80,
+      devueltas: 0,
+      netas: 80,
+      ocupacion: 0.4,
+      recaudacion: 960000,
+    },
+  ]
+  return {
+    eventoId,
+    organizadorId: '22222222-2222-4222-8222-222222222222',
+    sectores,
+    totales: {
+      vendidas: 120,
+      devueltas: 5,
+      netas: 115,
+      recaudacion: 1485000,
+    },
+    datosDesactualizados: false,
+    generadoEn: new Date().toISOString(),
+  }
 }

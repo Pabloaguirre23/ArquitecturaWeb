@@ -73,6 +73,9 @@ export function LoginPage() {
           {USE_MOCKS && (
             <p className="hint">
               Demo: <strong>{DEMO_EMAIL}</strong> / <strong>{DEMO_PASSWORD}</strong>
+              <br />
+              Organizador: <strong>organizador@ticketya.test</strong> / demo · Acceso:{' '}
+              <strong>acceso@ticketya.test</strong> / demo
             </p>
           )}
 
