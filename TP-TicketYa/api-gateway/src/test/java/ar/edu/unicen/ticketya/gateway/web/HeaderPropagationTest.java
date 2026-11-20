@@ -1,6 +1,7 @@
 package ar.edu.unicen.ticketya.gateway.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 import ar.edu.unicen.ticketya.gateway.TestTokens;
 import ar.edu.unicen.ticketya.gateway.auth.JwtService;
@@ -11,6 +12,7 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -126,6 +128,34 @@ class HeaderPropagationTest {
         assertThat(recibidos).isNotNull();
         assertThat(recibidos.getFirst("X-User-Id")).isEqualTo(TestTokens.ACCESS_ID);
         assertThat(recibidos.getFirst("X-User-Role")).isEqualTo("ACCESS_STAFF");
+    }
+
+    @Test
+    void unOrganizadorEditaEventosConLaIdentidadDelToken() {
+        client.put().uri("/api/catalog/events/" + UUID_CUALQUIERA)
+                .contentType(APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(jwtService, "ORGANIZER"))
+                .bodyValue(Map.of("nombre", "Nuevo nombre"))
+                .exchange()
+                .expectStatus().isOk();
+
+        Headers recibidos = RECIBIDOS.get();
+        assertThat(recibidos).isNotNull();
+        assertThat(recibidos.getFirst("X-User-Id")).isEqualTo(TestTokens.ORGANIZER_ID);
+        assertThat(recibidos.getFirst("X-User-Role")).isEqualTo("ORGANIZER");
+    }
+
+    @Test
+    void unOrganizadorConsultaLosReportesDeSuEvento() {
+        client.get().uri("/api/orders/reports/events/" + UUID_CUALQUIERA)
+                .header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(jwtService, "ORGANIZER"))
+                .exchange()
+                .expectStatus().isOk();
+
+        Headers recibidos = RECIBIDOS.get();
+        assertThat(recibidos).isNotNull();
+        assertThat(recibidos.getFirst("X-User-Id")).isEqualTo(TestTokens.ORGANIZER_ID);
+        assertThat(recibidos.getFirst("X-User-Role")).isEqualTo("ORGANIZER");
     }
 
     @Test
