@@ -26,6 +26,10 @@ botella y dejar los resultados crudos y el comando reproducible.
   1000 usuarios: el pool de orders (10 conexiones) se agotaba con la transacción externa que
   abarcaba los pasos HTTP.
 
+> **Alcance:** la corrida usa un solo cliente demo (`cliente@ticketya.test`) repetido en todos
+> los hilos; no mide alta de usuarios distintos ni login con credenciales únicas. La
+> recomendación de caché/snapshot de §6.3 es la que explica el 5,53 % de error a 1000 usuarios.
+
 ## 2. Entorno
 
 | Componente | Detalle |

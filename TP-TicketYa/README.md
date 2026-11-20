@@ -158,6 +158,7 @@ Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
 | `RABBITMQ_HOST` / `RABBITMQ_PORT` | `localhost` / `5672` | Broker de eventos |
 | `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | `ticketya` / `ticketya` | Credenciales del broker |
 | `INTERNAL_TOKEN` | `ticketya-internal-dev` | Token de los endpoints `/internal/**` |
+| `QUEUE_TOKEN_SECRET` | `ticketya-queue-dev-secret-key-32b` | Firma del token de fila (queue e inventory) |
 | `RECOMMENDATION_SEED_ENABLED` | `true` | Seed de preferencias e historial |
 | `RECOMMENDATION_QUEUE` | `recommendation.history` | Cola del consumidor de `orden.pagada` |
 | `CATALOG_URL` | `http://localhost:8081` | Gateway → catalog |
@@ -173,6 +174,12 @@ Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
 | `JWT_SECRET` / `JWT_TTL` | dev / `8h` | Firma y vigencia del JWT del gateway |
 
 Ver [`.env.example`](.env.example). No se commitea `.env`.
+
+`INTERNAL_TOKEN`, `QUEUE_TOKEN_SECRET` y `JWT_SECRET` tienen **defaults de desarrollo** en
+`docker-compose.yml` y en `.env.example` (se interpolan como `${VAR:-...}`). No son secretos de
+producción: para cualquier entorno que no sea la VM local, definirlos en `.env` y no reutilizar
+los valores de ejemplo. Los servicios internos y el gateway también aceptan las variables por
+entorno; el compose es el que provee el default cuando falta.
 
 ## Prueba rápida del gateway
 
@@ -299,5 +306,9 @@ Usuarios de prueba de la Entrega 2: todos usan la contraseña `demo` y el gatewa
 | ORGANIZER | `organizador@ticketya.test` | `22222222-2222-4222-8222-222222222222` |
 | CLIENT | `cliente@ticketya.test` | `33333333-3333-4333-8333-333333333333` |
 | ACCESS_STAFF | `acceso@ticketya.test` | `55555555-5555-4555-8555-555555555555` |
+
+El gateway mantiene estos cuatro usuarios **en memoria** (`DemoUserStore`), con la contraseña
+`demo` hasheada con BCrypt. No hay `auth_db` ni alta de cuentas: es una simplificación de demo
+para el TP (ver ADR-020 en [`docs/decisiones.md`](docs/decisiones.md)).
 
 Los asientos numerados usan IDs determinísticos: `c0000000-0000-4000-8000-[sector][fila][numero]000000`. La colección [`postman/TicketYa.postman_collection.json`](postman/TicketYa.postman_collection.json) recorre los flujos de catálogo y compra (aprobada, rechazada, pago lento y cancelación) y guarda los IDs que crea.

@@ -206,3 +206,21 @@ transversales de la Entrega 2: patrones del enunciado, gateway reactivo, payload
   token ya emitido sigue válido hasta su `exp` aunque la fila se cierre; inventory rechaza la
   reserva por el estado del evento. Redis necesita AOF y una política de reinicio documentada;
   si pierde los datos, la fila responde `409 QUEUE_NOT_OPEN` y no se emiten tokens nuevos.
+
+## ADR-020 — Usuarios demo en memoria en el gateway
+
+- **Contexto:** la Entrega 2 incorpora login JWT, roles `CLIENT`, `ORGANIZER`, `ADMIN` y
+  `ACCESS_STAFF`, y necesita usuarios de prueba reproducibles para la demo, la suite E2E y la
+  prueba de carga. Montar `auth_db` con Flyway, R2DBC y alta de cuentas agrega una base y un
+  flujo que no son el objetivo de la entrega.
+- **Decisión:** el gateway mantiene cuatro usuarios fijos en `DemoUserStore` (un `Map` en
+  memoria), con la contraseña `demo` hasheada con BCrypt al arrancar. `POST /api/auth/login`
+  valida con `BCryptPasswordEncoder.matches` y emite un JWT HS256 con `sub`, `role` y `email`.
+  No hay registro, cambio de contraseña ni persistencia de usuarios.
+- **Alternativas:** `auth_db` con `usuario`, Flyway y R2DBC (ADR-016; más realista, pero suma
+  una base y un flujo de alta que no se evalúa en esta entrega); un proveedor de identidad
+  externo (fuera de alcance); usuarios en texto plano (inaceptable incluso para demo).
+- **Consecuencias:** al reiniciar el gateway los usuarios se recrean; no se pueden cambiar
+  contraseñas ni agregar usuarios sin tocar código. El secreto JWT y los roles siguen siendo
+  los reales del contrato, así que el resto de los servicios no distingue este origen. Para
+  producción habría que reemplazar `DemoUserStore` por `auth_db` o un IdP, y rotar el secreto.
