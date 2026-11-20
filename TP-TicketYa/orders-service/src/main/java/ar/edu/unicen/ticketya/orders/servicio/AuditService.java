@@ -1,11 +1,15 @@
 package ar.edu.unicen.ticketya.orders.servicio;
 
 import ar.edu.unicen.ticketya.orders.dominio.AuditLog;
+import ar.edu.unicen.ticketya.orders.dominio.Devolucion;
+import ar.edu.unicen.ticketya.orders.dominio.Entrada;
+import ar.edu.unicen.ticketya.orders.dominio.Orden;
 import ar.edu.unicen.ticketya.orders.dominio.ResultadoAuditoria;
 import ar.edu.unicen.ticketya.orders.eventos.CorrelationContext;
 import ar.edu.unicen.ticketya.orders.repositorio.AuditLogRepository;
 import ar.edu.unicen.ticketya.orders.web.RequestIdentity;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -51,6 +55,50 @@ public class AuditService {
         detalle.put("motivo", motivo == null ? "" : motivo);
         registrar("INGRESO_RECHAZADO", ENTIDAD_ENTRADA, entradaId, identity,
                 ResultadoAuditoria.RECHAZADO, detalle);
+    }
+
+    /** Compra confirmada: misma correlación que el evento `orden.pagada` del outbox. */
+    public void compraAprobada(Orden orden, UUID clienteId) {
+        Map<String, Object> detalle = new LinkedHashMap<>();
+        detalle.put("eventoId", orden.getEventoId());
+        detalle.put("total", orden.getTotal());
+        registrar("COMPRA_APROBADA", "ORDEN", orden.getId(),
+                new RequestIdentity(clienteId, "CLIENT"), ResultadoAuditoria.EXITOSO, detalle);
+    }
+
+    public void devolucionSolicitada(Devolucion devolucion, UUID clienteId) {
+        Map<String, Object> detalle = new LinkedHashMap<>();
+        detalle.put("entradaId", devolucion.getEntradaId());
+        detalle.put("motivo", devolucion.getMotivo());
+        registrar("DEVOLUCION_SOLICITADA", "DEVOLUCION", devolucion.getId(),
+                new RequestIdentity(clienteId, "CLIENT"), ResultadoAuditoria.EXITOSO, detalle);
+    }
+
+    public void devolucionAprobada(Devolucion devolucion, Entrada entrada, UUID adminId,
+                                   BigDecimal monto) {
+        Map<String, Object> detalle = new LinkedHashMap<>();
+        detalle.put("entradaId", entrada.getId());
+        detalle.put("monto", monto);
+        registrar("DEVOLUCION_APROBADA", "DEVOLUCION", devolucion.getId(),
+                adminId == null ? null : new RequestIdentity(adminId, "ADMIN"),
+                ResultadoAuditoria.EXITOSO, detalle);
+    }
+
+    public void devolucionRechazada(Devolucion devolucion, UUID adminId) {
+        Map<String, Object> detalle = new LinkedHashMap<>();
+        detalle.put("entradaId", devolucion.getEntradaId());
+        registrar("DEVOLUCION_RECHAZADA", "DEVOLUCION", devolucion.getId(),
+                adminId == null ? null : new RequestIdentity(adminId, "ADMIN"),
+                ResultadoAuditoria.RECHAZADO, detalle);
+    }
+
+    /** Cancelación pedida por catalog (sin usuario autenticado en el endpoint interno). */
+    public void cancelacionEvento(UUID eventoId, int entradasAfectadas, int reintegrosAprobados) {
+        Map<String, Object> detalle = new LinkedHashMap<>();
+        detalle.put("entradasAfectadas", entradasAfectadas);
+        detalle.put("reintegrosAprobados", reintegrosAprobados);
+        registrar("CANCELACION_EVENTO", "EVENTO", eventoId, null,
+                ResultadoAuditoria.EXITOSO, detalle);
     }
 
     /** Registra otras operaciones de negocio (compra, devolución, cancelación). */

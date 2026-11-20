@@ -63,6 +63,8 @@ class DevolucionServiceTest {
     private PaymentGateway paymentGateway;
     @Mock
     private OutboxService outboxService;
+    @Mock
+    private AuditService auditService;
 
     private DevolucionService service;
     private final UUID clienteId = UUID.randomUUID();
@@ -71,7 +73,7 @@ class DevolucionServiceTest {
     void setUp() {
         service = new DevolucionService(devolucionRepository, entradaRepository,
                 pagoRepository, ordenItemRepository, reintegroRepository,
-                inventoryClient, paymentGateway, outboxService, CLOCK);
+                inventoryClient, paymentGateway, outboxService, CLOCK, auditService);
     }
 
     @Test
@@ -87,6 +89,7 @@ class DevolucionServiceTest {
         assertThat(response.motivo()).isEqualTo("No puedo asistir");
         assertThat(response.createdAt()).isNotNull();
         assertThat(response.resolvedAt()).isNull();
+        verify(auditService).devolucionSolicitada(any(Devolucion.class), eq(clienteId));
     }
 
     @Test
@@ -150,7 +153,8 @@ class DevolucionServiceTest {
             return r;
         });
 
-        ReturnResponse response = service.aprobar(devolucion.getId());
+        UUID adminId = UUID.randomUUID();
+        ReturnResponse response = service.aprobar(devolucion.getId(), adminId);
 
         assertThat(response.estado()).isEqualTo(EstadoDevolucion.APROBADA);
         assertThat(entrada.getEstado()).isEqualTo(EstadoEntrada.DEVUELTA);
@@ -160,6 +164,8 @@ class DevolucionServiceTest {
         assertThat(returnDtoCaptor.getValue().clienteId()).isEqualTo(entrada.getClienteId());
         verify(paymentGateway).reintegrar(eq(pago.getId()), eq(new BigDecimal("15000.00")), anyString());
         verify(outboxService).registrar(eq("devolucion.aprobada"), eq(devolucion.getId()), any());
+        verify(auditService).devolucionAprobada(any(Devolucion.class), any(Entrada.class),
+                eq(adminId), eq(new BigDecimal("15000.00")));
     }
 
     @Test
@@ -213,6 +219,7 @@ class DevolucionServiceTest {
                 });
         assertThat(devolucion.getEstado()).isEqualTo(EstadoDevolucion.PROCESANDO);
         verify(devolucionRepository, never()).save(any());
+        verify(auditService, never()).devolucionRechazada(any(), any());
     }
 
     @Test
@@ -222,11 +229,13 @@ class DevolucionServiceTest {
         when(devolucionRepository.findById(devolucion.getId())).thenReturn(Optional.of(devolucion));
         when(devolucionRepository.save(any(Devolucion.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ReturnResponse response = service.rechazar(devolucion.getId());
+        UUID adminId = UUID.randomUUID();
+        ReturnResponse response = service.rechazar(devolucion.getId(), adminId);
 
         assertThat(response.estado()).isEqualTo(EstadoDevolucion.RECHAZADA);
         assertThat(entrada.getEstado()).isEqualTo(EstadoEntrada.VALIDA);
         verify(entradaRepository, never()).save(any());
+        verify(auditService).devolucionRechazada(any(Devolucion.class), eq(adminId));
     }
 
     @Test

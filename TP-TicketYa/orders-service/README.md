@@ -147,7 +147,10 @@ Solo el `ORGANIZER` dueño o un `ADMIN` puede consultarlo; un organizador ajeno 
 La migración `V5` de la Entrega 2 agrega el snapshot de compra (`cliente_email`,
 `evento_organizador_id`, `sector_nombre`, `evento_tipo`, `evento_artistas`, `evento_ciudad`),
 `entrada.used_at/used_by`, las tablas `saga_compra`, `outbox_event` y `audit_log`, y los
-índices de reporte por evento/sector. Flyway en
+índices de reporte por evento/sector. La bitácora registra compra, solicitud/aprobación/rechazo
+de devolución, cancelación de evento e ingreso QR; usa la misma `correlation_id` que el outbox
+de esa operación y se escribe en una transacción propia (`REQUIRES_NEW`), de modo que un fallo
+de auditoría nunca revierte la operación de negocio. Flyway en
 [`src/main/resources/db/migration`](src/main/resources/db/migration).
 
 ## Variables de entorno
