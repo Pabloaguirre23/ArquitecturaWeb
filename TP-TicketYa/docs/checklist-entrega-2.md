@@ -34,7 +34,7 @@ implementación arranca el Día 1.
 | Observabilidad y log central | Parcial: 9.2 y 9.3 hechos; faltan 9.1 y 9.4 | PR #27 y #46; Loki pendiente |
 | Docker y compose | Completo (9.5–9.7) | 15/15 contenedores healthy con la UI; CI verde en PR #40/#41 |
 | Integración, seguridad y carga | 10.1 8/8 sin omitidos; 10.3/10.4 completos; 10.2 parcial | [`pruebas.md`](pruebas.md) §12, [`informe-carga.md`](informe-carga.md) y [`evidencia/entrega-2-dia-8.txt`](evidencia/entrega-2-dia-8.txt) |
-| Cierre y tag | Pendiente: 10.8 (Tiago); 10.9 en curso | Tareas 10.8–10.9 |
+| Cierre y tag | 10.9 validado; 10.8 pendiente (Tiago) | 7 tareas abiertas declaradas en `tasks.md` |
 
 ## 1. Funcionalidad de la Entrega 2
 
