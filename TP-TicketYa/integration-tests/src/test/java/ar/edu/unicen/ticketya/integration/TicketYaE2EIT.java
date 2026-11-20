@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Predicate;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -162,10 +161,6 @@ class TicketYaE2EIT {
         Map<String, Object> body = Map.of("qrCode", qrCode, "eventoId", eventoId);
         HttpResponse<String> primera = send("POST", "/api/orders/access/validate",
                 auth("ACCESS_STAFF"), body);
-
-        Assumptions.assumeTrue(primera.statusCode() != 401 && primera.statusCode() != 403
-                        && primera.statusCode() != 404 && primera.statusCode() != 405,
-                "Tarea 6.4 pendiente: /api/orders/access/validate todavía no está expuesta");
 
         assertThat(primera.statusCode()).isEqualTo(200);
         HttpResponse<String> segunda = send("POST", "/api/orders/access/validate",
