@@ -113,6 +113,18 @@ export interface Ticket {
   createdAt?: string
 }
 
+/**
+ * Entrada embebida en una OrderResponse del backend: no incluye el nombre ni la
+ * fecha del evento (esas están en la orden). Es más angosta que Ticket.
+ */
+export interface OrderEntrada {
+  id: string
+  qrCode: string
+  estado: string
+  sectorId: string
+  asientoId: string | null
+}
+
 export interface Order {
   id: string
   clienteId: string
@@ -130,7 +142,7 @@ export interface Order {
     precioUnitario: number
     subtotal: number
   }>
-  entradas: Ticket[]
+  entradas: OrderEntrada[]
   createdAt: string
 }
 
@@ -191,13 +203,18 @@ export interface SimilarEventsResponse {
 }
 
 
+export interface ProblemError {
+  field: string
+  message: string
+}
+
 export interface ProblemDetail {
   type?: string
   title?: string
   status?: number
   detail?: string
   code?: string
-  errors?: string[]
+  errors?: ProblemError[]
 }
 
 export interface AccessValidation {

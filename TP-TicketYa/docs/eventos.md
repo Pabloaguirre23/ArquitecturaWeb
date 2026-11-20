@@ -48,8 +48,8 @@ Exchange: `ticketya.events` (topic, durable). Dead-letter exchange: `ticketya.ev
 |---|---|---|---|
 | `orden.pagada` | `notification.order` | notification-service (8.2) | `notification.order.dlq` |
 | `orden.pagada` | `recommendation.history` | recommendation-service (7.3) | `recommendation.history.dlq` |
-| `orden.reintegrada` | `notification.order` | notification-service (8.2) | `notification.order.dlq` |
-| `devolucion.aprobada` | `notification.order` | notification-service (8.2) | `notification.order.dlq` |
+| `orden.reintegrada` | `notification.order` | pendiente (8.2): binding no declarado aún | `notification.order.dlq` |
+| `devolucion.aprobada` | `notification.order` | pendiente (8.2): binding no declarado aún | `notification.order.dlq` |
 | `evento.actualizado` | `notification.event` | notification-service (8.3) | `notification.event.dlq` |
 | `evento.cancelado` | `notification.event` | notification-service (8.3) | `notification.event.dlq` |
 | `evento.publicado` | `notification.favorite` | notification-service (8.3) | `notification.favorite.dlq` |
@@ -110,7 +110,8 @@ historial quedaría incompleto si catalog está caído.
 }
 ```
 
-Lo consume notification-service para avisar el reintegro. recommendation-service **no** está
+Ordena lo publica desde el outbox; el binding hacia `notification.order` está
+pendiente de declarar en notification-service (8.2). recommendation-service **no** está
 suscripto: el historial solo registra compras pagadas.
 
 ### 3.3 `evento.publicado` / `evento.actualizado` / `evento.cancelado`
@@ -146,7 +147,7 @@ suscripto: el historial solo registra compras pagadas.
 }
 ```
 
-Lo consume notification-service para confirmar el reintegro al cliente.
+Binding hacia `notification.order` pendiente de declarar en notification-service (8.2).
 
 ### 3.5 `entrada.utilizada`
 
@@ -191,6 +192,7 @@ entrega.
 | Pendiente | Dueño | Tarea |
 |---|---|---|
 | Congelar este documento y agregar el test de contrato del productor | P4 | 1.5 |
+| Declarar los bindings de `orden.reintegrada` y `devolucion.aprobada` en notification-service | P1 | 8.2 |
 | Publicar `orden.pagada` desde el outbox de orders con el payload de §3.1 | P3 | 6.3 |
 | Publicar `evento.*` desde catalog | P1 | 3.2 |
 | Consumir `orden.pagada` para notificaciones | P1 | 8.2 |

@@ -13,6 +13,21 @@ export function TicketsPage() {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState<string | null>(null)
+
+  async function copiarDatos(ticket: Ticket) {
+    const texto = `QR: ${ticket.qrCode}\nEvento: ${ticket.eventoId}`
+    try {
+      await navigator.clipboard.writeText(texto)
+      setCopiado(ticket.id)
+      window.setTimeout(() => {
+        setCopiado((actual) => (actual === ticket.id ? null : actual))
+      }, 2000)
+    } catch {
+      // Si el navegador bloquea el portapapeles, el código queda visible para copiar a mano.
+      setCopiado(null)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -75,10 +90,18 @@ export function TicketsPage() {
                 <h3>{ticket.eventoNombre}</h3>
                 <p className="muted">{formatDate(ticket.eventoFecha)}</p>
                 <p className="meta">
+                  <span>Evento {ticket.eventoId.slice(0, 8)}</span>
                   <span>Sector {ticket.sectorId.slice(0, 8)}</span>
                   {ticket.asientoId && <span>Asiento {ticket.asientoId.slice(0, 8)}</span>}
                 </p>
                 <p className="mono qr-code">{ticket.qrCode}</p>
+                <button
+                  className="btn btn-ghost btn-small"
+                  type="button"
+                  onClick={() => copiarDatos(ticket)}
+                >
+                  {copiado === ticket.id ? 'Copiado' : 'Copiar QR + evento'}
+                </button>
               </div>
             </article>
           ))}

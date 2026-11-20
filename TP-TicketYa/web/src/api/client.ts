@@ -1,13 +1,13 @@
 import { API_BASE_URL } from '../config'
 import { readAuth } from '../auth/storage'
-import type { ProblemDetail } from './types'
+import type { ProblemDetail, ProblemError } from './types'
 
 export class ApiError extends Error {
   readonly status: number
   readonly code?: string
-  readonly details: string[]
+  readonly details: ProblemError[]
 
-  constructor(status: number, message: string, code?: string, details: string[] = []) {
+  constructor(status: number, message: string, code?: string, details: ProblemError[] = []) {
     super(message)
     this.name = 'ApiError'
     this.status = status
@@ -37,7 +37,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       signal: controller.signal,
     })
 
-    if (response.status === 401) {
+    if (response.status === 401 && !path.startsWith('/auth/')) {
+      // El 401 de /auth/login son credenciales inválidas, no una sesión vencida.
       window.dispatchEvent(new Event('ticketya:unauthorized'))
     }
 

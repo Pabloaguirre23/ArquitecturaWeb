@@ -18,6 +18,11 @@ El change de OpenSpec es
 | `/access` | Control de acceso: validar QR (ACCESS_STAFF/ADMIN) |
 | `/reports` | Reporte por evento y sector (ORGANIZER/ADMIN) |
 
+> El QR de “Mis entradas” es un **placeholder visual**: todavía no hay lector de cámara. El
+> flujo de acceso se demuestra con el botón **“Copiar QR + evento”**, que copia el código y el
+> `eventoId` para pegarlos en `/access`. Es el mismo contrato que usa el backend
+> (`qrCode` + `eventoId`).
+
 ## Requisitos
 
 - Node.js 20+ (probado con Node 26)

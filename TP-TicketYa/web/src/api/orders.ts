@@ -34,5 +34,7 @@ export async function getTickets(): Promise<PageResponse<Ticket>> {
   if (USE_MOCKS) {
     return mockTickets()
   }
-  return get<PageResponse<Ticket>>('/orders/tickets')
+  // El backend pagina (default 20, máximo 100) y esta pantalla no pagina:
+  // se pide el máximo permitido por el contrato.
+  return get<PageResponse<Ticket>>('/orders/tickets?page=0&size=100')
 }

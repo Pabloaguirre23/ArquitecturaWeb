@@ -24,6 +24,14 @@ export function RecommendationsPage() {
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
+    // El gateway solo habilita /recommendations para CLIENT; para cualquier
+    // otro rol autenticado la llamada está condenada a un 403.
+    if (user?.role !== 'CLIENT') {
+      setLoading(false)
+      setRecommendations([])
+      return
+    }
+
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -49,7 +57,7 @@ export function RecommendationsPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [user?.role])
 
   useEffect(() => {
     if (!preferences) {

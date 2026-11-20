@@ -32,7 +32,7 @@ implementación arranca el Día 1.
 | Resiliencia | Parcial: inventory 5.3; falta 6.6 de pagos/inventory | PR #21, #25 |
 | Cache | Completo (3.3, 3.4) | PR #27, tests de cache |
 | Observabilidad y log central | Parcial: 9.2 hecho; faltan 9.1, 9.3 y 9.4 | PR #27; Loki pendiente |
-| Docker y compose | Completo (9.5–9.7) | 13/13 contenedores healthy y CI verde en PR #30 |
+| Docker y compose | Completo (9.5–9.7) | 13/13 contenedores healthy y CI verde en PR #30 (corrida sin UI); la UI se integró al compose el 19/11 (8f34bba) y su healthcheck interno se corrigió a `127.0.0.1` en el compose |
 | Integración, seguridad y carga | En curso: 10.1 (8 tests) y 10.4 (informe); 10.2/10.3 pendientes | [`pruebas.md`](pruebas.md) §12, [`informe-carga.md`](informe-carga.md) y [`evidencia/entrega-2-dia-7.txt`](evidencia/entrega-2-dia-7.txt) |
 | Cierre y tag | Pendiente | Tareas 10.8–10.9 |
 

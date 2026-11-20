@@ -38,7 +38,7 @@
 | `../web/README.md` | Interfaz web opcional: pantallas, modo demo, recomendaciones, variables y Docker | P5 | Extra | Demo navegable con recomendaciones |
 | `../openspec/changes/interfaz-cliente-web/` | Propuesta, spec, diseño y tareas de la UI opcional | P5 | Extra | Actualizado con recomendaciones |
 | `../postman/TicketYa.postman_collection.json` | Colección de requests con assertions | P5 | Día 5 y 6 | 45 requests, Newman 45/45 (Día 6) |
-| `../openapi/*.json` | OpenAPI exportado de cada servicio | Cada dueño | Día 4 | Listos: catalog (2.6), inventory (3.8) y orders (4.11); revisión agregada 5.8; recommendation agregado el Día 2 |
+| `../openapi/*.json` | OpenAPI exportado de cada servicio | Cada dueño | Día 4 | Listos: catalog (2.6), inventory (3.8), orders (4.11) y recommendation (Día 2); notification agregado el Día 6 y queue (4.4); revisión agregada 5.8 |
 
 ## 2. Estándares
 
@@ -63,7 +63,7 @@
 ## 4. Verificación de la documentación
 
 - [x] Todos los enlaces de este índice resuelven (100 enlaces relativos verificados el Día 7).
-- [x] Cada endpoint del contrato aparece en el OpenAPI y en el README del servicio (26 paths y 30 operaciones en `openapi/*.json`).
+- [x] Cada endpoint del contrato aparece en el OpenAPI y en el README del servicio (40 paths y 47 operaciones en `openapi/*.json`).
 - [x] Los diagramas Mermaid renderizan en GitHub.
 - [x] El README raíz se probó en un clone limpio (Días 5 y 7).
 - [x] `docs/pruebas.md` tiene comandos que se ejecutan tal cual (suite y Newman corridos el Día 6).
