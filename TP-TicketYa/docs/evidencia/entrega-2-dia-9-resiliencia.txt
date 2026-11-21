@@ -1,0 +1,10 @@
+TicketYa — evidencia de resiliencia de orders (tarea 6.6)
+Fecha: 2026-11-21
+Comando: cd orders-service && mvn -Dtest=OrdersResilienciaTest test
+
+Test set: ar.edu.unicen.ticketya.orders.servicio.OrdersResilienciaTest
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.145 s
+
+Casos: 503 reintentado (3 requests) + fallback; timeout de lectura < 2 s;
+circuito abierto sin requests; recuperación a CLOSED; pago con circuito abierto
+y token LENTO terminan en PaymentGatewayException.

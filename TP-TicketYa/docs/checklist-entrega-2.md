@@ -29,7 +29,7 @@ implementación arranca el Día 1.
 | Notificaciones | Completo (8.1–8.4) | PR #27 y evidencia `dia-7-p1.txt` |
 | Reportes | Completo (6.5) | PR #44 + E2E con totales; [`evidencia/entrega-2-dia-8.txt`](evidencia/entrega-2-dia-8.txt) |
 | Consistencia, saga y outbox | Completo (3.2, 6.2, 6.3) | PR #25 y #27; corrida de carga con transacciones cortas |
-| Resiliencia | Parcial: inventory 5.3; falta 6.6 de pagos/inventory | PR #21, #25 |
+| Resiliencia | Completo: 5.3 en inventory y 6.6 en orders | PR #21, #25 y `OrdersResilienciaTest` (5 casos, WireMock) |
 | Cache | Completo (3.3, 3.4) | PR #27, tests de cache |
 | Observabilidad y log central | Parcial: 9.2 y 9.3 hechos; faltan 9.1 y 9.4 | PR #27 y #46; Loki pendiente |
 | Docker y compose | Completo (9.5–9.7) | 15/15 contenedores healthy con la UI; CI verde en PR #40/#41 |
@@ -54,7 +54,7 @@ implementación arranca el Día 1.
 - [x] **Comunicación asíncrona justificada:** RabbitMQ para notificaciones, historial de recomendaciones y eventos de catálogo; documentación de por qué. → 1.5, 6.3, 8.2. _(Contrato congelado en [`eventos.md`](eventos.md) y productores/consumidores implementados.)_
 - [x] **Base NoSQL:** MongoDB para preferencias e historial, con justificación y consultas. → 7.1. Evidencia: [`recommendation-service/README.md`](../recommendation-service/README.md#modelo-mongodb), índices verificados en `RecommendationMongoIntegrationTest` y [`evidencia/entrega-2-dia-2.txt`](evidencia/entrega-2-dia-2.txt).
 - [x] **Consistencia entre servicios y compensaciones:** saga de compra, outbox, idempotencia y política de consistencia documentada. → 6.2, 6.3, 3.2
-- [ ] **Resiliencia:** timeouts, reintentos, circuit breaker y fallback en pasarela, inventory, catalog, queue y notification. → 5.3, 6.6, 2.3
+- [x] **Resiliencia:** timeouts, reintentos, circuit breaker y fallback en pasarela, inventory, catalog, queue y notification. → 5.3, 6.6, 2.3
 - [x] **Cache:** datos cacheados, TTL, invalidación y datos que no se cachean (disponibilidad, asientos, reservas). → 3.3, 3.4
 - [ ] **Trazabilidad:** log de cada solicitud con endpoint, usuario, estado y duración; correlación entre servicios. → 9.1
 - [x] **Bitácora:** operaciones críticas de compra, devolución, cancelación, publicación e ingreso. → 9.2, 9.3
@@ -97,7 +97,7 @@ implementación arranca el Día 1.
 - [x] **Notificaciones** asíncronas con reintentos, DLQ y consulta propia. → 8.1–8.4
 - [x] **Reportes** por evento y sector con autorización. → 6.5
 - [x] **Saga, outbox y compensaciones** en la compra. → 6.2, 6.3
-- [ ] **Resiliencia** en todas las dependencias externas. → 5.3, 6.6, 2.3
+- [x] **Resiliencia** en todas las dependencias externas. → 5.3, 6.6, 2.3
 - [x] **Cache** de catálogo con TTL e invalidación. → 3.3, 3.4
 - [ ] **Observabilidad** con logs JSON, correlación, bitácora y Loki. → 9.1–9.4
 - [x] **Docker** por servicio y compose integral. → 9.5, 9.6
@@ -110,7 +110,7 @@ implementación arranca el Día 1.
 - [x] **Integración entre servicios** con Testcontainers/Compose: login, fila, compra, QR, reporte, recomendación y notificación. → 10.1 _(20/11: 8 tests, 0 fallos, 0 omitidos; incluye acceso QR y reporte. Evidencia en `evidencia/entrega-2-dia-8.txt`.)_
 - [x] **Seguridad de endpoints:** cada endpoint solo accesible por sus roles; 401 sin token y 403 con rol incorrecto. → 2.8 _(gateway + tests de servicio + E2E; la carpeta Postman por rol de 2.8 queda parcial en 10.2)_
 - [x] **Idempotencia de eventos:** duplicados no duplican historial ni notificaciones. → 7.3, 8.2 _(tests de recommendation y notification + E2E)_
-- [ ] **Resiliencia:** timeout, 5xx, circuito abierto y recuperación con WireMock. → 5.3, 6.6
+- [x] **Resiliencia:** timeout, 5xx, circuito abierto y recuperación con WireMock. → 5.3, 6.6
 - [x] **Prueba de carga** de 500 y 1000 usuarios con resultados crudos y análisis. → 10.3, 10.4
 
 ## 8. Documentación y entregables

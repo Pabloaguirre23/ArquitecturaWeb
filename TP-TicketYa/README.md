@@ -285,7 +285,7 @@ recomendaciones, cache, Docker y CI están integrados; el estado verificable est
 [`docs/pruebas.md`](docs/pruebas.md) y la prueba de carga en
 [`docs/informe-carga.md`](docs/informe-carga.md). La suite E2E corre 8/8 sin omitidos contra
 el compose. Quedan como deuda declarada 1.1 (branch protection), 2.8 (Postman por rol),
-6.6 (circuit breaker), 9.1/9.4 (logging JSON y Loki/Grafana), 10.2 (Postman
+9.1/9.4 (logging JSON y Loki/Grafana), 10.2 (Postman
 completo) y 10.8 (clone limpio/tag). Entrega prevista: 22/11/2026.
 
 Entrega: <https://github.com/Pabloaguirre23/ArquitecturaWeb/tree/main/TP-TicketYa>
