@@ -1,0 +1,7 @@
+# Evidencia 9.1: logging JSON con correlación en el gateway (P4)
+Fecha: 20/11/2026 16:50
+Dos requests con X-Correlation-Id=5dfffdfb-8aa6-4334-a5d1-b69f1a5787e6: GET /api/recommendations sin token (401) y GET /api/orders con token CLIENT.
+Lineas de log del api-gateway con ese correlationId:
+
+{"@timestamp":"2026-11-20T19:50:25.884003716Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.gateway.web.RequestLoggingFilter","thread_name":"reactor-http-nio-2","level":"INFO","level_value":20000,"path":"/api/recommendations","correlationId":"5dfffdfb-8aa6-4334-a5d1-b69f1a5787e6","method":"GET","durationMs":"8","status":"401","service":"api-gateway"}
+{"@timestamp":"2026-11-20T19:50:25.994110216Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.gateway.web.RequestLoggingFilter","thread_name":"reactor-http-nio-3","level":"INFO","level_value":20000,"path":"/api/orders","role":"CLIENT","method":"GET","correlationId":"5dfffdfb-8aa6-4334-a5d1-b69f1a5787e6","userId":"33333333-3333-4333-8333-333333333333","durationMs":"102","status":"200","service":"api-gateway"}

@@ -1,16 +1,19 @@
 package ar.edu.unicen.ticketya.recommendation.web;
 
 import ar.edu.unicen.ticketya.recommendation.servicio.PreferenceService;
+import ar.edu.unicen.ticketya.recommendation.web.dto.PreferenciaClienteResponse;
 import ar.edu.unicen.ticketya.recommendation.web.dto.PreferenciasResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -42,5 +45,19 @@ public class InternalPreferenceController {
             @RequestHeader(value = "X-Internal-Token", required = false) String token) {
         internalToken.require(token);
         return preferenceService.obtener(clienteId);
+    }
+
+    @GetMapping
+    @Operation(summary = "Clientes con un artista favorito en una ciudad (interno)",
+            description = "Lo consume notification-service para evento.publicado (8.3); "
+                    + "requiere X-Internal-Token y devuelve [] si no hay coincidencias.")
+    @ApiResponse(responseCode = "200", description = "Lista de clientes que coinciden (puede ser vacía)")
+    @ApiResponse(responseCode = "401", description = "Token interno ausente o inválido (UNAUTHORIZED)")
+    public List<PreferenciaClienteResponse> buscar(
+            @RequestParam(required = false) String artista,
+            @RequestParam(required = false) String ciudad,
+            @RequestHeader(value = "X-Internal-Token", required = false) String token) {
+        internalToken.require(token);
+        return preferenceService.buscarPorArtistaYCiudad(artista, ciudad);
     }
 }

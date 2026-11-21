@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PagoRepository extends JpaRepository<Pago, UUID> {
 
     List<Pago> findByOrdenId(UUID ordenId);
+
+    List<Pago> findByOrdenIdIn(List<UUID> ordenIds);
 }

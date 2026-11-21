@@ -77,6 +77,8 @@ class OrderServiceTest {
     private OrderCompensationService orderCompensationService;
     @Mock
     private OutboxService outboxService;
+    @Mock
+    private AuditService auditService;
 
     private OrderService orderService;
     private OrderPersistenceService orderPersistenceService;
@@ -96,7 +98,7 @@ class OrderServiceTest {
         orderService = new OrderService(ordenRepository, ordenItemRepository, entradaRepository,
                 pagoRepository, reintegroRepository, inventoryClient, catalogClient, paymentGateway,
                 orderPersistenceService, orderEmissionService, orderCompensationService,
-                sagaCompraService, idempotencyService, clock);
+                sagaCompraService, idempotencyService, clock, auditService);
     }
 
     @Test
@@ -112,6 +114,8 @@ class OrderServiceTest {
         OrderResponse response = orderService.crear(
                 new CrearOrdenRequest(reserva.id(), MedioPago.TARJETA, "APROBADO"),
                 clienteId, "compra-0001");
+
+        verify(auditService).compraAprobada(any(Orden.class), eq(clienteId));
 
         assertThat(response.estado()).isEqualTo(EstadoOrden.PAGADA);
         assertThat(response.total()).isEqualByComparingTo("30000.00");

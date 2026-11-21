@@ -30,17 +30,21 @@ public class CatalogoRestClient implements CatalogoClient {
     static final int TAMANIO_CANDIDATOS = 20;
 
     private final RestClient restClient;
+    private final String internalToken;
 
     public CatalogoRestClient(RestClient.Builder builder,
                               @Value("${recommendation.catalog.url:http://localhost:8081}") String baseUrl,
                               @Value("${recommendation.catalog.timeout.connect-ms:2000}") int connectTimeoutMs,
-                              @Value("${recommendation.catalog.timeout.read-ms:3000}") int readTimeoutMs) {
+                              @Value("${recommendation.catalog.timeout.read-ms:3000}") int readTimeoutMs,
+                              @Value("${recommendation.catalog.internal-token:${INTERNAL_TOKEN:ticketya-internal-dev}}")
+                              String internalToken) {
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(connectTimeoutMs))
                 .build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(Duration.ofMillis(readTimeoutMs));
         this.restClient = builder.baseUrl(baseUrl).requestFactory(requestFactory).build();
+        this.internalToken = internalToken;
     }
 
     @Override
@@ -59,6 +63,7 @@ public class CatalogoRestClient implements CatalogoClient {
                         }
                         return uriBuilder.build();
                     })
+                    .header("X-Internal-Token", internalToken)
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(new ParameterizedTypeReference<List<EventoCandidato>>() {

@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -45,9 +47,12 @@ public class IdentityHeaderFilter implements GlobalFilter, Ordered {
 
     private static final String BEARER_PREFIX = "Bearer ";
 
+    private static final Logger log = LoggerFactory.getLogger(IdentityHeaderFilter.class);
+
     private static final Set<String> ROLES = Set.of("CLIENT", "ORGANIZER", "ADMIN", "ACCESS_STAFF");
     private static final Set<String> ADMIN_ONLY = Set.of("ADMIN");
     private static final Set<String> ORGANIZER_ONLY = Set.of("ORGANIZER");
+    private static final Set<String> ORGANIZER_OR_ADMIN = Set.of("ORGANIZER", "ADMIN");
     private static final Set<String> CLIENT_ONLY = Set.of("CLIENT");
     private static final Set<String> ACCESS_STAFF_OR_ADMIN = Set.of("ACCESS_STAFF", "ADMIN");
     private static final Set<String> AUTHENTICATED = Set.of("CLIENT", "ORGANIZER", "ADMIN");
@@ -56,13 +61,14 @@ public class IdentityHeaderFilter implements GlobalFilter, Ordered {
             "/api/catalog/events",
             "/api/catalog/venues");
 
-    private static final Pattern PUBLIC_GET_PATTERN = Pattern.compile(
-            "^/api/catalog/(events|venues)/[0-9a-fA-F-]{36}$"
-                    + "|^/api/catalog/venues/[0-9a-fA-F-]{36}/sectors$"
-                    + "|^/api/inventory/events/[0-9a-fA-F-]{36}/availability$"
-                    + "|^/api/inventory/events/[0-9a-fA-F-]{36}/seats$");
+    /** UUID estricto (8-4-4-4-12 hexa): un path deformado (p. ej. 36 guiones) no matchea reglas. */
+    private static final String ID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 
-    private static final String ID = "[0-9a-fA-F-]{36}";
+    private static final Pattern PUBLIC_GET_PATTERN = Pattern.compile(
+            "^/api/catalog/(events|venues)/" + ID + "$"
+                    + "|^/api/catalog/venues/" + ID + "/sectors$"
+                    + "|^/api/inventory/events/" + ID + "/availability$"
+                    + "|^/api/inventory/events/" + ID + "/seats$");
 
     private record Rule(HttpMethod method, Pattern path, Set<String> roles) {}
 
@@ -96,6 +102,7 @@ public class IdentityHeaderFilter implements GlobalFilter, Ordered {
             rule(HttpMethod.POST, "/api/orders/returns/" + ID + "/approve", ADMIN_ONLY),
             rule(HttpMethod.POST, "/api/orders/returns/" + ID + "/reject", ADMIN_ONLY),
             rule(HttpMethod.POST, "/api/orders/access/validate", ACCESS_STAFF_OR_ADMIN),
+            rule(HttpMethod.GET, "/api/orders/reports/events/" + ID, ORGANIZER_OR_ADMIN),
             // queue
             rule(HttpMethod.POST, "/api/queue/events/" + ID + "/join", CLIENT_ONLY),
             rule(HttpMethod.GET, "/api/queue/events/" + ID + "/position", CLIENT_ONLY),
@@ -134,8 +141,7 @@ public class IdentityHeaderFilter implements GlobalFilter, Ordered {
             headers.set(CORRELATION_HEADER, correlationId);
         });
 
-        boolean publicRead = HttpMethod.GET.equals(method)
-                && (PUBLIC_GET_PATHS.contains(path) || PUBLIC_GET_PATTERN.matcher(path).matches());
+        boolean publicRead = esLecturaPublica(method, path);
         if (publicRead) {
             return chain.filter(exchange.mutate().request(requestBuilder.build()).build());
         }
@@ -190,12 +196,24 @@ public class IdentityHeaderFilter implements GlobalFilter, Ordered {
         return Set.of(); // default-deny
     }
 
+    /** Lecturas públicas: tolera un slash final (p. ej. /api/catalog/events/). */
+    private static boolean esLecturaPublica(HttpMethod method, String path) {
+        if (!HttpMethod.GET.equals(method)) {
+            return false;
+        }
+        String normalizada = path.length() > 1 && path.endsWith("/")
+                ? path.substring(0, path.length() - 1)
+                : path;
+        return PUBLIC_GET_PATHS.contains(normalizada)
+                || PUBLIC_GET_PATTERN.matcher(normalizada).matches();
+    }
+
     private static String resolveCorrelationId(String incoming) {
         if (incoming != null && !incoming.isBlank()) {
             try {
                 return UUID.fromString(incoming.trim()).toString();
-            } catch (IllegalArgumentException ignored) {
-                // no es un UUID: se genera uno nuevo
+            } catch (IllegalArgumentException ex) {
+                log.warn("Se descartó un X-Correlation-Id inválido y se genera uno nuevo");
             }
         }
         return UUID.randomUUID().toString();
@@ -205,6 +223,10 @@ public class IdentityHeaderFilter implements GlobalFilter, Ordered {
         ServerHttpResponse response = exchange.getResponse();
         response.setStatusCode(status);
         response.getHeaders().setContentType(MediaType.APPLICATION_PROBLEM_JSON);
+        if (HttpStatus.UNAUTHORIZED.equals(status)) {
+            // RFC 6750: toda respuesta 401 anuncia el esquema esperado.
+            response.getHeaders().set(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+        }
 
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setTitle(status.getReasonPhrase());

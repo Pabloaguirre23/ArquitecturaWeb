@@ -1,0 +1,131 @@
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { getTickets } from '../api/orders'
+import type { Ticket } from '../api/types'
+import { useAuth } from '../auth/useAuth'
+import { EmptyState } from '../components/EmptyState'
+import { ErrorState } from '../components/ErrorState'
+import { Loading } from '../components/Loading'
+import { QrCode } from '../components/QrCode'
+import { errorMessage } from '../utils/errors'
+import { formatDate } from '../utils/format'
+
+export function TicketsPage() {
+  const { user } = useAuth()
+  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState<string | null>(null)
+
+  async function copiarDatos(ticket: Ticket) {
+    const texto = `QR: ${ticket.qrCode}\nEvento: ${ticket.eventoId}`
+    try {
+      await navigator.clipboard.writeText(texto)
+      setCopiado(ticket.id)
+      window.setTimeout(() => {
+        setCopiado((actual) => (actual === ticket.id ? null : actual))
+      }, 2000)
+    } catch {
+      // Si el navegador bloquea el portapapeles, el código queda visible para copiar a mano.
+      setCopiado(null)
+    }
+  }
+
+  useEffect(() => {
+    if (user?.role !== 'CLIENT') {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+
+    getTickets()
+      .then((result) => {
+        if (!cancelled) {
+          setTickets(result.content)
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setError(errorMessage(caught))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.role])
+
+  if (user && user.role !== 'CLIENT') {
+    return (
+      <EmptyState
+        title="Solo para clientes"
+        description="Las entradas pertenecen a la cuenta del cliente que compró. Esta vista es para usuarios CLIENT."
+      />
+    )
+  }
+
+  return (
+    <div className="page-gap">
+      <header className="page-head">
+        <span className="badge">Mi cuenta</span>
+        <h1>Mis entradas</h1>
+        <p className="muted">Presentá el QR en el ingreso del evento.</p>
+      </header>
+
+      {loading && <Loading label="Buscando tus entradas…" />}
+
+      {!loading && error && (
+        <ErrorState message={error} onRetry={() => window.location.reload()} />
+      )}
+
+      {!loading && !error && tickets.length === 0 && (
+        <EmptyState
+          title="Todavía no tenés entradas"
+          description="Cuando compres una entrada, va a aparecer acá con su código QR."
+          actionLabel="Buscar eventos"
+        />
+      )}
+
+      {!loading && !error && tickets.length > 0 && (
+        <div className="ticket-list">
+          {tickets.map((ticket) => (
+            <article className="ticket-card" key={ticket.id}>
+              <QrCode value={ticket.qrCode} />
+              <div className="ticket-info">
+                <span className={ticket.estado === 'VALIDA' ? 'badge ok' : 'badge bad'}>
+                  {ticket.estado}
+                </span>
+                <h3>{ticket.eventoNombre}</h3>
+                <p className="muted">{formatDate(ticket.eventoFecha)}</p>
+                <p className="meta">
+                  <span>Evento {ticket.eventoId.slice(0, 8)}</span>
+                  <span>Sector {ticket.sectorId.slice(0, 8)}</span>
+                  {ticket.asientoId && <span>Asiento {ticket.asientoId.slice(0, 8)}</span>}
+                </p>
+                <p className="mono qr-code">{ticket.qrCode}</p>
+                <button
+                  className="btn btn-ghost btn-small"
+                  type="button"
+                  onClick={() => copiarDatos(ticket)}
+                >
+                  {copiado === ticket.id ? 'Copiado' : 'Copiar QR + evento'}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      <p className="hint">
+        ¿Querés más entradas? <Link to="/">Volver a la búsqueda</Link>
+      </p>
+    </div>
+  )
+}

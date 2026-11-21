@@ -154,4 +154,14 @@ class GatewayRoutingTest {
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("FORBIDDEN");
     }
+
+    @Test
+    void unClienteNoPuedeConsultarReportes() {
+        client.get().uri("/api/orders/reports/events/" + UUID_CUALQUIERA)
+                .header(HttpHeaders.AUTHORIZATION, auth("CLIENT"))
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FORBIDDEN");
+    }
 }

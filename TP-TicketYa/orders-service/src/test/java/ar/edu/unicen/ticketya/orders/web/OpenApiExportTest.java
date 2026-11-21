@@ -4,9 +4,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import ar.edu.unicen.ticketya.orders.config.OpenApiConfig;
+import ar.edu.unicen.ticketya.orders.servicio.AccessService;
 import ar.edu.unicen.ticketya.orders.servicio.DevolucionService;
 import ar.edu.unicen.ticketya.orders.servicio.OrderQueryService;
 import ar.edu.unicen.ticketya.orders.servicio.OrderService;
+import ar.edu.unicen.ticketya.orders.servicio.ReportService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,7 +29,8 @@ import org.springframework.test.web.servlet.MockMvc;
  * Exporta el OpenAPI generado por springdoc a openapi/orders-openapi.json
  * (relativo a la raíz del repositorio, un nivel arriba de orders-service).
  */
-@WebMvcTest(controllers = {OrderController.class, TicketController.class, ReturnController.class, InternalOrderController.class})
+@WebMvcTest(controllers = {OrderController.class, TicketController.class, ReturnController.class,
+        InternalOrderController.class, AccessController.class, ReportController.class})
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocWebMvcConfiguration.class})
 @EnableConfigurationProperties(SpringDocConfigProperties.class)
 @Import(OpenApiConfig.class)
@@ -42,6 +45,10 @@ class OpenApiExportTest {
     private OrderQueryService orderQueryService;
     @MockitoBean
     private DevolucionService devolucionService;
+    @MockitoBean
+    private AccessService accessService;
+    @MockitoBean
+    private ReportService reportService;
 
     @Test
     void exportaElOpenApiDeOrders() throws Exception {

@@ -101,11 +101,21 @@ services:
       INVENTORY_URL: http://inventory-service:8082
       ORDERS_URL: http://orders-service:8083
       QUEUE_URL: http://queue-service:8086
-      INTERNAL_TOKEN: ticketya-internal-dev
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-ticketya-internal-dev}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ticketya
+      RABBITMQ_PASSWORD: ticketya
     expose:
       - "8081"
     depends_on:
       catalog-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
 
@@ -116,7 +126,12 @@ services:
       DB_URL: jdbc:postgresql://inventory-db:5432/inventory_db
       DB_USER: ticketya
       DB_PASSWORD: ticketya
+      DB_POOL_SIZE: 40
+      DB_CONNECTION_TIMEOUT_MS: 5000
       CATALOG_URL: http://catalog-service:8081
+      QUEUE_URL: http://queue-service:8086
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-ticketya-internal-dev}
+      QUEUE_TOKEN_SECRET: ${QUEUE_TOKEN_SECRET:-ticketya-queue-dev-secret-key-32b}
     expose:
       - "8082"
     depends_on:
@@ -131,11 +146,21 @@ services:
       DB_URL: jdbc:postgresql://orders-db:5432/orders_db
       DB_USER: ticketya
       DB_PASSWORD: ticketya
+      DB_POOL_SIZE: 40
+      DB_CONNECTION_TIMEOUT_MS: 5000
       INVENTORY_URL: http://inventory-service:8082
+      CATALOG_URL: http://catalog-service:8081
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-ticketya-internal-dev}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ticketya
+      RABBITMQ_PASSWORD: ticketya
     expose:
       - "8083"
     depends_on:
       orders-db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
 
@@ -149,7 +174,7 @@ services:
       RABBITMQ_USER: ticketya
       RABBITMQ_PASSWORD: ticketya
       CATALOG_URL: http://catalog-service:8081
-      INTERNAL_TOKEN: ticketya-internal-dev
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-ticketya-internal-dev}
     expose:
       - "8084"
     depends_on:
@@ -170,6 +195,8 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ticketya
       RABBITMQ_PASSWORD: ticketya
+      RECOMMENDATION_URL: http://recommendation-service:8084
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-ticketya-internal-dev}
     expose:
       - "8085"
     depends_on:
@@ -191,6 +218,7 @@ services:
       QUEUE_URL: http://queue-service:8086
       JWT_SECRET: ${JWT_SECRET:-ticketya-dev-secret-change-me-32-bytes-min!!}
       JWT_TTL: ${JWT_TTL:-8h}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
     ports:
       - "8080:8080"
     depends_on:
@@ -202,6 +230,10 @@ services:
         condition: service_healthy
       queue-service:
         condition: service_healthy
+      recommendation-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
     restart: unless-stopped
 
   queue-service:
@@ -210,8 +242,11 @@ services:
       SERVER_PORT: 8086
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      INTERNAL_TOKEN: ticketya-internal-dev
-      QUEUE_TOKEN_SECRET: ticketya-queue-dev-secret-key-32b
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-ticketya-internal-dev}
+      QUEUE_TOKEN_SECRET: ${QUEUE_TOKEN_SECRET:-ticketya-queue-dev-secret-key-32b}
+      QUEUE_BATCH_SIZE: ${QUEUE_BATCH_SIZE:-50}
+      QUEUE_INTERVAL_SECONDS: ${QUEUE_INTERVAL_SECONDS:-30}
+      QUEUE_SCHEDULER_MS: ${QUEUE_SCHEDULER_MS:-5000}
     expose:
       - "8086"
     depends_on:
@@ -219,7 +254,27 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-# La UI opcional no se incluye hasta que el P0 esté verde.
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_USE_MOCKS: "false"
+        VITE_API_URL: /api
+    ports:
+      - "3000:80"
+    # El HEALTHCHECK de la imagen consulta `localhost`, que en Alpine resuelve
+    # primero a ::1 (IPv6); nginx solo escucha en IPv4 y el contenedor queda
+    # unhealthy aunque sirva tráfico. Este override consulta 127.0.0.1.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   catalog_data:

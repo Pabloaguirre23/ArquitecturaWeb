@@ -123,6 +123,16 @@ class RecommendationControllerTest {
     }
 
     @Test
+    void conRolOrganizadorEnSimilaresDevuelve403() throws Exception {
+        mockMvc.perform(get("/api/recommendations/events/{eventId}/similar",
+                        "d0000000-0000-4000-8000-000000000001")
+                        .header("X-User-Id", CLIENTE_TEXTO)
+                        .header("X-User-Role", "ORGANIZER"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void eventoIdInvalidoEnSimilaresDevuelve400() throws Exception {
         mockMvc.perform(get("/api/recommendations/events/{eventId}/similar", "no-es-un-uuid")
                         .header("X-User-Id", CLIENTE_TEXTO)

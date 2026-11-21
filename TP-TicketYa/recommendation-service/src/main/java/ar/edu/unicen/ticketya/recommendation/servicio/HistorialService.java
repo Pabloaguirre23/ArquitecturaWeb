@@ -1,5 +1,6 @@
 package ar.edu.unicen.ticketya.recommendation.servicio;
 
+import ar.edu.unicen.ticketya.recommendation.dominio.EventoVisto;
 import ar.edu.unicen.ticketya.recommendation.dominio.HistorialCompra;
 import ar.edu.unicen.ticketya.recommendation.evento.OrdenPagadaEvent;
 import ar.edu.unicen.ticketya.recommendation.evento.OrdenPagadaPayload;
@@ -54,7 +55,9 @@ public class HistorialService {
         if (payload == null) {
             throw new IllegalArgumentException("El evento orden.pagada no tiene payload");
         }
-        if (payload.estado() != null && !OrdenPagadaPayload.ESTADO_PAGADA.equals(payload.estado())) {
+        if (!OrdenPagadaPayload.ESTADO_PAGADA.equals(payload.estado())) {
+            // El contrato exige estado=PAGADA; un payload sin estado no es una compra
+            // pagada y no debe contaminar historial, popularidad ni co-compra.
             log.info("Compra {} no está pagada ({}); no se registra en el historial",
                     payload.ordenId(), payload.estado());
             return false;
@@ -87,7 +90,24 @@ public class HistorialService {
         } else {
             log.info("Evento {} ya estaba en el historial; no se duplica", eventId);
         }
+
+        // El snapshot eventos_vistos alimenta similares y el fallback de 7.4.
+        // Sin esto solo existirían los eventos del seed.
+        registrarEventoVisto(payload, eventoId);
         return creado;
+    }
+
+    private void registrarEventoVisto(OrdenPagadaPayload payload, String eventoId) {
+        Query query = Query.query(Criteria.where("_id").is(eventoId));
+        Update update = new Update()
+                .set("nombre", payload.eventoNombre())
+                .set("tipo", payload.eventoTipo())
+                .set("artistas", payload.artistas() == null ? List.of() : payload.artistas())
+                .set("ciudad", payload.ciudad())
+                .set("fechaEvento", payload.fechaEvento())
+                .set("estado", "PUBLICADO")
+                .set("actualizadoEn", Instant.now(clock));
+        mongoTemplate.upsert(query, update, EventoVisto.class);
     }
 
     public List<HistorialCompra> historial(UUID clienteId) {

@@ -5,7 +5,9 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 import ar.edu.unicen.ticketya.gateway.TestTokens;
 import ar.edu.unicen.ticketya.gateway.auth.DemoUser;
 import ar.edu.unicen.ticketya.gateway.auth.JwtService;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -48,11 +50,31 @@ class IdentityHeaderFilterTest {
                 .exchange()
                 .expectStatus().isUnauthorized()
                 .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectHeader().valueEquals(HttpHeaders.WWW_AUTHENTICATE, "Bearer")
                 .expectBody()
                 .jsonPath("$.status").isEqualTo(401)
                 .jsonPath("$.code").isEqualTo("UNAUTHORIZED")
                 .jsonPath("$.instance").isEqualTo("/api/orders")
                 .jsonPath("$.errors").isArray();
+    }
+
+    @Test
+    void unTokenSinFirmaAlgNoneDevuelve401() {
+        // Tokens "alg: none" forjados a mano: no se aceptan ni se rutean.
+        String sinFirma = Base64.getUrlEncoder().withoutPadding()
+                        .encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8))
+                + "."
+                + Base64.getUrlEncoder().withoutPadding()
+                        .encodeToString(("{\"sub\":\"" + TestTokens.CLIENT_ID + "\",\"role\":\"CLIENT\","
+                                + "\"email\":\"cliente@ticketya.test\"}").getBytes(StandardCharsets.UTF_8))
+                + ".";
+
+        client.get().uri("/api/orders/" + UUID_CUALQUIERA)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + sinFirma)
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("UNAUTHORIZED");
     }
 
     @Test

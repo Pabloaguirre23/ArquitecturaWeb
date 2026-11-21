@@ -4,6 +4,7 @@ import ar.edu.unicen.ticketya.recommendation.dominio.Preferencia;
 import ar.edu.unicen.ticketya.recommendation.dominio.TipoEvento;
 import ar.edu.unicen.ticketya.recommendation.repositorio.PreferenciaRepository;
 import ar.edu.unicen.ticketya.recommendation.web.ApiException;
+import ar.edu.unicen.ticketya.recommendation.web.dto.PreferenciaClienteResponse;
 import ar.edu.unicen.ticketya.recommendation.web.dto.PreferenciasRequest;
 import ar.edu.unicen.ticketya.recommendation.web.dto.PreferenciasResponse;
 import java.time.Clock;
@@ -33,6 +34,26 @@ public class PreferenceService {
         return preferenciaRepository.findByClienteId(clienteId.toString())
                 .map(this::toResponse)
                 .orElseGet(() -> vacias(clienteId));
+    }
+
+    /**
+     * Búsqueda interna que usa notification-service (8.3): clientes con el
+     * artista como favorito en la ciudad indicada. Compara sin distinguir
+     * mayúsculas y devuelve solo el id; no expone preferencias completas.
+     */
+    public List<PreferenciaClienteResponse> buscarPorArtistaYCiudad(String artista, String ciudad) {
+        if (artista == null || artista.isBlank() || ciudad == null || ciudad.isBlank()) {
+            return List.of();
+        }
+        String artistaBuscado = artista.trim();
+        String ciudadBuscada = ciudad.trim();
+        return preferenciaRepository.findByCiudadIgnoreCase(ciudadBuscada).stream()
+                .filter(preferencia -> preferencia.getArtistas() != null
+                        && preferencia.getArtistas().stream()
+                        .anyMatch(candidato -> candidato != null
+                                && candidato.trim().equalsIgnoreCase(artistaBuscado)))
+                .map(preferencia -> new PreferenciaClienteResponse(preferencia.getClienteId(), null))
+                .toList();
     }
 
     public PreferenciasResponse guardar(UUID clienteId, PreferenciasRequest request) {

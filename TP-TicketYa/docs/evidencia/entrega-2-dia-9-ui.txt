@@ -1,0 +1,9 @@
+TicketYa — evidencia de UI (21/11/2026)
+Comando: cd web && npm run build && npm run lint && npm run test
+
+Vite: build OK (345 KB, 108 KB gzip)
+oxlint: sin hallazgos
+Vitest: Test Files 13 passed (13) | Tests 28 passed (28)
+
+Nuevos: QrCode (QR real), QrScanner progresivo, SessionNotice (401),
+menú mobile con Popover, tests de SearchPage y EventDetailPage.

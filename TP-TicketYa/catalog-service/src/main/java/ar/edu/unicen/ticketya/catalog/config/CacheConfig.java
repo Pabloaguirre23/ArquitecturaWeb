@@ -1,5 +1,11 @@
 package ar.edu.unicen.ticketya.catalog.config;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,7 +42,7 @@ public class CacheConfig implements CachingConfigurer {
         RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
                 .disableCachingNullValues()
                 .serializeValuesWith(RedisSerializationContext.SerializationPair
-                        .fromSerializer(new GenericJackson2JsonRedisSerializer()));
+                        .fromSerializer(serializer()));
         Map<String, RedisCacheConfiguration> configs = new HashMap<>();
         configs.put(VENUES, base.entryTtl(venueTtl));
         configs.put(VENUE, base.entryTtl(venueTtl));
@@ -47,6 +53,21 @@ public class CacheConfig implements CachingConfigurer {
                 .cacheDefaults(base.entryTtl(searchTtl))
                 .withInitialCacheConfigurations(configs)
                 .build();
+    }
+
+    /**
+     * Jackson con JSR-310 y typing por propiedad. Sin el módulo de fechas,
+     * cualquier DTO con OffsetDateTime/Instant fallaba al escribir en Redis y
+     * el CacheErrorHandler lo tragaba: la caché nunca persistía.
+     */
+    private static GenericJackson2JsonRedisSerializer serializer() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        mapper.disable(DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE);
+        mapper.activateDefaultTyping(LaissezFaireSubTypeValidator.instance,
+                ObjectMapper.DefaultTyping.EVERYTHING, JsonTypeInfo.As.PROPERTY);
+        return new GenericJackson2JsonRedisSerializer(mapper);
     }
 
     @Override

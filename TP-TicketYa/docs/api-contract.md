@@ -1,8 +1,8 @@
-# Contrato REST — TicketYa (Entrega 1 + avance Entrega 2)
+# Contrato REST — TicketYa (Entrega 2 — congelado 20/11/2026)
 
 Este documento es la **vista humana** del contrato. La fuente machine-readable es el OpenAPI de cada servicio (`/v3/api-docs` y Swagger UI en `/swagger-ui.html`). Los dos se actualizan en el mismo PR.
 
-- **Estado:** congelado el Día 0 (2/11/2026) para la Entrega 1. La Entrega 2 agrega endpoints por tarea y el contrato v2 se congela en la tarea 1.3.
+- **Estado:** Entrega 2, congelado el 20/11/2026. Todo cambio posterior se hace por PR con aviso a los dueños de cada servicio.
 - **Entrada única:** `http://localhost:8080` (api-gateway). Los servicios no se consumen directo desde el cliente.
 - **Prefijos:** `/api/catalog/**`, `/api/inventory/**`, `/api/orders/**`, `/api/recommendations/**` y, en la Entrega 2, `/api/auth/**`, `/api/queue/**`, `/api/notifications/**` y `/api/orders/access|reports/**`.
 - **Internos:** `/internal/**`, solo entre servicios, nunca expuestos por el gateway. Exigen `X-Internal-Token`.
@@ -154,6 +154,8 @@ El token se manda en cada pedido protegido: `Authorization: Bearer <token>`. Dur
 | POST | `/api/orders/tickets/{entradaId}/returns` | dueño | 201 | orders |
 | POST | `/api/orders/returns/{devolucionId}/approve` | ADMIN | 200 | orders |
 | POST | `/api/orders/returns/{devolucionId}/reject` | ADMIN | 200 | orders |
+| POST | `/api/orders/access/validate` | ACCESS_STAFF o ADMIN | 200 | orders |
+| GET | `/api/orders/reports/events/{eventoId}` | ORGANIZER dueño o ADMIN | 200 | orders |
 | GET | `/api/recommendations/preferences` | CLIENT | 200 | recommendation |
 | PUT | `/api/recommendations/preferences` | CLIENT | 200 | recommendation |
 | GET | `/api/recommendations` | CLIENT | 200 | recommendation |
@@ -902,6 +904,71 @@ Errores: `404 RETURN_NOT_FOUND`, `409 RETURN_ALREADY_RESOLVED`, `409 RETURN_IN_P
 
 Marca las entradas vendidas como `EN_REINTEGRO` y solicita el refund. Idempotente: repetir devuelve las mismas entradas ya afectadas sin duplicar reintegros.
 
+### 5.10 Validar QR de acceso — `POST /api/orders/access/validate` (ACCESS_STAFF o ADMIN)
+
+```json
+{ "qrCode": "235e9e9e-3451-4605-94a1-ae9cd55aef18", "eventoId": "1f2e..." }
+```
+
+**200 OK**
+
+```json
+{
+  "entradaId": "c6b2...",
+  "ordenId": "c1d2...",
+  "eventoId": "1f2e...",
+  "sectorId": "9a1b...",
+  "estado": "UTILIZADA",
+  "usedAt": "2026-11-20T21:00:00-03:00",
+  "usedBy": "55555555-5555-4555-8555-555555555555"
+}
+```
+
+El consumo es un `UPDATE` condicional atómico sobre `entrada` (`estado = 'VALIDA'` y
+`used_at IS NULL`); dos peticiones concurrentes con el mismo QR producen un `200` y un `409`.
+Cada intento se registra en `audit_log` como `INGRESO_VALIDADO` o `INGRESO_RECHAZADO` con
+`X-Correlation-Id`; el fallo de la auditoría no revierte la validación.
+
+Errores: `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `403 FORBIDDEN`, `404 TICKET_NOT_FOUND`,
+`409 TICKET_ALREADY_USED`, `409 TICKET_WRONG_EVENT`, `409 TICKET_NOT_VALID`.
+
+### 5.11 Reporte del evento — `GET /api/orders/reports/events/{eventoId}` (ORGANIZER dueño o ADMIN)
+
+**200 OK**
+
+```json
+{
+  "eventoId": "1f2e...",
+  "organizadorId": "2a7c...",
+  "sectores": [
+    {
+      "sectorId": "9a1b...",
+      "sectorNombre": "Platea A",
+      "capacidad": 100,
+      "vendidas": 40,
+      "devueltas": 5,
+      "netas": 35,
+      "ocupacion": 0.35,
+      "recaudacion": 525000.00
+    }
+  ],
+  "totales": { "vendidas": 40, "devueltas": 5, "netas": 35, "recaudacion": 525000.00 },
+  "datosDesactualizados": false,
+  "generadoEn": "2026-11-20T21:00:00-03:00"
+}
+```
+
+`ocupacion` es `netas / capacidad` (0.35 = 35 %) y es `null` si no se conoce la capacidad.
+`vendidas` incluye entradas devueltas después de la compra; `recaudacion` descuenta los
+reintegros aprobados. Un evento sin ventas devuelve ceros y ocupación `0`.
+
+La capacidad, el nombre de sector y el organizador se obtienen de `GET /internal/events/{eventoId}/report`
+(§3.13) con `X-Internal-Token`, con cache en memoria de 60 s. Si catalog no responde se usa la caché o el snapshot de `orden` y se marca
+`datosDesactualizados: true`; sin dueño verificable se responde `503 CATALOG_UNAVAILABLE`.
+
+Errores: `401 UNAUTHORIZED`, `403 FORBIDDEN` (rol no habilitado), `403 NOT_EVENT_OWNER` (otro
+organizador), `404 EVENT_NOT_FOUND`, `503 CATALOG_UNAVAILABLE`.
+
 ## 6. recommendation-service
 
 Base MongoDB `recommendation_db`. Las preferencias son del cliente autenticado: `GET` y `PUT` solo aceptan rol `CLIENT` y leen/escriben el `clienteId` derivado de `X-User-Id`. El servicio no acepta que el body imponga otro cliente.
@@ -969,7 +1036,7 @@ curl http://localhost:8084/internal/preferences/33333333-3333-4333-8333-33333333
   -H "X-Internal-Token: ticketya-internal-dev"
 ```
 
-### 6.3.1 Interno propuesto — `GET /internal/preferences?artista={artista}&ciudad={ciudad}` (X-Internal-Token)
+### 6.3.1 Interno — `GET /internal/preferences?artista={artista}&ciudad={ciudad}` (X-Internal-Token)
 
 Lo consume notification-service (8.3) para encontrar clientes que tienen un artista favorito en la ciudad de un `evento.publicado`. Devuelve `200` con la lista de coincidencias y `[]` si no hay ninguna; `401 UNAUTHORIZED` sin token. Compara artistas sin distinguir mayúsculas y ciudad exacta (recortando espacios). No se expone por el gateway.
 
@@ -982,7 +1049,7 @@ Lo consume notification-service (8.3) para encontrar clientes que tienen un arti
 ]
 ```
 
-`clienteEmail` es opcional; notification-service usa su sender mock si no viene. **Pendiente de implementación en recommendation-service (P5).** Mientras no exista, notification-service degrada a lista vacía y registra un warning, sin bloquear la publicación del evento.
+`clienteEmail` es opcional; notification-service usa su sender mock si no viene. Implementado en recommendation-service: la búsqueda compara artistas sin distinguir mayúsculas, filtra por ciudad y devuelve solo `clienteId` (el email queda en `null`).
 
 ### 6.4 Recomendaciones — `GET /api/recommendations` (CLIENT)
 

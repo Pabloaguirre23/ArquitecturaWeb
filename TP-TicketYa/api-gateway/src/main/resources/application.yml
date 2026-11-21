@@ -31,6 +31,29 @@ spring:
           uri: ${QUEUE_URL:http://localhost:8086}
           predicates:
             - Path=/api/queue/**
+      httpclient:
+        connect-timeout: 2000
+        response-timeout: 10s
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            # La web se sirve same-origin (nginx proxya /api al gateway), así que el CORS
+            # queda limitado a los orígenes explícitos del entorno; nunca "*".
+            allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowed-headers:
+              - Authorization
+              - Content-Type
+              - Idempotency-Key
+              - X-Correlation-Id
+              - X-Queue-Token
+            exposed-headers:
+              - X-Correlation-Id
 
 management:
   endpoints:
@@ -44,5 +67,6 @@ management:
 ticketya:
   security:
     jwt:
-      secret: ${JWT_SECRET:ticketya-dev-secret-change-me-32-bytes-min!!}
+      # Sin default: si falta JWT_SECRET el gateway no arranca (fail-fast).
+      secret: ${JWT_SECRET}
       ttl: ${JWT_TTL:8h}

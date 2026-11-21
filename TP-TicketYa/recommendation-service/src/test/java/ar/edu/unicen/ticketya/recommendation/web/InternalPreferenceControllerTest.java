@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import ar.edu.unicen.ticketya.recommendation.servicio.PreferenceService;
+import ar.edu.unicen.ticketya.recommendation.web.dto.PreferenciaClienteResponse;
 import ar.edu.unicen.ticketya.recommendation.web.dto.PreferenciasResponse;
 import java.util.List;
 import java.util.UUID;
@@ -56,5 +57,27 @@ class InternalPreferenceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.clienteId").value(CLIENTE))
                 .andExpect(jsonPath("$.ciudad").value("Tandil"));
+    }
+
+    @Test
+    void buscarPorArtistaYCiudadDevuelveCoincidencias() throws Exception {
+        when(preferenceService.buscarPorArtistaYCiudad("Los Piojos", "Tandil"))
+                .thenReturn(List.of(new PreferenciaClienteResponse(CLIENTE, null)));
+
+        mockMvc.perform(get("/internal/preferences")
+                        .param("artista", "Los Piojos")
+                        .param("ciudad", "Tandil")
+                        .header("X-Internal-Token", "test-internal"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].clienteId").value(CLIENTE));
+    }
+
+    @Test
+    void buscarPorArtistaYCiudadSinTokenDevuelve401() throws Exception {
+        mockMvc.perform(get("/internal/preferences")
+                        .param("artista", "Los Piojos")
+                        .param("ciudad", "Tandil"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
 }

@@ -1,0 +1,75 @@
+Entrega 2 — Mejoras del Día 7 (19/11/2026)
+==========================================
+Correcciones sobre la revisión externa y validación end-to-end.
+
+1. Cache de catalog con Redis real (3.3/3.4)
+---------------------------------------------
+CacheConfig ahora usa un ObjectMapper con JavaTimeModule, typing por propiedad y
+sin ajuste de zona. El test de Testcontainers Redis cubre un DTO con OffsetDateTime.
+
+Prueba por el gateway (misma URL de búsqueda):
+  X-Cache: MISS
+  X-Cache: HIT
+  X-Cache: HIT
+
+Test: CatalogCacheRedisIntegrationTest (2 tests, 0 fallos).
+
+2. Snapshot eventos_vistos y estado de la compra (7.3)
+------------------------------------------------------
+- HistorialService exige estado=PAGADA; un payload sin estado ya no se registra.
+- Cada compra pagada hace upsert de eventos_vistos con nombre, tipo, artistas,
+  ciudad y fecha. Antes solo existían los tres eventos del seed.
+
+Tests: HistorialServiceTest (8 tests, 0 fallos).
+
+3. Endpoint interno de preferencias para notification (8.3)
+------------------------------------------------------------
+GET /internal/preferences?artista={artista}&ciudad={ciudad}
+  - exige X-Internal-Token;
+  - compara artistas sin distinguir mayúsculas y filtra por ciudad;
+  - devuelve [{clienteId, clienteEmail:null}].
+
+Tests: PreferenceServiceTest (10) e InternalPreferenceControllerTest (5).
+La suite E2E ahora crea una preferencia antes de publicar y verifica que llegue
+la notificación evento.publicado (artista favorito), además de orden.pagada.
+
+4. /internal/** de orders protegido (2.3)
+------------------------------------------
+Nuevo InternalTokenConfig + InternalToken. El interceptor cubre /internal/**.
+Tests: InternalOrderControllerTest (3: 200 con token, 401 sin token).
+
+5. Gateway: rutas duplicadas, timeouts y CORS
+---------------------------------------------
+- Se eliminaron las rutas recommendation/notification duplicadas que quedaron del merge.
+- httpclient connect-timeout 2 s, response-timeout 10 s.
+- globalcors para el preflight de la UI opcional: OPTIONS -> 200.
+- Tests del gateway: 46, 0 fallos.
+
+6. Docs y configuración
+-----------------------
+- .env.example ya no documenta CATALOG_DB_URL/INVENTORY_DB_URL/ORDERS_DB_URL:
+  explica que cada servicio lee DB_URL y lista los valores por puerto.
+- README: queue-service y notification ya no figuran como esqueleto; se corrigieron
+  CATALOG_SCHEDULER_FINALIZACION_MS, SERVER_PORT, tests y el change activo.
+- inventory.vencimiento-ms ahora se puede configurar con INVENTORY_VENCIMIENTO_MS.
+- Se eliminó el workflow duplicado TP-TicketYa/.github/workflows/ci.yml; el CI real
+  es el de la raíz del repo del curso.
+
+7. Verificación final del stack
+-------------------------------
+docker compose: 13/13 contenedores healthy.
+TICKETYA_E2E=true mvn -B -ntp verify:
+  Tests run: 8, Failures: 0, Errors: 0, Skipped: 1
+  BUILD SUCCESS
+El omitido sigue siendo POST /api/orders/access/validate (6.4).
+
+Suites de los servicios tocados:
+  recommendation-service  61 tests, 0 fallos
+  catalog-service        133 tests, 0 fallos
+  inventory-service       63 tests, 0 fallos
+  orders-service         116 tests, 0 fallos
+  api-gateway             46 tests, 0 fallos
+
+Nota: OutboxFailedStatusIntegrationTest pasó en aislamiento; en la corrida completa
+de catalog falló una vez por una tarea programada del contexto y volvió a verde al
+repetirlo. No es un cambio de esta rama.

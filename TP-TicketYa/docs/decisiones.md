@@ -184,3 +184,43 @@ transversales de la Entrega 2: patrones del enunciado, gateway reactivo, payload
   registry (sobredimensionado para el TP); no versionar (rompe consumidores en silencio).
 - **Consecuencias:** P4 congela 1.5; P1/P3 implementan productores contra el mismo documento;
   P5 mantiene el test del fixture. Los errores van a DLQ y no se reencolan infinitamente.
+
+## ADR-019 — Fila virtual con Redis y token de compra firmado
+
+- **Contexto:** los eventos de alta demanda necesitan un orden de llegada justo, posición
+  consultable y habilitación por tandas, con picos de miles de clientes haciendo polling. La
+  reserva no puede depender de una llamada sincrónica a queue-service en el camino crítico.
+- **Decisión:** queue-service usa Redis 7 como almacén primario (`waiting` como sorted set,
+  `state` como hash, `seq` como contador y `admitted` para la tanda) y scripts Lua para que
+  ingreso, posición y habilitación sean atómicos. La habilitación emite un JWT HS256 con
+  `eventId`, `sub`, `jti`, `exp` y `type=QUEUE`, válido 5 minutos. Inventory valida firma,
+  expiración, evento y cliente en local con la misma clave compartida y guarda el `jti` en la
+  reserva; no consulta queue-service para reservar. La fila se abre y cierra por endpoints
+  internos que catalog llama desde su outbox, con fallback si queue está caído.
+- **Alternativas:** tabla SQL con `SELECT ... FOR UPDATE` (más contención y escrituras por
+  cada polling); contador en memoria (no sirve con varias instancias); Redis Streams o
+  WebSockets (más complejidad para un cliente que ya hace polling cada 2–5 segundos);
+  validar el token contra queue en cada reserva (agrega un punto de fallo sincrónico).
+- **Consecuencias:** la fila es eventualmente consistente con catalog: si queue está caído al
+  publicar, el evento se publica igual y la apertura se reintenta en la próxima edición. Un
+  token ya emitido sigue válido hasta su `exp` aunque la fila se cierre; inventory rechaza la
+  reserva por el estado del evento. Redis necesita AOF y una política de reinicio documentada;
+  si pierde los datos, la fila responde `409 QUEUE_NOT_OPEN` y no se emiten tokens nuevos.
+
+## ADR-020 — Usuarios demo en memoria en el gateway
+
+- **Contexto:** la Entrega 2 incorpora login JWT, roles `CLIENT`, `ORGANIZER`, `ADMIN` y
+  `ACCESS_STAFF`, y necesita usuarios de prueba reproducibles para la demo, la suite E2E y la
+  prueba de carga. Montar `auth_db` con Flyway, R2DBC y alta de cuentas agrega una base y un
+  flujo que no son el objetivo de la entrega.
+- **Decisión:** el gateway mantiene cuatro usuarios fijos en `DemoUserStore` (un `Map` en
+  memoria), con la contraseña `demo` hasheada con BCrypt al arrancar. `POST /api/auth/login`
+  valida con `BCryptPasswordEncoder.matches` y emite un JWT HS256 con `sub`, `role` y `email`.
+  No hay registro, cambio de contraseña ni persistencia de usuarios.
+- **Alternativas:** `auth_db` con `usuario`, Flyway y R2DBC (ADR-016; más realista, pero suma
+  una base y un flujo de alta que no se evalúa en esta entrega); un proveedor de identidad
+  externo (fuera de alcance); usuarios en texto plano (inaceptable incluso para demo).
+- **Consecuencias:** al reiniciar el gateway los usuarios se recrean; no se pueden cambiar
+  contraseñas ni agregar usuarios sin tocar código. El secreto JWT y los roles siguen siendo
+  los reales del contrato, así que el resto de los servicios no distingue este origen. Para
+  producción habría que reemplazar `DemoUserStore` por `auth_db` o un IdP, y rotar el secreto.

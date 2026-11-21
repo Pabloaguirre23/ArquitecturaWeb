@@ -31,6 +31,16 @@ class RabbitConfigTest {
     }
 
     @Test
+    void laColaDeOrdenesRecibeReintegradasYDevolucionesAprobadas() {
+        Queue cola = config.notificationOrderQueue("notification.order", "notification.order.dlq");
+
+        assertThat(config.notificationOrderReintegradaBinding(cola, config.ticketyaEventsExchange())
+                .getRoutingKey()).isEqualTo(RabbitConfig.ROUTING_KEY_ORDEN_REINTEGRADA);
+        assertThat(config.notificationOrderDevolucionAprobadaBinding(cola, config.ticketyaEventsExchange())
+                .getRoutingKey()).isEqualTo(RabbitConfig.ROUTING_KEY_DEVOLUCION_APROBADA);
+    }
+
+    @Test
     void laColaDeEventosRecibeActualizacionesYCancelaciones() {
         Queue cola = config.notificationEventQueue("notification.event", "notification.event.dlq");
 

@@ -1,0 +1,35 @@
+# Evidencia de seguridad por rol contra los servicios reales (P4, tarea 2.8)
+Fecha: 20/11/2026 16:37
+Entorno: docker compose completo (15 contenedores healthy), todo por el gateway en :8080.
+Columna derecha = codigo HTTP. 404 en un recurso inexistente significa que el filtro dejo pasar al rol.
+
+## catalog-service
+GET /api/catalog/events sin token (publico, esperado 200)        200
+POST /api/catalog/venues sin token (esperado 401)                401
+POST /api/catalog/venues CLIENT (esperado 403)                   403
+POST /api/catalog/venues ORGANIZER (esperado 403)                403
+POST /api/catalog/venues ADMIN (esperado 201)                    201
+POST /api/catalog/events/{id}/cancel CLIENT (esperado 403)       403
+POST /api/catalog/events/{id}/cancel ORGANIZER (esperado 403)    403
+POST /api/catalog/events/{id}/cancel ADMIN, evento inexistente (esperado 404) 404
+
+## orders-service
+GET /api/orders sin token (esperado 401)                         401
+GET /api/orders ACCESS_STAFF (esperado 403)                      403
+GET /api/orders CLIENT (esperado 200)                            200
+POST /api/orders/returns/{id}/approve CLIENT (esperado 403)      403
+POST /api/orders/returns/{id}/approve ADMIN, inexistente (esperado 404) 404
+POST /api/orders/access/validate CLIENT (esperado 403)           403
+POST /api/orders/access/validate ACCESS_STAFF, QR inexistente (esperado 404) 404
+GET /api/orders/reports/events/{id} CLIENT (esperado 403)        403
+GET /api/orders/reports/events/{id} ORGANIZER, inexistente (pasa el filtro) 404
+
+## notification-service
+GET /api/notifications sin token (esperado 401)                  401
+GET /api/notifications ORGANIZER (esperado 403)                  403
+GET /api/notifications CLIENT (esperado 200)                     200
+
+## recommendation-service
+GET /api/recommendations sin token (esperado 401)                401
+GET /api/recommendations ORGANIZER (esperado 403)                403
+GET /api/recommendations CLIENT (esperado 200)                   200

@@ -101,6 +101,7 @@ public class Notificacion {
     public String getCorrelationId() { return correlationId; }
     public void setCorrelationId(String correlationId) { this.correlationId = correlationId; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
+    public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public OffsetDateTime getEnviadaAt() { return enviadaAt; }
     public void setEnviadaAt(OffsetDateTime enviadaAt) { this.enviadaAt = enviadaAt; }
 }

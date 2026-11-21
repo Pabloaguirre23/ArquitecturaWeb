@@ -1,0 +1,64 @@
+Día 2 — 14/11/2026 — UI opcional (`interfaz-cliente-web`)
+Tarea: 5.3 (responsive, teclado y accesibilidad)
+
+1) Build, lint y tests
+$ cd TP-TicketYa/web
+$ npm ci
+added 81 packages
+$ npm run build
+✓ 52 modules transformed.
+dist/index.html                   0.66 kB
+dist/assets/index-7oIDnnbQ.css   11.32 kB
+dist/assets/index-Dwqz_b_B.js   294.24 kB
+✓ built in 89ms
+$ npm run lint
+(oxlint sin warnings)
+$ npm run test
+Test Files  3 passed (3)
+Tests       5 passed (5)
+Duración    583ms
+
+2) Auditoría responsive con Chrome headless (CDP, viewport real)
+
+Home a 375 × 812:
+- window.innerWidth: 375
+- document.documentElement.scrollWidth: 375
+- body width: 375
+- elementos que desbordan el viewport: 0
+
+Home a 1280 × 900:
+- document.documentElement.scrollWidth: 1280
+- elementos que desbordan el viewport: 0
+
+Detalle de evento con mapa de asientos a 375 × 812:
+- document.documentElement.scrollWidth: 375
+- ancho visible del mapa: 305 px
+- ancho interno del mapa: 504 px (scroll horizontal interno, no de la página)
+- elementos que desbordan el viewport: 0
+
+Corrección aplicada: `.detail-grid > *` y `.card` con `min-width: 0` y `.seat-map` con
+`width: 100%`, para que el mapa de 300 asientos no estire la tarjeta en móvil.
+
+3) Teclado
+
+- Primer Tab: enfoca el enlace “Saltar al contenido” (`.skip-link`, `top: 0`).
+- Enter sobre el skip link: mueve el foco a `<main id="main-content" tabindex="-1">`.
+- Mapa de asientos: cada asiento es un `<button>` con `aria-pressed`, `aria-label`
+  (“Fila 1, asiento 2, libre”) y `disabled` cuando está vendido.
+- Al seleccionar un asiento libre, `aria-pressed` pasa a `true` y el resumen actualiza el total.
+
+4) Cambios de accesibilidad
+
+- Skip link y `main` enfocable.
+- `:focus-visible` global de 3 px en enlaces, botones, inputs y selects.
+- `role="search"` en el formulario de búsqueda y `aria-live="polite"` en el contador de resultados.
+- `aria-pressed` en sectores y asientos; leyenda del mapa con `aria-hidden` para no duplicar texto.
+- `aria-invalid` y `aria-describedby` en login; `aria-describedby` en el botón de pago cuando hay error.
+- `aria-describedby` en la cantidad de zona no numerada.
+- `prefers-reduced-motion` desactiva animaciones, transiciones y scroll suave.
+- Tests nuevos: `SeatGrid.test.tsx` y `Layout.test.tsx` (5 tests en total).
+
+Pendiente:
+- 5.2: flujo real contra el gateway. Bloqueado por JWT (tarea 2.1); el modo demo ya cubre el
+  recorrido completo.
+- 4.3: servicio `web` en el compose integral. El compose integral todavía no existe (tarea 9.6).

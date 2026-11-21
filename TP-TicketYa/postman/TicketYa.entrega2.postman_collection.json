@@ -1,0 +1,683 @@
+{
+  "info": {
+    "name": "TicketYa — Entrega 2",
+    "description": "Esqueleto de la colección de la Entrega 2 (tareas 2.8 y 10.2). Todo entra por el gateway con JWT.\n\nUso:\n1. Levantar el stack (docker compose -f TP-TicketYa/docker-compose.yml up --build) o, para Auth y Seguridad, solo el gateway.\n2. Correr primero la carpeta Auth: guarda los tokens en variables de colección.\n3. Cada dueño completa su carpeta usando Authorization: Bearer {{tokenClient}} (o el rol que corresponda). No se usan más los headers X-User-*.\n\nUsuarios demo (contraseña en passwordDemo): admin, organizador, cliente y acceso@ticketya.test.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "passwordDemo",
+      "value": "demo"
+    },
+    {
+      "key": "emailAdmin",
+      "value": "admin@ticketya.test"
+    },
+    {
+      "key": "emailOrganizer",
+      "value": "organizador@ticketya.test"
+    },
+    {
+      "key": "emailClient",
+      "value": "cliente@ticketya.test"
+    },
+    {
+      "key": "emailAccess",
+      "value": "acceso@ticketya.test"
+    },
+    {
+      "key": "tokenAdmin",
+      "value": ""
+    },
+    {
+      "key": "tokenOrganizer",
+      "value": ""
+    },
+    {
+      "key": "tokenClient",
+      "value": ""
+    },
+    {
+      "key": "tokenAccess",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Login con JWT. Correr primero: guarda tokenAdmin, tokenOrganizer, tokenClient y tokenAccess como variables de colección.",
+      "item": [
+        {
+          "name": "Login ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "pm.test('trae token y rol', function () { pm.expect(body.token).to.be.a('string').and.not.empty; pm.expect(body.role).to.eql('ADMIN'); });",
+                  "pm.collectionVariables.set('tokenAdmin', body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailAdmin}}\",\n  \"password\": \"{{passwordDemo}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login ORGANIZER",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "pm.test('trae token y rol', function () { pm.expect(body.token).to.be.a('string').and.not.empty; pm.expect(body.role).to.eql('ORGANIZER'); });",
+                  "pm.collectionVariables.set('tokenOrganizer', body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailOrganizer}}\",\n  \"password\": \"{{passwordDemo}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login CLIENT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "pm.test('trae token y rol', function () { pm.expect(body.token).to.be.a('string').and.not.empty; pm.expect(body.role).to.eql('CLIENT'); });",
+                  "pm.collectionVariables.set('tokenClient', body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailClient}}\",\n  \"password\": \"{{passwordDemo}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login ACCESS_STAFF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', function () { pm.response.to.have.status(200); });",
+                  "var body = pm.response.json();",
+                  "pm.test('trae token y rol', function () { pm.expect(body.token).to.be.a('string').and.not.empty; pm.expect(body.role).to.eql('ACCESS_STAFF'); });",
+                  "pm.collectionVariables.set('tokenAccess', body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailAccess}}\",\n  \"password\": \"{{passwordDemo}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login con credenciales inválidas devuelve 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('code UNAUTHORIZED', function () { pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailClient}}\",\n  \"password\": \"incorrecta\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login con datos incompletos devuelve 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', function () { pm.response.to.have.status(400); });",
+                  "pm.test('code VALIDATION_ERROR', function () { pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailClient}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catálogo",
+      "description": "Dueño: Iván (P1). Lugares, sectores, eventos, precios, publicar y cancelar, con el rol que corresponde.",
+      "item": []
+    },
+    {
+      "name": "Inventario",
+      "description": "Dueño: Pablo (P2). Disponibilidad, mapa de asientos, reservas.",
+      "item": []
+    },
+    {
+      "name": "Fila",
+      "description": "Dueño: Pablo (P2). Join y posición con CLIENT; abrir y cerrar son internos.",
+      "item": []
+    },
+    {
+      "name": "Órdenes",
+      "description": "Dueño: Caro (P3). Compra, entradas, devoluciones.",
+      "item": []
+    },
+    {
+      "name": "Acceso",
+      "description": "Dueño: Caro (P3). POST /api/orders/access/validate con ACCESS_STAFF (pendiente de backend 6.4).",
+      "item": []
+    },
+    {
+      "name": "Reportes",
+      "description": "Dueño: Caro (P3). GET /api/orders/reports/events/{id} con ORGANIZER o ADMIN (pendiente de backend 6.5). No inventar respuestas.",
+      "item": []
+    },
+    {
+      "name": "Preferencias",
+      "description": "Dueño: Franco (P5). GET y PUT /api/recommendations/preferences con CLIENT.",
+      "item": []
+    },
+    {
+      "name": "Recomendaciones",
+      "description": "Dueño: Franco (P5). GET /api/recommendations y /events/{id}/similar con CLIENT.",
+      "item": []
+    },
+    {
+      "name": "Notificaciones",
+      "description": "Dueño: Iván (P1). GET /api/notifications y /{id} con CLIENT.",
+      "item": []
+    },
+    {
+      "name": "Seguridad",
+      "description": "Matriz 401/403 del gateway por rol (tarea 2.8). Estos casos se resuelven en el gateway y no necesitan los servicios levantados. Faltan los casos 200 contra servicios reales.",
+      "item": [
+        {
+          "name": "Sin token devuelve 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('anuncia Bearer', function () { pm.expect(pm.response.headers.get('WWW-Authenticate')).to.eql('Bearer'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "recommendations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Token inválido devuelve 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer abc"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "recommendations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "X-User-* sin token ya no autentican (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "11111111-1111-4111-8111-111111111111"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "recommendations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "ORGANIZER en recomendaciones devuelve 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenOrganizer}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/recommendations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "recommendations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CLIENT no crea lugares (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/catalog/venues",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "catalog",
+                "venues"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "CLIENT con X-User-Role ADMIN falsificado sigue en 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/catalog/venues",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "catalog",
+                "venues"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "CLIENT no aprueba devoluciones (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/returns/00000000-0000-4000-8000-000000000000/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "returns",
+                "00000000-0000-4000-8000-000000000000",
+                "approve"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CLIENT no valida accesos (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/access/validate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "access",
+                "validate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Endpoints internos no se exponen por el gateway (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/internal/preferences/00000000-0000-4000-8000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "preferences",
+                "00000000-0000-4000-8000-000000000000"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

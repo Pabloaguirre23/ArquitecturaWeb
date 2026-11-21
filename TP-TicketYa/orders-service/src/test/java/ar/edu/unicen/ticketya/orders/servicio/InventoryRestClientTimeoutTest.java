@@ -41,7 +41,8 @@ class InventoryRestClientTimeoutTest {
         });
         server.start();
         String baseUrl = "http://localhost:" + server.getAddress().getPort();
-        InventoryRestClient client = new InventoryRestClient(RestClient.builder(), baseUrl);
+        InventoryRestClient client = new InventoryRestClient(RestClient.builder(), baseUrl,
+                "ticketya-internal-dev", 2000, 5000);
 
         assertThatThrownBy(() -> client.obtenerReserva(UUID.randomUUID()))
                 .isInstanceOf(ResourceAccessException.class);

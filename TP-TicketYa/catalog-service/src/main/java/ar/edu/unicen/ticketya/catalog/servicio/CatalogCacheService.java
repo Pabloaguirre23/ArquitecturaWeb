@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class CatalogCacheService {
@@ -94,7 +96,26 @@ public class CatalogCacheService {
         private int users;
     }
 
+    /**
+     * Invalida una entrada. Si hay una transacción de escritura activa, la
+     * invalidación se difiere al commit: un lector que re-cacheara entre el
+     * evict y el commit guardaría el valor viejo que la transacción todavía
+     * no hizo visible.
+     */
     public void evict(String cacheName, Object key) {
+        if (enTransaccion()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    evictAhora(cacheName, key);
+                }
+            });
+            return;
+        }
+        evictAhora(cacheName, key);
+    }
+
+    private void evictAhora(String cacheName, Object key) {
         Cache cache = cache(cacheName);
         if (cache == null) {
             return;
@@ -106,7 +127,21 @@ public class CatalogCacheService {
         }
     }
 
+    /** Limpia la caché completa, también difiriendo al commit si hay transacción. */
     public void clear(String cacheName) {
+        if (enTransaccion()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    clearAhora(cacheName);
+                }
+            });
+            return;
+        }
+        clearAhora(cacheName);
+    }
+
+    private void clearAhora(String cacheName) {
         Cache cache = cache(cacheName);
         if (cache == null) {
             return;
@@ -116,6 +151,11 @@ public class CatalogCacheService {
         } catch (RuntimeException ex) {
             log.warn("Cache CLEAR degradado cache={}: {}", cacheName, ex.getMessage());
         }
+    }
+
+    private boolean enTransaccion() {
+        return TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive();
     }
 
     public void clearSearches() {

@@ -1,0 +1,13 @@
+# Evidencia 9.1: la misma correlación en gateway, catalog y orders (P4)
+Fecha: 20/11/2026 17:09
+Dos requests con X-Correlation-Id=048c21b6-6ab6-47ad-b8d0-b3a828ea195e: GET /api/catalog/events (publico) y GET /api/orders (CLIENT).
+
+## api-gateway
+{"@timestamp":"2026-11-20T20:09:25.247851716Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.gateway.web.RequestLoggingFilter","thread_name":"reactor-http-nio-4","level":"INFO","level_value":20000,"path":"/api/catalog/events","correlationId":"048c21b6-6ab6-47ad-b8d0-b3a828ea195e","method":"GET","durationMs":"145","status":"200","service":"api-gateway"}
+{"@timestamp":"2026-11-20T20:09:25.326175382Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.gateway.web.RequestLoggingFilter","thread_name":"reactor-http-nio-1","level":"INFO","level_value":20000,"path":"/api/orders","role":"CLIENT","method":"GET","correlationId":"048c21b6-6ab6-47ad-b8d0-b3a828ea195e","userId":"33333333-3333-4333-8333-333333333333","durationMs":"61","status":"200","service":"api-gateway"}
+
+## catalog-service
+{"@timestamp":"2026-11-20T20:09:25.244909174Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.catalog.web.CorrelationFilter","thread_name":"http-nio-8081-exec-3","level":"INFO","level_value":20000,"path":"/api/catalog/events","correlationId":"048c21b6-6ab6-47ad-b8d0-b3a828ea195e","method":"GET","durationMs":"129","status":"200","service":"catalog-service"}
+
+## orders-service
+{"@timestamp":"2026-11-20T20:09:25.324240007Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.orders.web.CorrelationFilter","thread_name":"http-nio-8083-exec-3","level":"INFO","level_value":20000,"path":"/api/orders","role":"CLIENT","method":"GET","correlationId":"048c21b6-6ab6-47ad-b8d0-b3a828ea195e","userId":"33333333-3333-4333-8333-333333333333","durationMs":"45","status":"200","service":"orders-service"}

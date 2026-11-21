@@ -1,0 +1,424 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { getEvent, getSeats } from '../api/events'
+import { getSimilarEvents } from '../api/recommendations'
+import { createReservation } from '../api/orders'
+import type {
+  CreateReservationItem,
+  EventDetail,
+  Seat,
+  Sector,
+  SimilarEventItem,
+} from '../api/types'
+import { useAuth } from '../auth/useAuth'
+import { EmptyState } from '../components/EmptyState'
+import { ErrorState } from '../components/ErrorState'
+import { Loading } from '../components/Loading'
+import { SeatGrid } from '../components/SeatGrid'
+import { SimilarEventCard } from '../components/SimilarEventCard'
+import { errorMessage } from '../utils/errors'
+import { formatCurrency, formatDate } from '../utils/format'
+import { saveReservation } from '../utils/reservationStorage'
+
+/**
+ * Deja escribir cantidades intermedias (por ejemplo, borrar el 1 y poner 2)
+ * sin que el input controlado vuelva a 1 en cada tecla. El clamp final se
+ * aplica al salir del campo o al continuar.
+ */
+function clampQuantity(value: string, max: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return 1
+  }
+  return Math.min(Math.max(Math.trunc(parsed), 1), Math.max(max, 1))
+}
+
+export function EventDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { user, isAuthenticated } = useAuth()
+  const [event, setEvent] = useState<EventDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [sectorId, setSectorId] = useState<string | null>(null)
+  const [seats, setSeats] = useState<Seat[]>([])
+  const [seatsLoading, setSeatsLoading] = useState(false)
+  const [selectedSeats, setSelectedSeats] = useState<Set<string>>(new Set())
+  const [quantityInput, setQuantityInput] = useState('1')
+  const [reserving, setReserving] = useState(false)
+  const [reserveError, setReserveError] = useState<string | null>(null)
+  const [similar, setSimilar] = useState<SimilarEventItem[]>([])
+
+  useEffect(() => {
+    if (!id) {
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+
+    getEvent(id)
+      .then((result) => {
+        if (!cancelled) {
+          setEvent(result)
+          setSectorId(result.sectores[0]?.sectorId ?? null)
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setError(errorMessage(caught))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  useEffect(() => {
+    if (!id || user?.role !== 'CLIENT') {
+      setSimilar([])
+      return
+    }
+    let cancelled = false
+    setSimilar([])
+
+    getSimilarEvents(id)
+      .then((result) => {
+        if (!cancelled) {
+          setSimilar(result.similares)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSimilar([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [id, user?.role])
+
+  const selectedSector = useMemo(
+    () => event?.sectores.find((sector) => sector.sectorId === sectorId) ?? null,
+    [event, sectorId],
+  )
+
+  const maxQuantity =
+    selectedSector && event
+      ? Math.min(selectedSector.disponibles, event.limitePorCliente)
+      : 1
+  const rawQuantity = quantityInput.trim() === '' ? Number.NaN : Number(quantityInput)
+  const quantity = Number.isFinite(rawQuantity)
+    ? Math.min(Math.max(Math.trunc(rawQuantity), 0), maxQuantity)
+    : 0
+  const invalidQuantity =
+    quantityInput.trim() === '' ||
+    !Number.isFinite(rawQuantity) ||
+    Math.trunc(rawQuantity) < 1 ||
+    Math.trunc(rawQuantity) > maxQuantity
+
+  useEffect(() => {
+    if (!event || !selectedSector || selectedSector.tipo !== 'NUMERADO') {
+      setSeats([])
+      setSeatsLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setSeatsLoading(true)
+    setSelectedSeats(new Set())
+    setQuantityInput('1')
+
+    getSeats(event.id, selectedSector.sectorId)
+      .then((result) => {
+        if (!cancelled) {
+          setSeats(result)
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setReserveError(errorMessage(caught))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSeatsLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [event, selectedSector])
+
+  function selectSector(sector: Sector) {
+    if (sector.disponibles <= 0) {
+      return
+    }
+    setSectorId(sector.sectorId)
+    setSelectedSeats(new Set())
+    setQuantityInput('1')
+    setReserveError(null)
+  }
+
+  function toggleSeat(seat: Seat) {
+    if (!event || seat.estado !== 'LIBRE') {
+      return
+    }
+    setSelectedSeats((current) => {
+      const next = new Set(current)
+      if (next.has(seat.asientoId)) {
+        next.delete(seat.asientoId)
+      } else if (next.size < event.limitePorCliente) {
+        next.add(seat.asientoId)
+      }
+      return next
+    })
+  }
+
+  const total = useMemo(() => {
+    if (!selectedSector) {
+      return 0
+    }
+    if (selectedSector.tipo === 'NUMERADO') {
+      return selectedSeats.size * selectedSector.precio
+    }
+    return quantity * selectedSector.precio
+  }, [selectedSector, selectedSeats, quantity])
+
+  const canContinue =
+    Boolean(selectedSector) &&
+    (selectedSector?.tipo === 'NUMERADO' ? selectedSeats.size > 0 : quantity >= 1)
+  const puedeComprar = isAuthenticated && user?.role === 'CLIENT'
+
+  async function handleContinue() {
+    if (!event || !selectedSector || !puedeComprar) {
+      return
+    }
+    if (selectedSector.tipo === 'NO_NUMERADO' && quantity < 1) {
+      return
+    }
+
+    const items: CreateReservationItem[] =
+      selectedSector.tipo === 'NUMERADO'
+        ? [{ sectorId: selectedSector.sectorId, asientoIds: Array.from(selectedSeats) }]
+        : [{ sectorId: selectedSector.sectorId, cantidad: quantity }]
+
+    setReserving(true)
+    setReserveError(null)
+    try {
+      const reservation = await createReservation(event.id, items)
+      saveReservation(reservation)
+      navigate('/checkout')
+    } catch (caught) {
+      setReserveError(errorMessage(caught))
+    } finally {
+      setReserving(false)
+    }
+  }
+
+  if (loading) {
+    return <Loading label="Cargando evento…" />
+  }
+
+  if (error) {
+    return (
+      <div className="section-gap">
+        <ErrorState message={error} onRetry={() => window.location.reload()} />
+      </div>
+    )
+  }
+
+  if (!event) {
+    return (
+      <EmptyState
+        title="Evento no encontrado"
+        description="Puede que ya no esté publicado o que el enlace sea incorrecto."
+      />
+    )
+  }
+
+  return (
+    <div className="page-gap">
+      <Link className="back-link" to="/">
+        ← Volver a la búsqueda
+      </Link>
+
+      <header className="page-head">
+        <span className="badge">{event.tipo}</span>
+        <h1>{event.nombre}</h1>
+        <p className="muted">{event.descripcion}</p>
+        <div className="meta">
+          <span>{formatDate(event.fecha)}</span>
+          <span>·</span>
+          <span>{event.lugarNombre}</span>
+          <span>·</span>
+          <span>{event.ciudad}</span>
+        </div>
+        <div className="meta">
+          <span>Participan: {event.participantes.join(', ')}</span>
+        </div>
+      </header>
+
+      <div className="detail-grid">
+        <section className="card">
+          <h2>Elegí tu lugar</h2>
+          <p className="muted">Límite de {event.limitePorCliente} entradas por cliente.</p>
+          {event.sectores.some((sector) => sector.tipo === 'NUMERADO') && (
+            <p className="hint">
+              Mapa referencial: el escenario está arriba y la fila 1 es la más cercana.
+            </p>
+          )}
+
+          <div className="sector-list">
+            {event.sectores.map((sector) => (
+              <button
+                key={sector.sectorId}
+                className={`sector ${sector.sectorId === selectedSector?.sectorId ? 'selected' : ''}`}
+                type="button"
+                aria-pressed={sector.sectorId === selectedSector?.sectorId}
+                onClick={() => selectSector(sector)}
+                disabled={sector.disponibles <= 0}
+              >
+                <span>
+                  <strong>{sector.nombre}</strong>
+                  <small>
+                    {sector.tipo === 'NUMERADO'
+                      ? `${sector.disponibles} de ${sector.capacidad} asientos disponibles`
+                      : `${sector.disponibles} lugares disponibles`}
+                  </small>
+                </span>
+                <span className="price">
+                  {sector.precio === 0 ? 'Gratis' : formatCurrency(sector.precio)}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {selectedSector?.tipo === 'NUMERADO' && (
+            <div className="seat-picker" aria-busy={seatsLoading}>
+              {seatsLoading ? (
+                <Loading label="Cargando asientos…" />
+              ) : seats.length === 0 ? (
+                <p className="muted">No hay asientos disponibles en este sector.</p>
+              ) : (
+                <SeatGrid
+                  seats={seats}
+                  selected={selectedSeats}
+                  onToggle={toggleSeat}
+                  maxSelectable={event.limitePorCliente}
+                />
+              )}
+            </div>
+          )}
+
+          {selectedSector?.tipo === 'NO_NUMERADO' && (
+            <div className="zone-picker">
+              <label htmlFor="quantity">Cantidad de lugares</label>
+              <input
+                id="quantity"
+                name="cantidad"
+                type="number"
+                min={1}
+                max={maxQuantity}
+                step={1}
+                inputMode="numeric"
+                enterKeyHint="done"
+                value={quantityInput}
+                aria-invalid={invalidQuantity}
+                aria-describedby="quantity-hint"
+                onChange={(event) => setQuantityInput(event.target.value)}
+                onBlur={() => setQuantityInput(String(clampQuantity(quantityInput, maxQuantity)))}
+              />
+              <span id="quantity-hint" className="muted">Máximo {maxQuantity} por compra.</span>
+            </div>
+          )}
+        </section>
+
+        <aside className="card summary">
+          <h2>Resumen</h2>
+          {selectedSector ? (
+            <>
+              <div className="summary-row">
+                <span>Sector</span>
+                <strong>{selectedSector.nombre}</strong>
+              </div>
+              <div className="summary-row">
+                <span>{selectedSector.tipo === 'NUMERADO' ? 'Asientos' : 'Cantidad'}</span>
+                <strong>
+                  {selectedSector.tipo === 'NUMERADO' ? selectedSeats.size : quantity}
+                </strong>
+              </div>
+              {selectedSector.tipo === 'NUMERADO' && selectedSeats.size > 0 && (
+                <div className="summary-row">
+                  <span>Elegidos</span>
+                  <span className="muted">
+                    {Array.from(selectedSeats).length} asiento(s)
+                  </span>
+                </div>
+              )}
+              <div className="summary-row summary-total">
+                <span>Total estimado</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
+              {reserveError && (
+                <p className="form-error" role="alert">
+                  {reserveError}
+                </p>
+              )}
+              {puedeComprar ? (
+                <>
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    disabled={!canContinue || reserving}
+                    onClick={handleContinue}
+                  >
+                    {reserving ? 'Reservando…' : 'Continuar al pago'}
+                  </button>
+                  <p className="hint">Los lugares se reservan por 10 minutos mientras pagás.</p>
+                </>
+              ) : (
+                <p className="hint">
+                  {isAuthenticated ? (
+                    'Esta cuenta no compra entradas. Para reservar, ingresá con una cuenta CLIENT.'
+                  ) : (
+                    <>
+                      <Link to="/login" state={{ from: { pathname: `/events/${id}` } }}>
+                        Ingresá
+                      </Link>{' '}
+                      para comprar.
+                    </>
+                  )}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="muted">Elegí un sector para ver el total.</p>
+          )}
+        </aside>
+      </div>
+
+      {similar.length > 0 && (
+        <section className="section-gap" aria-labelledby="similar-events-title">
+          <div className="results-head">
+            <h2 id="similar-events-title">También te puede gustar</h2>
+            <span className="muted">Según lo que compraron otros clientes</span>
+          </div>
+          <div className="event-grid">
+            {similar.map((item) => (
+              <SimilarEventCard key={item.eventoId} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}

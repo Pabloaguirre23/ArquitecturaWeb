@@ -5,12 +5,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import ar.edu.unicen.ticketya.orders.dominio.Entrada;
+import ar.edu.unicen.ticketya.orders.dominio.EstadoEntrada;
 import ar.edu.unicen.ticketya.orders.dominio.EstadoOrden;
 import ar.edu.unicen.ticketya.orders.dominio.EstadoPago;
 import ar.edu.unicen.ticketya.orders.dominio.EstadoReintegro;
 import ar.edu.unicen.ticketya.orders.dominio.MedioPago;
 import ar.edu.unicen.ticketya.orders.dominio.Orden;
 import ar.edu.unicen.ticketya.orders.dominio.Pago;
+import ar.edu.unicen.ticketya.orders.eventos.CorrelationContext;
 import ar.edu.unicen.ticketya.orders.repositorio.OrdenRepository;
 import ar.edu.unicen.ticketya.orders.repositorio.PagoRepository;
 import ar.edu.unicen.ticketya.orders.repositorio.ReintegroRepository;
@@ -76,6 +79,8 @@ class OrderTransactionIntegrationTest {
         jdbcTemplate.update("DELETE FROM orden_item");
         jdbcTemplate.update("DELETE FROM orden");
         jdbcTemplate.update("DELETE FROM idempotency_key");
+        jdbcTemplate.update("DELETE FROM audit_log");
+        jdbcTemplate.update("DELETE FROM outbox_event");
 
         ReservationDto reserva = new ReservationDto(reservaId, UUID.randomUUID(), "Recital",
                 OffsetDateTime.parse("2027-01-15T21:00:00-03:00"), clienteId, "VIGENTE",
@@ -127,5 +132,41 @@ class OrderTransactionIntegrationTest {
         // se guarda la compensación (reintegro creado)
         assertThat(reintegroRepository.findAll()).isNotEmpty();
         assertThat(reintegroRepository.findAll().get(0).getEstado()).isEqualTo(EstadoReintegro.APROBADO);
+    }
+
+    @Test
+    void compraCompletaComparteCorrelacionEntreBitacoraYOutbox() {
+        String correlacion = "corr-audit-compra-01";
+        CorrelationContext.set(correlacion);
+        try {
+            when(paymentGateway.cobrar(any(), any(), any(), any(), any()))
+                    .thenReturn(new PaymentGateway.PaymentResult(EstadoPago.APROBADO, "mock-ok"));
+            when(ticketService.emitir(any(), any())).thenReturn(List.of(entradaEmitida()));
+
+            CrearOrdenRequest request = new CrearOrdenRequest(reservaId, MedioPago.TARJETA, "APROBADO");
+            OrderResponse response = orderService.crear(request, clienteId, "tx-audit-correl-01");
+
+            assertThat(response.estado()).isEqualTo(EstadoOrden.PAGADA);
+            String correlationAudit = jdbcTemplate.queryForObject(
+                    "SELECT correlation_id FROM audit_log "
+                            + "WHERE operacion = 'COMPRA_APROBADA' AND entidad_id = ?",
+                    String.class, response.id());
+            String correlationOutbox = jdbcTemplate.queryForObject(
+                    "SELECT correlation_id FROM outbox_event "
+                            + "WHERE type = 'orden.pagada' AND aggregate_id = ?",
+                    String.class, response.id());
+            assertThat(correlationAudit).isEqualTo(correlacion);
+            assertThat(correlationOutbox).isEqualTo(correlacion);
+        } finally {
+            CorrelationContext.clear();
+        }
+    }
+
+    private static Entrada entradaEmitida() {
+        Entrada entrada = new Entrada();
+        entrada.setId(UUID.randomUUID());
+        entrada.setQrCode(UUID.randomUUID());
+        entrada.setEstado(EstadoEntrada.VALIDA);
+        return entrada;
     }
 }

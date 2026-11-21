@@ -4,6 +4,9 @@ import ar.edu.unicen.ticketya.notification.dominio.Notificacion;
 import ar.edu.unicen.ticketya.notification.servicio.CompradorEventoService;
 import ar.edu.unicen.ticketya.notification.servicio.DestinatarioEmail;
 import ar.edu.unicen.ticketya.notification.servicio.NotificationService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,10 +15,12 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Consume orden.pagada y genera la notificación de compra de forma idempotente.
- * NotificationService deduplica por eventId+tipo+destinatario. Un mensaje
- * inválido se rechaza sin reencolar; los errores transitorios se reintentan y,
- * agotados los intentos, terminan en notification.order.dlq.
+ * Consume orden.pagada, orden.reintegrada y devolucion.aprobada desde
+ * notification.order (docs/eventos.md §2) y genera la notificación de forma
+ * idempotente; NotificationService deduplica por eventId+tipo+destinatario.
+ * La proyección local de compradores solo se alimenta con compras pagadas.
+ * Un mensaje inválido se rechaza sin reencolar; los errores transitorios se
+ * reintentan y, agotados los intentos, terminan en notification.order.dlq.
  */
 @Component
 public class OrdenPagadaListener {
@@ -25,27 +30,37 @@ public class OrdenPagadaListener {
     private final NotificationService notificationService;
     private final CompradorEventoService compradorEventoService;
     private final DestinatarioEmail destinatarioEmail;
+    private final ObjectMapper objectMapper;
 
     public OrdenPagadaListener(NotificationService notificationService,
                                CompradorEventoService compradorEventoService,
-                               DestinatarioEmail destinatarioEmail) {
+                               DestinatarioEmail destinatarioEmail,
+                               ObjectMapper objectMapper) {
         this.notificationService = notificationService;
         this.compradorEventoService = compradorEventoService;
         this.destinatarioEmail = destinatarioEmail;
+        this.objectMapper = objectMapper;
     }
 
     @RabbitListener(queues = "${notification.rabbit.queue:notification.order}")
-    public void escuchar(OrdenPagadaEvent evento) {
+    public void escuchar(OrdenEvent evento) {
         if (evento == null || evento.eventId() == null || evento.eventId().isBlank()) {
-            throw rechazo("orden.pagada sin eventId");
+            throw rechazo("evento de orden sin eventId");
         }
+        switch (evento.type() == null ? "" : evento.type()) {
+            case OrdenEvent.ORDEN_PAGADA -> manejarOrdenPagada(evento);
+            case OrdenEvent.ORDEN_REINTEGRADA -> manejarOrdenReintegrada(evento);
+            case OrdenEvent.DEVOLUCION_APROBADA -> manejarDevolucionAprobada(evento);
+            default -> throw rechazo("tipo de evento inesperado en notification.order: "
+                    + evento.type());
+        }
+    }
+
+    private void manejarOrdenPagada(OrdenEvent evento) {
         log.info("orden.pagada recibida: eventId={} correlationId={}",
                 evento.eventId(), evento.correlationId());
-        if (!OrdenPagadaEvent.TIPO.equals(evento.type())) {
-            throw rechazo("tipo de evento inesperado en notification.order: " + evento.type());
-        }
-        OrdenPagadaPayload payload = evento.payload();
-        if (payload == null || payload.ordenId() == null || payload.clienteId() == null
+        OrdenPagadaPayload payload = convertir(evento.payload(), OrdenPagadaPayload.class);
+        if (payload.ordenId() == null || payload.clienteId() == null
                 || payload.eventoId() == null) {
             throw rechazo("orden.pagada sin ordenId, clienteId o eventoId");
         }
@@ -60,7 +75,7 @@ public class OrdenPagadaListener {
 
         Notificacion notificacion = new Notificacion();
         notificacion.setEventId(eventId);
-        notificacion.setTipo(OrdenPagadaEvent.TIPO);
+        notificacion.setTipo(OrdenEvent.ORDEN_PAGADA);
         notificacion.setDestinatarioId(clienteId);
         notificacion.setDestinatarioEmail(destinatarioEmail.resolver(payload.clienteEmail(), clienteId));
         notificacion.setAsunto(asunto(payload));
@@ -70,6 +85,63 @@ public class OrdenPagadaListener {
         Notificacion resultado = notificationService.crearYEnviar(notificacion);
         log.info("Notificación de compra evento={} cliente={} estado={} intentos={}",
                 eventId, clienteId, resultado.getEstado(), resultado.getIntentos());
+    }
+
+    private void manejarOrdenReintegrada(OrdenEvent evento) {
+        OrdenReintegradaPayload payload = convertir(evento.payload(), OrdenReintegradaPayload.class);
+        if (payload.ordenId() == null || payload.clienteId() == null || payload.eventoId() == null) {
+            throw rechazo("orden.reintegrada sin ordenId, clienteId o eventoId");
+        }
+
+        UUID eventId = uuid(evento.eventId(), "eventId");
+        UUID clienteId = uuid(payload.clienteId(), "clienteId");
+        Notificacion notificacion = new Notificacion();
+        notificacion.setEventId(eventId);
+        notificacion.setTipo(OrdenEvent.ORDEN_REINTEGRADA);
+        notificacion.setDestinatarioId(clienteId);
+        notificacion.setDestinatarioEmail(destinatarioEmail.resolver(null, clienteId));
+        notificacion.setAsunto("Reintegro de la orden " + payload.ordenId());
+        notificacion.setContenido(contenidoReintegro(payload));
+        notificacion.setCorrelationId(evento.correlationId());
+
+        Notificacion resultado = notificationService.crearYEnviar(notificacion);
+        log.info("Notificación de reintegro evento={} cliente={} estado={} intentos={}",
+                eventId, clienteId, resultado.getEstado(), resultado.getIntentos());
+    }
+
+    private void manejarDevolucionAprobada(OrdenEvent evento) {
+        DevolucionAprobadaPayload payload = convertir(evento.payload(), DevolucionAprobadaPayload.class);
+        if (payload.devolucionId() == null || payload.ordenId() == null || payload.clienteId() == null) {
+            throw rechazo("devolucion.aprobada sin devolucionId, ordenId o clienteId");
+        }
+
+        UUID eventId = uuid(evento.eventId(), "eventId");
+        UUID clienteId = uuid(payload.clienteId(), "clienteId");
+        Notificacion notificacion = new Notificacion();
+        notificacion.setEventId(eventId);
+        notificacion.setTipo(OrdenEvent.DEVOLUCION_APROBADA);
+        notificacion.setDestinatarioId(clienteId);
+        notificacion.setDestinatarioEmail(destinatarioEmail.resolver(null, clienteId));
+        notificacion.setAsunto("Devolución aprobada - orden " + payload.ordenId());
+        notificacion.setContenido(contenidoDevolucion(payload));
+        notificacion.setCorrelationId(evento.correlationId());
+
+        Notificacion resultado = notificationService.crearYEnviar(notificacion);
+        log.info("Notificación de devolución evento={} cliente={} estado={} intentos={}",
+                eventId, clienteId, resultado.getEstado(), resultado.getIntentos());
+    }
+
+    /** Convierte el JsonNode del sobre al payload específico del evento. */
+    private <T> T convertir(JsonNode payload, Class<T> tipo) {
+        if (payload == null || payload.isNull() || !payload.isObject()) {
+            throw rechazo("payload ausente para " + tipo.getSimpleName());
+        }
+        try {
+            return objectMapper.treeToValue(payload, tipo);
+        } catch (JsonProcessingException ex) {
+            throw rechazo("payload inválido para " + tipo.getSimpleName() + ": "
+                    + ex.getOriginalMessage());
+        }
     }
 
     private String asunto(OrdenPagadaPayload payload) {
@@ -82,11 +154,35 @@ public class OrdenPagadaListener {
         return "Tu compra de la orden " + payload.ordenId() + " para " + nombre + " fue confirmada.";
     }
 
+    private String contenidoReintegro(OrdenReintegradaPayload payload) {
+        StringBuilder texto = new StringBuilder("Tu compra de la orden ").append(payload.ordenId())
+                .append(" fue reintegrada.");
+        if (payload.monto() != null) {
+            texto.append(" Monto: ").append(payload.monto().toPlainString()).append('.');
+        }
+        if (payload.motivo() != null && !payload.motivo().isBlank()) {
+            texto.append(" Motivo: ").append(payload.motivo()).append('.');
+        }
+        return texto.toString();
+    }
+
+    private String contenidoDevolucion(DevolucionAprobadaPayload payload) {
+        StringBuilder texto = new StringBuilder("Se aprobó la devolución de la entrada ")
+                .append(payload.entradaId() == null ? "de la orden " + payload.ordenId()
+                        : payload.entradaId())
+                .append(" de la orden ").append(payload.ordenId()).append('.');
+        if (payload.monto() != null) {
+            texto.append(" El monto de ").append(payload.monto().toPlainString())
+                    .append(" será reintegrado.");
+        }
+        return texto.toString();
+    }
+
     private UUID uuid(String valor, String campo) {
         try {
             return UUID.fromString(valor);
         } catch (IllegalArgumentException ex) {
-            throw rechazo("orden.pagada con " + campo + " inválido: " + valor);
+            throw rechazo("evento de orden con " + campo + " inválido: " + valor);
         }
     }
 

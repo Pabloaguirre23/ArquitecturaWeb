@@ -81,3 +81,4 @@ catalog:
     batch-size: ${CATALOG_OUTBOX_BATCH_SIZE:50}
     max-attempts: ${CATALOG_OUTBOX_MAX_ATTEMPTS:10}
     base-backoff-seconds: ${CATALOG_OUTBOX_BACKOFF_SECONDS:5}
+    published-retention-hours: ${CATALOG_OUTBOX_PUBLISHED_RETENTION_HOURS:24}

@@ -1,7 +1,9 @@
-# Pruebas — TicketYa Entrega 1
+# Pruebas — TicketYa Entrega 1 y 2
 
-Este documento reúne la estrategia, los comandos y la evidencia de las pruebas de los Días 2 a 7.
-Los comandos se ejecutan desde `ticketya/` salvo que se indique otro directorio.
+Este documento reúne la estrategia, los comandos y la evidencia de las pruebas de los Días 2 a 8.
+Los comandos se ejecutan desde `TP-TicketYa/` salvo que se indique otro directorio.
+Las tablas de §3 son históricas de la Entrega 1; la evidencia final de la Entrega 2 está en
+§12 (integración/E2E), §13 (resiliencia) y §14 (UI).
 
 ## 1. Estrategia
 
@@ -395,27 +397,91 @@ Riesgo residual: si P4 está saturado con JWT (2.1–2.3), el compose de integra
 de carga se reasignan a P5/P2. El compose integral no debe ser un cuello de botella de una
 sola persona.
 
-## 12. Módulo `integration-tests` (10.1, inicio Día 5)
+## 12. Módulo `integration-tests` (10.1, Días 5–8)
 
 El módulo `TP-TicketYa/integration-tests` ejecuta flujos HTTP contra el gateway real, sin
 mocks de servicios. Se activa con `TICKETYA_E2E=true`; si no, los tests se omiten para no
 romper un build local sin entorno.
 
-Primer flujo implementado (gateway → catalog):
+El escenario `TicketYaE2EIT` crea un lugar, un sector numerado y un evento de alta demanda,
+publica el evento (catalog abre la fila en queue), reserva con el token de fila, compra con
+`Idempotency-Key`, verifica el QR y espera la notificación de `orden.pagada` y las
+recomendaciones. Todo entra por el puerto 8080.
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d catalog-db
-(cd catalog-service && mvn -B -ntp spring-boot:run) &
-(cd api-gateway && mvn -B -ntp spring-boot:run) &
-# esperar http://localhost:8081/actuator/health y http://localhost:8080/actuator/health
+# Desde TP-TicketYa, con tandas cortas para no esperar 30 s:
+QUEUE_BATCH_SIZE=1 QUEUE_INTERVAL_SECONDS=2 QUEUE_SCHEDULER_MS=500 \
+  docker compose up -d --build
+curl -fsS http://localhost:8080/actuator/health
+
 cd integration-tests
 TICKETYA_E2E=true mvn -B -ntp verify
 ```
 
-Resultado del Día 5: **2 tests, 0 fallos**. Verifica el health del gateway y
-`GET /api/catalog/events?page=0&size=5&orden=FECHA_ASC` a través de 8080.
+Resultado del Día 5: 2 tests (health + búsqueda), 0 fallos.
+Resultado del **Día 8 (20/11/2026)**: **8 tests, 0 fallos, 0 omitidos**. Incluye el acceso QR
+(primer escaneo 200, segundo 409) y el reporte del evento con totales; ya no queda ningún
+flujo salteado. La fila se levantó con `QUEUE_BATCH_SIZE=1 QUEUE_INTERVAL_SECONDS=2
+QUEUE_SCHEDULER_MS=500`; sin esos valores el test de fila puede quedar `EN_ESPERA` y agotar el
+timeout. Evidencia completa en
+[`evidencia/entrega-2-dia-8.txt`](evidencia/entrega-2-dia-8.txt).
 
-Estado de los cinco flujos: búsqueda público ✅; login JWT, fila → reserva, compra → QR,
-acceso QR y compra → recomendación/notificación quedan pendientes de 2.1–2.3, 4.x, 6.4/6.5
-y 8.x. El detalle y los comandos están en
-[`../integration-tests/README.md`](../integration-tests/README.md).
+La corrida del Día 7 detectó y corrigió un problema del compose integral: `catalog-service` no
+recibía `REDIS_HOST`, intentaba conectarse a `localhost:6379` dentro del contenedor y quedaba
+`unhealthy`; el gateway no se creaba por el `depends_on`. Con `REDIS_HOST=redis` los 13
+contenedores quedaron healthy.
+
+Estado de los cinco flujos: login JWT y búsqueda ✅ (2.1/2.2 mergeadas en el PR #29);
+fila → reserva ✅; compra → QR ✅; acceso QR ✅ (6.4); compra →
+recomendación/notificación ✅; reporte por evento ✅ (6.5). El detalle y los comandos están
+en [`../integration-tests/README.md`](../integration-tests/README.md).
+
+## 13. Resiliencia de orders (6.6, 21/11/2026)
+
+`InventoryRestClient` y `MockPaymentGateway` usan Resilience4j con timeouts configurables,
+retry acotado, circuit breaker y fallback. Los comandos conservan la misma clave de
+idempotencia en cada reintento (`orden:PAGO_APROBADO`, `orden:INVENTARIO_CONFIRMADO`,
+`pago:REINTEGRO`), así que un reintento no cobra ni reintegra dos veces.
+
+```bash
+cd orders-service
+mvn -Dtest=OrdersResilienciaTest test
+```
+
+Resultado: **5 tests, 0 fallos, 0 errores, 0 omitidos**. Casos cubiertos con WireMock:
+
+| Caso | Qué verifica |
+|---|---|
+| 503 de inventory | 3 intentos y fallback `InventoryUnavailableException` |
+| inventory lento | corte por timeout de lectura en menos de 2 s |
+| circuito abierto | no se hacen más requests y responde el fallback |
+| recuperación | tras `waitDurationInOpenState` vuelve a CLOSED |
+| pago con circuito abierto / token `LENTO` | fallback `PaymentGatewayException` sin marcar la orden PAGADA |
+
+La no doble venta y la no doble compra siguen cubiertas por
+`OrderIdempotencyIntegrationTest` y `AccessConcurrencyIntegrationTest` (Testcontainers).
+
+## 14. UI web (21/11/2026)
+
+```bash
+cd web
+npm ci
+npm run build
+npm run lint
+npm run test
+```
+
+Resultado: **13 archivos de tests, 28 tests, 0 fallos**; build de Vite y `oxlint` verdes.
+La suite cubre cliente HTTP, auth, asientos, checkout, recomendaciones, QR real, aviso de
+sesión expirada, `SearchPage` y `EventDetailPage`.
+
+Cambios de cierre:
+
+- **QR real**: `QrCode` genera la imagen con `qrcode` a partir del UUID de la entrada
+  (antes era un patrón decorativo). Si el canvas falla, muestra el código abreviado.
+- **Escaneo progresivo**: `QrScanner` usa `BarcodeDetector` + cámara cuando el navegador lo
+  soporta; si no, el control de acceso sigue con el código pegado a mano.
+- **Sesión expirada**: un 401 de un endpoint protegido muestra un aviso “Tu sesión expiró”
+  con enlace a login, en vez de desloguear en silencio.
+- **Menú mobile**: Popover nativo con los mismos links y acciones; en desktop la navegación
+  sigue inline. Sin dependencias nuevas de UI.

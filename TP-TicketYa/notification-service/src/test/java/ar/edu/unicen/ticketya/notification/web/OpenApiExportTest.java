@@ -25,8 +25,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Exporta el OpenAPI generado por springdoc a openapi/notification-openapi.json
- * (relativo a la raíz del repositorio, un nivel arriba de notification-service).
+ * Verifica que el OpenAPI generado por springdoc coincida con el contrato
+ * commiteado en openapi/notification-openapi.json (un nivel arriba de
+ * notification-service); el build no debe regenerarlo como side-effect.
  */
 @WebMvcTest(NotificacionController.class)
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocWebMvcConfiguration.class})
@@ -104,9 +105,13 @@ class OpenApiExportTest {
         assertThat(esTipoNullable(documento, "proximoReintento")).isTrue();
         assertThat(esTipoNullable(documento, "enviadaAt")).isTrue();
 
-        Path destino = Path.of("..", "openapi", "notification-openapi.json");
-        Files.createDirectories(destino.getParent());
-        Files.writeString(destino, json, StandardCharsets.UTF_8);
+        // El JSON commiteado es el contrato publicado: se compara en lugar de
+        // regenerarlo para que el build no escriba archivos como side-effect.
+        Path commiteado = Path.of("..", "openapi", "notification-openapi.json");
+        assertThat(commiteado).exists();
+        JsonNode esperado = new ObjectMapper().readTree(
+                Files.readString(commiteado, StandardCharsets.UTF_8));
+        assertThat(documento).isEqualTo(esperado);
     }
 
     private boolean esTipoNullable(JsonNode documento, String propiedad) {
