@@ -1,0 +1,96 @@
+# Evidencia de la revisión — Docker, suites, E2E, Newman y Loki
+
+Fecha: 21/11/2026
+Rama: `fix/revision-entrega-2`
+Commit: `41e8af1`
+Docker: 29.7.2 (Docker Desktop, macOS)
+Compose: `docker-compose.yml` integral (18 contenedores)
+
+## 1. Suites completas con Docker
+
+Se corrieron las siete suites con el daemon de Docker activo, sin omitir Testcontainers:
+
+| Proyecto | Tests | Fallos | Errores | Omitidos |
+|---|---:|---:|---:|---:|
+| api-gateway | 54 | 0 | 0 | 0 |
+| catalog-service | 145 | 0 | 0 | 0 |
+| inventory-service | 66 | 0 | 0 | 0 |
+| orders-service | 152 | 0 | 0 | 0 |
+| queue-service | 20 | 0 | 0 | 0 |
+| recommendation-service | 69 | 0 | 0 | 0 |
+| notification-service | 60 | 0 | 0 | 0 |
+| **Total backend** | **566** | **0** | **0** | **0** |
+
+Web: **36/36** tests de Vitest, `npm run build` y `npm run lint` OK.
+
+Tests nuevos de la revisión que corrieron completos:
+
+- `OrderIdempotencyIntegrationTest.dosClavesDistintasConcurrentesSobreLaMismaReservaCobranUnaSolaVez`
+  (PostgreSQL real): 1 orden, 1 pago, 1 entrada, segundo request `409 RESERVATION_ALREADY_PAID`.
+- `ConfirmacionPostgresTest.confirmarUnaReservaYaVencidaPorElSchedulerResponde410YNoReponeDosVecesLaZona`
+  (PostgreSQL real): 410 estable y zona repuesta una sola vez.
+- `CierreFilaTest.reabrirUnaFilaCerradaPorAgotadoLaVuelveAPonerEnElScheduler` y
+  `unEventoCanceladoNoSeReabre` (Redis real).
+- `SagaCompraRecoveryServiceTest` (4 casos), `EventoCanceladoListenerTest` y `VenueServiceTest`
+  con el guard de lugar publicado.
+
+## 2. Compose integral
+
+`docker compose -f docker-compose.yml up -d --build` terminó sin errores. Quedaron 18
+contenedores: 6 microservicios, gateway, web, 4 PostgreSQL, MongoDB, Redis, RabbitMQ y
+Loki/Promtail/Grafana.
+
+- `GET http://localhost:8080/actuator/health` → `UP`.
+- `http://localhost:3000/` → 200.
+- Grafana `http://localhost:3001/api/health` → 200.
+- Loki `http://localhost:3100/loki/api/v1/labels` → `container`, `service_name`, `stream`.
+
+## 3. E2E por gateway
+
+```bash
+cd integration-tests
+TICKETYA_E2E=true mvn -B -ntp verify
+```
+
+Resultado: **8 tests, 0 fallos, 0 errores, 0 omitidos**. Incluye login, búsqueda, compra,
+QR, doble escaneo de acceso y reporte. `GatewayCatalogIT` (2) y `TicketYaE2EIT` (6).
+
+## 4. Newman v2
+
+```bash
+npx -y newman run postman/TicketYa.entrega2.postman_collection.json \
+  -e postman/TicketYa.local.postman_environment.json
+```
+
+Resultado: **30 requests, 30 test-scripts, 37 assertions, 0 fallos**. Recorre Auth, Catálogo,
+Inventario, Fila, Órdenes, Acceso, Reportes, Preferencias, Recomendaciones, Notificaciones y
+Seguridad.
+
+## 5. Correlación real en Loki
+
+Se envió una request con un `X-Correlation-Id` nuevo y se consultó Loki:
+
+```bash
+CORR=d9d908bd-3ccc-4911-aa32-a5a5e68aec1c
+curl -s -o /dev/null -H "X-Correlation-Id: $CORR" \
+  'http://localhost:8080/api/catalog/events?size=2'
+```
+
+Consulta:
+
+```logql
+{container=~"ticketya-full-.*"} | json | correlationId="d9d908bd-3ccc-4911-aa32-a5a5e68aec1c"
+```
+
+Devolvió dos streams con el mismo id:
+
+- `ticketya-full-api-gateway-1` → `RequestLoggingFilter` / `request completada`.
+- `ticketya-full-catalog-service-1` → `CorrelationFilter` / `request completada`.
+
+Esto cierra 9.1 y 9.4 con evidencia ejecutada, no solo configuración.
+
+## 6. Pendiente
+
+- Clone limpio en un directorio nuevo + `docker compose up --build` + smoke test (10.8).
+- Mover el tag `entrega-2` de `4be2f86` al commit final después del merge.
+- Branch protection de `main` (1.1) y archivo del change OpenSpec (post-entrega).

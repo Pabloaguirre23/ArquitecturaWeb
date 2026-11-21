@@ -31,10 +31,10 @@ implementación arranca el Día 1.
 | Consistencia, saga y outbox | Completo (3.2, 6.2, 6.3) | PR #25 y #27; corrida de carga con transacciones cortas |
 | Resiliencia | Completo: 5.3 en inventory y 6.6 en orders | PR #21, #25 y `OrdersResilienciaTest` (5 casos, WireMock) |
 | Cache | Completo (3.3, 3.4) | PR #27, tests de cache |
-| Observabilidad y log central | Implementado: logs JSON+MDC en los 7 procesos y Loki/Promtail/Grafana en el compose; falta la corrida de verificación con el stack | `CorrelationFilter` y `logback-spring.xml` en cada servicio; `observability/` (9.1, 9.4) |
-| Docker y compose | Configuración válida (`docker compose config -q`); falta la corrida completa con la UI y observabilidad | `docker-compose.yml` (9.5–9.7) |
+| Observabilidad y log central | Completo: logs JSON+MDC en los 7 procesos, Loki/Promtail/Grafana y consulta real por `correlationId` | `CorrelationFilter` y `logback-spring.xml`; `docs/evidencia/entrega-2-revision-docker.txt` (9.1, 9.4) |
+| Docker y compose | Completo: 18 contenedores, `up --build` y smoke test OK | `docs/evidencia/entrega-2-revision-docker.txt` (9.5–9.7) |
 | Integración, seguridad y carga | 10.1 8/8 sin omitidos; 10.3/10.4 completos; 10.2 parcial | [`pruebas.md`](pruebas.md) §12, [`informe-carga.md`](informe-carga.md) y [`evidencia/entrega-2-dia-8.txt`](evidencia/entrega-2-dia-8.txt) |
-| Cierre y tag | 10.9 validado; 10.8 pendiente de clone limpio y de mover el tag al commit final | 7 tareas abiertas declaradas en `tasks.md` |
+| Cierre y tag | 10.9 validado; 10.8 pendiente de clone limpio y de mover el tag al commit final | Evidencia de suites/E2E/Newman/Loki en `docs/evidencia/entrega-2-revision-docker.txt` |
 
 ## 1. Funcionalidad de la Entrega 2
 
@@ -58,9 +58,9 @@ implementación arranca el Día 1.
 - [x] **Cache:** datos cacheados, TTL, invalidación y datos que no se cachean (disponibilidad, asientos, reservas). → 3.3, 3.4
 - [x] **Trazabilidad:** log de cada solicitud con endpoint, usuario, estado y duración; correlación entre servicios. → 9.1. _(Logs JSON + MDC en los 7 procesos; `CorrelationFilterTest` en los cuatro servicios nuevos y los existentes de gateway/catalog/orders.)_
 - [x] **Bitácora:** operaciones críticas de compra, devolución, cancelación, publicación e ingreso. → 9.2, 9.3
-- [ ] **Log centralizado:** JSON a stdout + Loki/Promtail/Grafana consultable por correlación. → 9.4. _(Configuración y compose listos; falta captura de una consulta real por `correlationId`.)_
+- [x] **Log centralizado:** JSON a stdout + Loki/Promtail/Grafana consultable por correlación. → 9.4. _(Consulta real por `correlationId` en `docs/evidencia/entrega-2-revision-docker.txt`.)_
 - [x] **Seguridad:** JWT con roles `CLIENT`, `ORGANIZER`, `ADMIN` y `ACCESS_STAFF`; matriz endpoint × rol; endpoints internos protegidos. → 2.1–2.8
-- [ ] **Despliegue:** un contenedor por servicio y un `docker-compose.yml` único con bases, Redis, MongoDB, RabbitMQ y observabilidad. → 9.5, 9.6. _(Compose y Dockerfiles listos; `docker compose config -q` pasa. Falta la corrida completa con el stack.)_
+- [x] **Despliegue:** un contenedor por servicio y un `docker-compose.yml` único con bases, Redis, MongoDB, RabbitMQ y observabilidad. → 9.5, 9.6. _(18 contenedores, `up --build` y smoke test OK; evidencia en `docs/evidencia/entrega-2-revision-docker.txt`.)_
 - [x] **Rendimiento:** prueba de carga del flujo de compra con informe de usuarios, tiempos y errores. → 10.3, 10.4
 
 ## 3. Features y user stories
@@ -85,7 +85,7 @@ implementación arranca el Día 1.
 - [x] **Contrato v2** con método, ruta, parámetros, roles, códigos y ejemplos JSON. → 1.3
 - [x] **OpenAPI por servicio** con `bearerAuth`, descripciones, ejemplos y códigos de error. → 2.4–2.7, 3.7, 5.5, 6.7, 7.5, 8.4
 - [x] **Endpoints internos** documentados aparte y no expuestos en el OpenAPI público. → 1.3, 2.3
-- [x] **Colección Postman/Newman v2** con auth, fila, compra, acceso, reportes, recomendaciones, notificaciones y seguridad. → 10.2. _(Contenido completo en `postman/TicketYa.entrega2.postman_collection.json`; la corrida automática de referencia es la suite E2E de Java. Ver `postman/README.md`.)_
+- [x] **Colección Postman/Newman v2** con auth, fila, compra, acceso, reportes, recomendaciones, notificaciones y seguridad. → 10.2. _(30 requests, 37 assertions, 0 fallos; evidencia en `docs/evidencia/entrega-2-revision-docker.txt`.)_
 
 ## 6. Implementación
 
@@ -99,7 +99,7 @@ implementación arranca el Día 1.
 - [x] **Saga, outbox y compensaciones** en la compra. → 6.2, 6.3
 - [x] **Resiliencia** en todas las dependencias externas. → 5.3, 6.6, 2.3
 - [x] **Cache** de catálogo con TTL e invalidación. → 3.3, 3.4
-- [ ] **Observabilidad** con logs JSON, correlación, bitácora y Loki. → 9.1–9.4. _(9.1, 9.2 y 9.3 completos; Loki/Promtail/Grafana configurados en el compose, falta la captura de la consulta real.)_
+- [x] **Observabilidad** con logs JSON, correlación, bitácora y Loki. → 9.1–9.4. _(Consulta real por `correlationId` en gateway y catalog; evidencia en `docs/evidencia/entrega-2-revision-docker.txt`.)_
 - [x] **Docker** por servicio y compose integral. → 9.5, 9.6
 - [x] **Datos de prueba** para usuarios, eventos de alta demanda, preferencias e historial. → 1.8, 7.1, 10.1
 
@@ -127,11 +127,11 @@ implementación arranca el Día 1.
 - [x] **`docs/README.md`** como índice actualizado. → 10.7
 - [x] **`docs/checklist-entrega-2.md`** al 100 % con evidencia. → 10.7
 - [x] **OpenAPI exportado** de cada servicio en `openapi/`. → tareas de cada servicio
-- [x] **Colección Postman** actualizada. → 10.2. _(V2 con JWT y carpetas completas; la vieja quedó marcada como Entrega 1 pre-JWT.)_
+- [x] **Colección Postman** actualizada. → 10.2. _(V2 con JWT, 30 requests y 37 assertions verdes; la vieja quedó marcada como Entrega 1 pre-JWT.)_
 
 ## 9. Cierre
 
-- [x] **Suite completa** de los seis microservicios y el gateway verde. → 10.8. _(Corrida local sin Docker: 566 tests, 0 fallos; los tests de Testcontainers se omiten por `disabledWithoutDocker` y los corre el CI con Docker. Falta la corrida final en el clone limpio.)_
+- [x] **Suite completa** de los seis microservicios y el gateway verde. → 10.8. _(Con Docker: 566 tests, 0 fallos, 0 omitidos. Web: 36/36. Evidencia en `docs/evidencia/entrega-2-revision-docker.txt`.)_
 - [ ] **Clone limpio** con `docker compose up --build` y smoke test. → 10.8
 - [x] **Tag `entrega-2`** sobre el commit entregado. → 10.8. _(Existe en `4be2f86`; mover al commit final después de mergear esta revisión.)_
 - [x] **Repositorio del curso accesible** y enlace de entrega verificado. → 10.8, 10.9

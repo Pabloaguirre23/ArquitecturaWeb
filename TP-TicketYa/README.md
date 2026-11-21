@@ -303,9 +303,10 @@ recomendaciones, cache, Docker y CI están integrados; el estado verificable est
 [`docs/checklist-entrega-2.md`](docs/checklist-entrega-2.md), la estrategia en
 [`docs/pruebas.md`](docs/pruebas.md) y la prueba de carga en
 [`docs/informe-carga.md`](docs/informe-carga.md). La suite E2E corre 8/8 sin omitidos contra
-el compose. Quedan como deuda declarada 1.1 (branch protection), la corrida de verificación
-de 9.1/9.4 (logs y Loki ya implementados), la corrida Newman v2 de 10.2 y 10.8 (clone
-limpio y mover el tag al commit final). Entrega prevista: 22/11/2026.
+el compose. Quedan como deuda declarada 1.1 (branch protection), 10.8 (clone limpio y mover
+el tag al commit final) y el archivo del change OpenSpec. Las suites con Docker (566 tests),
+el E2E (8/8), Newman (30 requests, 37 assertions) y la consulta real en Loki están
+documentados en `docs/evidencia/entrega-2-revision-docker.txt`. Entrega prevista: 22/11/2026.
 
 Entrega: <https://github.com/Pabloaguirre23/ArquitecturaWeb/tree/main/TP-TicketYa>
 

@@ -340,7 +340,16 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 y página', function () { pm.response.to.have.status(200); var b = pm.response.json(); pm.expect(b.content).to.be.an('array'); if (b.content.length) { pm.collectionVariables.set('eventoId', b.content[0].id); } });"
+                  "pm.test('200 y página', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var b = pm.response.json();",
+                  "  pm.expect(b.content).to.be.an('array');",
+                  "  if (b.content.length) {",
+                  "    // Preferir un evento normal: los de alta demanda exigen X-Queue-Token.",
+                  "    var normal = b.content.find(function (e) { return !e.altaDemanda; });",
+                  "    pm.collectionVariables.set('eventoId', (normal || b.content[0]).id);",
+                  "  }",
+                  "});"
                 ]
               }
             }

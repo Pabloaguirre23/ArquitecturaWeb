@@ -155,18 +155,19 @@ npx -y newman run postman/TicketYa.entrega2.postman_collection.json \
   --folder Auth --folder Catálogo --folder Inventario --folder Órdenes
 ```
 
-La corrida histórica de 45/45 requests y 45/45 assertions (Día 6) se hizo sobre
-`TicketYa.postman_collection.json` de la **Entrega 1, antes del JWT**. Se conserva como
-evidencia de esa etapa, pero **no** representa el flujo actual: esa colección usa `X-User-*`
-manuales, que el gateway descarta. La verificación automática vigente es `TicketYaE2EIT`
-(8 tests, 0 fallos, 0 omitidos) y la corrida Newman v2 queda pendiente de cierre manual.
-Incluye catálogo, búsqueda, publicación, reserva numerada y de zona, compra
-aprobada con QR, reintento idempotente, reuso de clave, pago rechazado, pago lento, consultas
-propias, devolución aprobada, devolución rechazada y cancelación. Los seis flujos críticos
-pasaron por el gateway.
+La corrida de la revisión (21/11/2026, commit `41e8af1`) sobre la v2 dio **30 requests,
+37 assertions y 0 fallos**. La corrida histórica de 45/45 requests y 45/45 assertions
+(Día 6) se hizo sobre `TicketYa.postman_collection.json` de la **Entrega 1, antes del JWT**.
+Se conserva como evidencia de esa etapa, pero **no** representa el flujo actual: esa
+colección usa `X-User-*` manuales, que el gateway descarta. La verificación automática de
+referencia sigue siendo `TicketYaE2EIT` (8 tests, 0 fallos, 0 omitidos). La corrida v2
+recorre Auth, Catálogo, Inventario, Fila, Órdenes, Acceso, Reportes, Preferencias,
+Recomendaciones, Notificaciones y Seguridad, todo por el gateway (la carpeta Fila llama
+directo a `queue-service` porque sus endpoints de apertura/cierre son internos).
 
-Evidencia: [`docs/evidencia/dia-6-newman.txt`](evidencia/dia-6-newman.txt). La corrida
-anterior del Día 4 queda en [`docs/evidencia/dia-4-newman.txt`](evidencia/dia-4-newman.txt).
+Evidencia: [`docs/evidencia/entrega-2-revision-docker.txt`](evidencia/entrega-2-revision-docker.txt).
+La corrida histórica de la colección de Entrega 1 queda en
+[`docs/evidencia/dia-6-newman.txt`](evidencia/dia-6-newman.txt).
 
 Los seis flujos críticos quedan cubiertos así:
 
