@@ -433,3 +433,28 @@ Estado de los cinco flujos: login JWT y búsqueda ✅ (2.1/2.2 mergeadas en el P
 fila → reserva ✅; compra → QR ✅; acceso QR ✅ (6.4); compra →
 recomendación/notificación ✅; reporte por evento ✅ (6.5). El detalle y los comandos están
 en [`../integration-tests/README.md`](../integration-tests/README.md).
+
+## 13. Resiliencia de orders (6.6, 21/11/2026)
+
+`InventoryRestClient` y `MockPaymentGateway` usan Resilience4j con timeouts configurables,
+retry acotado, circuit breaker y fallback. Los comandos conservan la misma clave de
+idempotencia en cada reintento (`orden:PAGO_APROBADO`, `orden:INVENTARIO_CONFIRMADO`,
+`pago:REINTEGRO`), así que un reintento no cobra ni reintegra dos veces.
+
+```bash
+cd orders-service
+mvn -Dtest=OrdersResilienciaTest test
+```
+
+Resultado: **5 tests, 0 fallos, 0 errores, 0 omitidos**. Casos cubiertos con WireMock:
+
+| Caso | Qué verifica |
+|---|---|
+| 503 de inventory | 3 intentos y fallback `InventoryUnavailableException` |
+| inventory lento | corte por timeout de lectura en menos de 2 s |
+| circuito abierto | no se hacen más requests y responde el fallback |
+| recuperación | tras `waitDurationInOpenState` vuelve a CLOSED |
+| pago con circuito abierto / token `LENTO` | fallback `PaymentGatewayException` sin marcar la orden PAGADA |
+
+La no doble venta y la no doble compra siguen cubiertas por
+`OrderIdempotencyIntegrationTest` y `AccessConcurrencyIntegrationTest` (Testcontainers).
