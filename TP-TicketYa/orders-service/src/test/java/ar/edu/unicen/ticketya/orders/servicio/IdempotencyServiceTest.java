@@ -121,13 +121,15 @@ class IdempotencyServiceTest {
     }
 
     @Test
-    void elHashDependeDeTodoElCuerpo() {
-        String primero = idempotencyService.hash("reserva-1", "TARJETA", "APROBADO");
-        String igual = idempotencyService.hash("reserva-1", "TARJETA", "APROBADO");
-        String distinto = idempotencyService.hash("reserva-1", "TARJETA", "RECHAZADO");
+    void elHashDependeDeTodoElCuerpoYDelCliente() {
+        String primero = idempotencyService.hash("cliente-1", "reserva-1", "TARJETA", "APROBADO");
+        String igual = idempotencyService.hash("cliente-1", "reserva-1", "TARJETA", "APROBADO");
+        String distinto = idempotencyService.hash("cliente-1", "reserva-1", "TARJETA", "RECHAZADO");
+        String otroCliente = idempotencyService.hash("cliente-2", "reserva-1", "TARJETA", "APROBADO");
 
         assertThat(primero).isEqualTo(igual).hasSize(64);
         assertThat(primero).isNotEqualTo(distinto);
+        assertThat(primero).isNotEqualTo(otroCliente);
     }
 
     private OrderResponse respuesta() {

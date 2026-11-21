@@ -73,7 +73,7 @@ class OrderPersistenceServiceTest {
         when(ordenItemRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
         when(pagoRepository.save(any(Pago.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.crearPendiente(reserva, clienteId,
+        service.crearPendiente(reserva, clienteId, null,
                 new CrearOrdenRequest(reserva.id(), ar.edu.unicen.ticketya.orders.dominio.MedioPago.TARJETA,
                         "APROBADO"));
 

@@ -88,6 +88,7 @@ public class VenueController {
     @ApiResponse(responseCode = "401", description = "Falta identidad (UNAUTHORIZED)")
     @ApiResponse(responseCode = "403", description = "Rol insuficiente (FORBIDDEN)")
     @ApiResponse(responseCode = "404", description = "El lugar no existe (VENUE_NOT_FOUND)")
+    @ApiResponse(responseCode = "409", description = "El lugar tiene eventos publicados (VENUE_HAS_PUBLISHED_EVENTS)")
     public ResponseEntity<SectorResponse> crearSector(
             @PathVariable UUID venueId,
             @Valid @RequestBody CrearSectorRequest request,

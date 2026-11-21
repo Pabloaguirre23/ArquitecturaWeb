@@ -175,6 +175,7 @@ services:
       RABBITMQ_PASSWORD: ticketya
       CATALOG_URL: http://catalog-service:8081
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-ticketya-internal-dev}
+      RECOMMENDATION_SEED_ENABLED: ${RECOMMENDATION_SEED_ENABLED:-true}
     expose:
       - "8084"
     depends_on:
@@ -247,6 +248,7 @@ services:
       QUEUE_BATCH_SIZE: ${QUEUE_BATCH_SIZE:-50}
       QUEUE_INTERVAL_SECONDS: ${QUEUE_INTERVAL_SECONDS:-30}
       QUEUE_SCHEDULER_MS: ${QUEUE_SCHEDULER_MS:-5000}
+      QUEUE_RETENTION: ${QUEUE_RETENTION:-7d}
     expose:
       - "8086"
     depends_on:
@@ -261,8 +263,7 @@ services:
         VITE_USE_MOCKS: "false"
         VITE_API_URL: /api
     ports:
-      - "3000:80"
-    # El HEALTHCHECK de la imagen consulta `localhost`, que en Alpine resuelve
+      - "3000:80"    # El HEALTHCHECK de la imagen consulta `localhost`, que en Alpine resuelve
     # primero a ::1 (IPv6); nginx solo escucha en IPv4 y el contenedor queda
     # unhealthy aunque sirva tráfico. Este override consulta 127.0.0.1.
     healthcheck:
@@ -276,6 +277,41 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  loki:
+    image: grafana/loki:3.1.1
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - ./observability/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    expose:
+      - "3100"
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - loki
+    restart: unless-stopped
+
 volumes:
   catalog_data:
   inventory_data:
@@ -284,3 +320,5 @@ volumes:
   recommendation_mongo_data:
   rabbitmq_data:
   redis_data:
+  loki_data:
+  grafana_data:

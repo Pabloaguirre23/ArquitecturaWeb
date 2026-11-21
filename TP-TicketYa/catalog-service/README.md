@@ -72,7 +72,7 @@ Publicar, editar y cancelar un evento registran una fila en `audit_log` con even
 Tablas Flyway en [`src/main/resources/db/migration`](src/main/resources/db/migration):
 
 - `lugar` — nombre, dirección, ciudad, latitud/longitud.
-- `sector` — pertenece a un lugar; `NUMERADO` exige filas y asientos por fila.
+- `sector` — pertenece a un lugar; `NUMERADO` exige filas y asientos por fila. No se puede crear un sector en un lugar con eventos `PUBLICADO`/`AGOTADO` (`409 VENUE_HAS_PUBLISHED_EVENTS`): los precios solo se asignan en `BORRADOR` y el sector nuevo dejaría el evento imposible de editar.
 - `asiento` — se genera al crear un sector numerado (`filas × asientosPorFila`).
 - `evento` — estado `BORRADOR/PUBLICADO/AGOTADO/CANCELADO/FINALIZADO`, organizador, límite por cliente, `alta_demanda`, `inventario_version` y `cancelacion_pendiente` para el reintento del aviso a orders.
 - `evento_participante` y `evento_sector_precio` — participantes y precio por sector.

@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientResponseException;
@@ -55,6 +56,7 @@ public class OrderService {
     private final IdempotencyService idempotencyService;
     private final Clock clock;
     private final AuditService auditService;
+    private final JdbcTemplate jdbcTemplate;
 
     public OrderService(OrdenRepository ordenRepository,
                         OrdenItemRepository ordenItemRepository,
@@ -70,7 +72,8 @@ public class OrderService {
                         SagaCompraService sagaCompraService,
                         IdempotencyService idempotencyService,
                         Clock clock,
-                        AuditService auditService) {
+                        AuditService auditService,
+                        JdbcTemplate jdbcTemplate) {
         this.ordenRepository = ordenRepository;
         this.ordenItemRepository = ordenItemRepository;
         this.entradaRepository = entradaRepository;
@@ -86,6 +89,7 @@ public class OrderService {
         this.idempotencyService = idempotencyService;
         this.clock = clock;
         this.auditService = auditService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /**
@@ -102,10 +106,15 @@ public class OrderService {
      * pool de conexiones mientras esperaba a inventory/catalog.
      */
     public OrderResponse crear(CrearOrdenRequest request, UUID clienteId, String idempotencyKey) {
+        return crear(request, clienteId, null, idempotencyKey);
+    }
+
+    public OrderResponse crear(CrearOrdenRequest request, UUID clienteId, String clienteEmail,
+                               String idempotencyKey) {
         validarIdempotencyKey(idempotencyKey);
         validarToken(request.token());
 
-        String hash = idempotencyService.hash(request.reservaId().toString(),
+        String hash = idempotencyService.hash(clienteId.toString(), request.reservaId().toString(),
                 request.medioPago().name(), request.token());
         try {
             idempotencyService.registrar(idempotencyKey, hash, OffsetDateTime.now(clock));
@@ -122,7 +131,7 @@ public class OrderService {
         }
 
         try {
-            OrderResponse response = ejecutarCompra(request, clienteId);
+            OrderResponse response = ejecutarCompra(request, clienteId, clienteEmail);
             idempotencyService.completar(idempotencyKey, response);
             return response;
         } catch (RuntimeException ex) {
@@ -143,14 +152,34 @@ public class OrderService {
      * el paso. Si un paso posterior al pago falla, se compensa en orden inverso
      * y la orden nunca queda PAGADA.</p>
      */
-    private OrderResponse ejecutarCompra(CrearOrdenRequest request, UUID clienteId) {
+    private OrderResponse ejecutarCompra(CrearOrdenRequest request, UUID clienteId, String clienteEmail) {
         ReservationDto reserva = consultarReserva(request.reservaId());
+
+        // Si la reserva ya tiene una orden, no se vuelve a cobrar. El índice
+        // único uq_orden_reserva cierra la carrera entre dos requests.
+        Orden existente = ordenRepository.findByReservaId(reserva.id()).orElse(null);
+        if (existente != null) {
+            if (!existente.getClienteId().equals(clienteId)) {
+                throw ApiException.forbidden("NOT_RESERVATION_OWNER", "La reserva pertenece a otro cliente");
+            }
+            throw reservaYaPagada();
+        }
+
         validarReserva(reserva, clienteId);
         reserva = enriquecerConCatalog(reserva);
 
         // Paso RESERVA_VALIDADA cumplido. La orden y la saga nacen en una transacción corta.
-        OrderPersistenceService.OrdenCreada creada =
-                orderPersistenceService.crearPendiente(reserva, clienteId, request);
+        OrderPersistenceService.OrdenCreada creada;
+        try {
+            creada = orderPersistenceService.crearPendiente(reserva, clienteId, clienteEmail, request);
+        } catch (DataIntegrityViolationException ex) {
+            // Otra transacción insertó la orden para esta reserva entre la
+            // verificación anterior y el INSERT. La reserva ya está paga.
+            if (ordenRepository.findByReservaId(reserva.id()).isPresent()) {
+                throw reservaYaPagada();
+            }
+            throw ex;
+        }
         Orden orden = creada.orden();
         List<OrdenItem> items = creada.items();
         Pago pago = creada.pago();
@@ -256,6 +285,11 @@ public class OrderService {
         }
     }
 
+    private ApiException reservaYaPagada() {
+        return ApiException.conflict("RESERVATION_ALREADY_PAID",
+                "La reserva ya fue utilizada para una compra");
+    }
+
     @Transactional(readOnly = true)
     public OrderResponse obtener(UUID ordenId, UUID clienteId) {
         Orden orden = ordenRepository.findById(ordenId)
@@ -274,9 +308,19 @@ public class OrderService {
      */
     @Transactional
     public CancelacionEventoResponse cancelarEvento(UUID eventoId) {
-        List<Entrada> validas = entradaRepository.findByEventoIdAndEstado(eventoId, EstadoEntrada.VALIDA);
-        validas.forEach(entrada -> entrada.setEstado(EstadoEntrada.EN_REINTEGRO));
-        entradaRepository.saveAll(validas);
+        // Mismo advisory lock que toma la emisión de entradas: o la compra
+        // termina antes de la cancelación (y sus entradas se marcan), o la
+        // cancelación gana y la emisión no puede crear entradas nuevas.
+        jdbcTemplate.execute("SELECT pg_advisory_xact_lock(hashtext('evento:" + eventoId + "'))");
+        jdbcTemplate.update("INSERT INTO evento_cancelado (evento_id) VALUES (?) ON CONFLICT DO NOTHING",
+                eventoId);
+
+        // UPDATE condicional por lotes: no hay ventana entre leer VALIDA y guardar.
+        // Si una emisión commitea mientras tanto, la próxima vuelta la alcanza.
+        int movidas;
+        do {
+            movidas = entradaRepository.marcarValidasEnReintegro(eventoId);
+        } while (movidas > 0);
 
         List<Entrada> enReintegro = entradaRepository.findByEventoIdAndEstado(eventoId, EstadoEntrada.EN_REINTEGRO);
         int reintegrosAprobados = 0;

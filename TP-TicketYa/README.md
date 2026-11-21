@@ -17,9 +17,13 @@ Repositorio del curso: <https://github.com/Pabloaguirre23/ArquitecturaWeb> (este
 | `notification-service` | 8085 | `notification_db` (5436) | Notificaciones asíncronas con reintentos y DLQ |
 | `rabbitmq` | 5672 / 15672 | — | Bus de eventos (`orden.pagada` → historial) |
 | `queue-service` | 8086 | Redis 7 (6379) | Fila virtual: tandas, posición y token de compra |
+| `loki` / `promtail` / `grafana` | 3100 / — / 3001 | — | Logs JSON centralizados y consulta por `correlationId` |
 | `web` (opcional) | 3000 | — | UI React/Vite que Nginx proxya al gateway |
 
-Cada servicio es un proyecto Maven independiente. La comunicación entre servicios es REST por `/internal/**` y eventos por RabbitMQ; el cliente siempre entra por el gateway. `queue-service` guarda la fila en Redis.
+Son **seis microservicios** (catalog, inventory, orders, recommendation, notification y queue)
+más el gateway. Cada servicio es un proyecto Maven independiente. La comunicación entre
+servicios es REST por `/internal/**` y eventos por RabbitMQ; el cliente siempre entra por el
+gateway. `queue-service` guarda la fila en Redis.
 
 ## Requisitos
 
@@ -62,8 +66,8 @@ docker compose -f docker-compose.dev.yml up -d
 
 ### 2. Todo con Docker (integral)
 
-El compose integral levanta las bases, Redis, MongoDB, RabbitMQ, los seis servicios y el
-gateway:
+El compose integral levanta las bases, Redis, MongoDB, RabbitMQ, los seis microservicios, el
+gateway y la stack de observabilidad:
 
 ```bash
 docker compose -f docker-compose.yml up -d --build
@@ -72,11 +76,18 @@ curl http://localhost:8080/actuator/health
 ```
 
 Solo el gateway publica el puerto `8080`; las bases y brokers quedan en la red interna de
-Docker. Para reiniciar sin datos:
+Docker. La UI se publica en `3000`, Grafana en `http://localhost:3001` (usuario `admin`,
+password `GRAFANA_PASSWORD`, default `admin`) y Loki en `3100` para consultas directas. Para
+reiniciar sin datos:
 
 ```bash
 docker compose -f docker-compose.yml down -v
 ```
+
+Promtail lee los logs JSON de stdout de cada contenedor y los manda a Loki. En Grafana,
+`Explore → Loki` permite filtrar por `{container="ticketya-full-orders-service-1"}` y buscar
+`|= "<correlationId>"`. El `correlationId` viaja desde el gateway en `X-Correlation-Id` y cada
+servicio lo deja en el MDC y en la línea `request completada`.
 
 La UI opcional vive en `web/` y no forma parte del backend entregado.
 
@@ -171,6 +182,9 @@ Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
 | `DB_POOL_SIZE` | `20` (`40` en compose) | Pool Hikari de orders e inventory |
 | `DB_CONNECTION_TIMEOUT_MS` | `3000`/`5000` | Timeout para obtener conexión |
 | `QUEUE_SCHEDULER_MS` | `5000` | Frecuencia del scheduler de tandas |
+| `QUEUE_RETENTION` | `7d` | TTL de las claves Redis de un evento al cerrar la fila |
+| `RECOMMENDATION_SEED_ENABLED` | `true` | Carga preferencias e historial demo en MongoDB; `false` para datos limpios |
+| `GRAFANA_PASSWORD` | `admin` | Password del usuario `admin` de Grafana |
 | `JWT_SECRET` / `JWT_TTL` | dev / `8h` | Firma y vigencia del JWT del gateway |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Orígenes permitidos por CORS en el gateway |
 
@@ -181,8 +195,13 @@ Ver [`.env.example`](.env.example). No se commitea `.env`.
 producción: para cualquier entorno que no sea la VM local, definirlos en `.env` y no reutilizar
 los valores de ejemplo. Los servicios internos y el gateway también aceptan las variables por
 entorno; el compose es el que provee el default cuando falta.
-`JWT_SECRET` **no tiene default en el gateway**: si falta, el gateway no arranca (fail-fast). El compose
-le pasa el valor de desarrollo; fuera del compose hay que definirlo.
+`JWT_SECRET` **no tiene default en el gateway**: si falta, el gateway no arranca (fail-fast). El
+compose le pasa el valor de desarrollo; fuera del compose hay que definirlo.
+
+> **Decisión sobre los `:-` del compose:** se mantienen a propósito para que el docente pueda
+> hacer `docker compose up --build` sin crear un `.env`. El gateway conserva su fail-fast si la
+> variable no llega; el compose es explícitamente un entorno de demo. Para un despliegue real,
+> reemplazar los `${VAR:-...}` por `${VAR:?...}` o inyectar los secretos desde el orquestador.
 
 ## Prueba rápida del gateway
 
@@ -284,9 +303,9 @@ recomendaciones, cache, Docker y CI están integrados; el estado verificable est
 [`docs/checklist-entrega-2.md`](docs/checklist-entrega-2.md), la estrategia en
 [`docs/pruebas.md`](docs/pruebas.md) y la prueba de carga en
 [`docs/informe-carga.md`](docs/informe-carga.md). La suite E2E corre 8/8 sin omitidos contra
-el compose. Quedan como deuda declarada 1.1 (branch protection), 2.8 (Postman por rol),
-9.1/9.4 (logging JSON y Loki/Grafana), 10.2 (Postman
-completo) y 10.8 (clone limpio/tag). Entrega prevista: 22/11/2026.
+el compose. Quedan como deuda declarada 1.1 (branch protection), la corrida de verificación
+de 9.1/9.4 (logs y Loki ya implementados), la corrida Newman v2 de 10.2 y 10.8 (clone
+limpio y mover el tag al commit final). Entrega prevista: 22/11/2026.
 
 Entrega: <https://github.com/Pabloaguirre23/ArquitecturaWeb/tree/main/TP-TicketYa>
 

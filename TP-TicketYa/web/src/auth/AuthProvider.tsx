@@ -25,6 +25,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     clearAuth()
+    // Los datos de demo y la reserva en curso son de la sesión que se cierra.
+    // Sin esto, al entrar con otro usuario se veían entradas o preferencias ajenas.
+    for (const key of [
+      'ticketya.reservation',
+      'ticketya.mock.reservation',
+      'ticketya.mock.tickets',
+      'ticketya.mock.preferences',
+    ]) {
+      sessionStorage.removeItem(key)
+    }
     setAuth(null)
   }, [])
 

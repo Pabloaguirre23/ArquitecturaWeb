@@ -80,7 +80,7 @@ public class OrderController {
             content = @Content(mediaType = "application/problem+json", examples = @ExampleObject(value = """
                     {"type":"https://ticketya.local/errors/validation-error","title":"Bad Request","status":400,"detail":"La solicitud tiene campos inválidos","instance":"/api/orders","code":"VALIDATION_ERROR","errors":[{"field":"reservaId","message":"must not be null"}]}
                     """)))
-    @ApiResponse(responseCode = "409", description = "Idempotencia en proceso (IDEMPOTENCY_IN_PROGRESS)",
+    @ApiResponse(responseCode = "409", description = "Idempotencia en proceso (IDEMPOTENCY_IN_PROGRESS) o reserva ya pagada (RESERVATION_ALREADY_PAID)",
             content = @Content(mediaType = "application/problem+json", examples = @ExampleObject(name = "Idempotencia en proceso", value = """
                     {"type":"https://ticketya.local/errors/idempotency-in-progress","title":"Conflict","status":409,"detail":"La compra con esta Idempotency-Key todavía está en proceso","instance":"/api/orders","code":"IDEMPOTENCY_IN_PROGRESS","errors":[]}
                     """)))
@@ -99,9 +99,10 @@ public class OrderController {
             @Valid @RequestBody CrearOrdenRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Email", required = false) String userEmail) {
         RequestIdentity identity = RequestIdentity.require(userId, userRole);
-        OrderResponse response = orderService.crear(request, identity.userId(), idempotencyKey);
+        OrderResponse response = orderService.crear(request, identity.userId(), userEmail, idempotencyKey);
         return ResponseEntity.created(URI.create("/api/orders/" + response.id())).body(response);
     }
 

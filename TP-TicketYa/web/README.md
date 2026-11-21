@@ -18,10 +18,17 @@ El change de OpenSpec es
 | `/access` | Control de acceso: validar QR (ACCESS_STAFF/ADMIN) |
 | `/reports` | Reporte por evento y sector (ORGANIZER/ADMIN) |
 
-> El QR de “Mis entradas” es un **placeholder visual**: todavía no hay lector de cámara. El
-> flujo de acceso se demuestra con el botón **“Copiar QR + evento”**, que copia el código y el
-> `eventoId` para pegarlos en `/access`. Es el mismo contrato que usa el backend
-> (`qrCode` + `eventoId`).
+> **QR real y escáner:** “Mis entradas” genera el QR con la librería `qrcode` como PNG
+> data-URL (permitido por la CSP de Nginx). La pantalla `/access` lo lee con la API
+> `BarcodeDetector` del navegador y, si no está disponible, ofrece el pegado manual del
+> código junto con el `eventoId`. El backend valida el QR y el evento en el mismo paso
+> atómico, así que un doble escaneo concurrente no habilita dos ingresos.
+>
+> La cámara requiere **contexto seguro**: funciona en `http://localhost` o HTTPS, pero no
+> abriendo `http://<IP-de-la-LAN>:3000` desde un celular. `BarcodeDetector` existe en Chrome
+> y Edge; en Firefox y Safari el componente de cámara se oculta y queda el ingreso manual.
+> El botón **“Copiar QR + evento”** usa el portapapeles, que también requiere contexto seguro
+> (falla en silencio en HTTP no local). Para la demo conviene Chrome en `localhost`.
 
 ## Requisitos
 
@@ -57,9 +64,26 @@ ciudad, y muestra recomendaciones con el motivo de cada sugerencia. En modo demo
   artistas y ciudad.
 
 En modo gateway real usa `GET /api/recommendations`, `GET/PUT /api/recommendations/preferences`
-y `GET /api/recommendations/events/{eventId}/similar`. Igual que el login, estas rutas dependen
-de que P4 agregue `/api/recommendations/**` al gateway y de la tarea 2.1; hasta entonces la
-forma de recorrerlas es el modo demo.
+y `GET /api/recommendations/events/{eventId}/similar`. Las tres rutas ya están publicadas en
+el gateway con rol `CLIENT` y funcionan con el JWT real; no dependen del modo demo.
+
+### Fila virtual (alcance de la UI)
+
+La búsqueda y el detalle muestran el badge **Alta demanda**, pero esta UI **no implementa el
+ingreso a la fila**. En modo real, reservar un evento de alta demanda sin `X-Queue-Token`
+devuelve `403 QUEUE_REQUIRED`; la pantalla lo traduce a un mensaje explicable (“Este evento
+tiene fila virtual…”) en lugar de mostrar el código crudo. El flujo completo de fila se
+demuestra por API/Postman (`queue-service/README.md`, carpeta **Fila**): unirse, consultar
+posición, esperar el token y enviarlo en la reserva desde el cliente. Queda como deuda de UI
+el botón “Unirme a la fila”, el polling y el envío automático del token.
+
+### Vencimiento de la reserva
+
+El checkout muestra un **countdown** con `formatCountdown`. Al vencer, deshabilita el pago y
+ofrece “Elegir lugares de nuevo”. Si el vencimiento ocurre en el servidor, el `410
+RESERVATION_EXPIRED` se traduce al mismo mensaje y CTA. La `Idempotency-Key` se regenera
+cuando cambia el medio de pago o el resultado simulado, para que el reintento no reutilice
+una clave con otro cuerpo (`422`).
 
 ## Modo gateway real
 
@@ -93,7 +117,7 @@ npm install
 npm run dev       # http://localhost:5173
 npm run build     # TypeScript + build de producción en dist/
 npm run lint      # oxlint
-npm run test      # Vitest (cliente HTTP, layout, asientos, tarjetas y mock de recomendaciones)
+npm run test      # Vitest (36 tests: cliente HTTP, layout, asientos, tarjetas, checkout, recomendaciones)
 ```
 
 ## Docker
@@ -132,6 +156,11 @@ recomendaciones y entradas responden por el proxy de Vite/Nginx.
   al rango `[1, máximo]`.
 - La pantalla “Para vos” solo se muestra a usuarios `CLIENT`; los errores de preferencias se
   limpian al editar.
+- Al cerrar sesión se limpian la reserva en curso y los datos de demo (entradas, preferencias
+  y reserva mock) para que otro usuario no vea información ajena. En modo real también se
+  descarta la reserva local: el backend la sigue teniendo hasta que venza o se libere.
+- El detalle selecciona el primer sector **con disponibilidad**; si todos están agotados, no
+  auto-selecciona un sector que devolvería 409.
 - La QA de interacción y responsive con Chrome headless está en
   [`docs/evidencia/entrega-2-ui-qa.txt`](../docs/evidencia/entrega-2-ui-qa.txt).
 
@@ -166,9 +195,9 @@ aplicaron las mejoras P0/P1 de los guides de `forms`, `autofill-sign-in-form`,
 - **Nginx:** CSP, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` y
   `X-Frame-Options`.
 
-Quedan como deuda P2 (post-entrega): navbar con Popover en mobile, view transitions entre
-rutas, container queries en cards, code splitting por ruta y una utility compartida de
-`:user-invalid` + `aria-invalid`. El detalle está en
+Quedan como deuda P2 (post-entrega): view transitions entre rutas, container queries en cards,
+code splitting por ruta y una utility compartida de `:user-invalid` + `aria-invalid`. El menú
+mobile con Popover API ya está implementado. El detalle está en
 [`../docs/equipo/plan-19-20-11/MWG-UI-REVIEW.md`](../docs/equipo/plan-19-20-11/MWG-UI-REVIEW.md)
 si se copia ese reporte al repo.
 

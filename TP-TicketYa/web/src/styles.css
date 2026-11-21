@@ -533,6 +533,17 @@ select[aria-invalid='true'] {
   font-size: 0.86rem;
 }
 
+.countdown {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent, #1d4ed8);
+}
+
+.countdown-expired {
+  color: var(--danger);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .form-success {
   margin: 10px 0 0;
   color: var(--success);

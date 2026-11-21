@@ -104,6 +104,14 @@ public class SagaCompraService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void marcarCompletada(UUID ordenId) {
+        repository.findById(ordenId).ifPresent(saga -> {
+            saga.setEstado(EstadoSaga.COMPLETADA);
+            repository.save(saga);
+        });
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void marcarFallida(UUID ordenId, String motivo) {
         repository.findById(ordenId).ifPresent(saga -> {
             saga.setEstado(EstadoSaga.FALLIDA);

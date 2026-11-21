@@ -220,7 +220,7 @@ erDiagram
 
 ## 3. orders-service (`orders_db`)
 
-Fuente de verdad: migraciones V1 a V5 en [`orders-service/src/main/resources/db/migration/`](../orders-service/src/main/resources/db/migration/); los cambios de la Entrega 2 se detallan al final de esta sección.
+Fuente de verdad: migraciones V1 a V6 en [`orders-service/src/main/resources/db/migration/`](../orders-service/src/main/resources/db/migration/); los cambios de la Entrega 2 se detallan al final de esta sección.
 
 ```mermaid
 erDiagram
@@ -344,6 +344,19 @@ de catalog hacia inventory, que inventory devuelve en la reserva.
 Índices nuevos: `idx_entrada_evento_sector_estado`, `idx_orden_evento_estado`,
 `idx_saga_compra_estado`, `idx_outbox_event_status_next`, `idx_outbox_event_aggregate`,
 `idx_audit_log_entidad`, `idx_audit_log_correlacion` e `idx_audit_log_created`.
+
+### Revisión: una orden por reserva y cancelación de evento (V6)
+
+| Objeto | Tipo | Cambio | Para qué |
+|---|---|---|---|
+| `uq_orden_reserva` | índice único | `UNIQUE (reserva_id)` | Cierra la doble venta con dos `POST /orders` concurrentes y distinta `Idempotency-Key`; la violación se traduce a `409 RESERVATION_ALREADY_PAID` |
+| `evento_cancelado` | tabla | `evento_id` PK, `cancelado_at` | Marca de cancelación que se inserta en la misma transacción que pasa las entradas a `EN_REINTEGRO`, bajo un advisory lock por evento compartido con la emisión |
+
+La emisión de entradas toma `pg_advisory_xact_lock(hashtext('evento:<id>'))` y verifica
+`evento_cancelado` antes de emitir. `cancelarEvento` toma el mismo lock, inserta la marca y
+hace `UPDATE entrada ... WHERE estado='VALIDA'` en lotes hasta que el rowcount sea 0. Así,
+si la compra gana la carrera, la cancelación alcanza sus entradas; si gana la cancelación,
+la compra no emite y se compensa con reintegro.
 
 ## 4. recommendation-service (`recommendation_db`, MongoDB)
 

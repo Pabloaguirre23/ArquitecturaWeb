@@ -22,7 +22,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class DisponibilidadCatalogTest {
 
     private static final UUID EVENTO = UUID.fromString("d0000000-0000-4000-8000-000000000001");

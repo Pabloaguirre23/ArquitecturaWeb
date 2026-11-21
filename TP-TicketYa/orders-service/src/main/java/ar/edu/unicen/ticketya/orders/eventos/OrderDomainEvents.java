@@ -35,6 +35,7 @@ public final class OrderDomainEvents {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("ordenId", texto(orden.getId()));
         payload.put("clienteId", texto(orden.getClienteId()));
+        payload.put("clienteEmail", orden.getClienteEmail());
         payload.put("eventoId", texto(orden.getEventoId()));
         payload.put("eventoNombre", orden.getEventoNombre());
         payload.put("eventoTipo", orden.getEventoTipo());

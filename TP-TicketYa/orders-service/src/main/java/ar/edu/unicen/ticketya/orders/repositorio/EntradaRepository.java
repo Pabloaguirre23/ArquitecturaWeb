@@ -30,6 +30,15 @@ public interface EntradaRepository extends JpaRepository<Entrada, UUID> {
 
     Optional<Entrada> findByQrCode(UUID qrCode);
 
+    @Modifying
+    @Query("""
+            UPDATE Entrada e
+               SET e.estado = ar.edu.unicen.ticketya.orders.dominio.EstadoEntrada.EN_REINTEGRO
+             WHERE e.eventoId = :eventoId
+               AND e.estado = ar.edu.unicen.ticketya.orders.dominio.EstadoEntrada.VALIDA
+            """)
+    int marcarValidasEnReintegro(@Param("eventoId") UUID eventoId);
+
     /**
      * Consumo atómico de la entrada: solo la primera transacción que cumple todas
      * las condiciones marca la fila como utilizada. Devuelve la cantidad de filas

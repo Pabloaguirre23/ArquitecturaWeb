@@ -71,7 +71,7 @@ flowchart LR
 - Cada servicio es dueño de su base o colección y no comparte tablas. Los cruces son REST por `/internal/**` (con `X-Internal-Token`) o eventos de dominio por RabbitMQ.
 - `inventory-service` valida el token de la fila localmente con `QUEUE_TOKEN_SECRET`, sin llamar a `queue-service` en el camino crítico de la reserva.
 - Los productores escriben el evento en un `outbox_event` dentro de la transacción de negocio; un publicador separado lo entrega a RabbitMQ con al menos una vez.
-- El compose levanta los siete servicios, cuatro PostgreSQL, MongoDB, Redis y RabbitMQ. Solo el gateway (8080) y la web (3000) publican puertos. Los usuarios de prueba del login viven en `DemoUserStore` (BCrypt en memoria): `auth_db`, previsto en el `design.md`, queda como evolución no implementada en esta entrega.
+- El compose levanta seis microservicios y el gateway, cuatro PostgreSQL, MongoDB, Redis, RabbitMQ y la UI opcional. Solo el gateway (8080) y la web (3000) publican puertos; Loki (3100) y Grafana (3001) se publican para observabilidad. Los usuarios de prueba del login viven en `DemoUserStore` (BCrypt en memoria): `auth_db`, previsto en el `design.md`, queda como evolución no implementada en esta entrega.
 
 ### Límites de servicio y dueño del dato
 
@@ -155,6 +155,8 @@ sequenceDiagram
 
 - Cada comando a inventory y a la pasarela usa una clave de idempotencia derivada de `ordenId:paso`; repetir un paso no duplica reserva, cobro, confirmación ni entrada.
 - La emisión ocurre en una transacción propia junto con el cambio a `PAGADA` y el `outbox_event`. Nunca existe una orden `PAGADA` sin entradas válidas.
+- `SagaCompraRecoveryService` reanuda cada 60 s las sagas `EN_PROCESO` que dejaron de avanzar: confirma inventory o emite entradas si el pago estaba aprobado, y compensa/libera si no. Es el *forward recovery* que evita una orden `PENDIENTE_PAGO` eterna tras un reinicio.
+- La cancelación de un evento y la emisión comparten un advisory lock por evento y una marca `evento_cancelado`; una compra concurrente no puede emitir entradas para un evento ya cancelado.
 - El `audit_log` se escribe con `REQUIRES_NEW` y captura su propio error: si la bitácora falla, la compra no se revierte.
 - El publicador reintenta con backoff sin perder el `eventId`; los consumidores deduplican por `eventId`.
 
@@ -311,13 +313,13 @@ sequenceDiagram
     end
     alt Envío fallido
         N->>DB: PENDIENTE, intentos++ y next_retry_at con backoff
-        Note over N: tras 5 intentos queda FALLIDA y se deriva a la DLQ
-        N->>MQDLQ: mensaje venenoso
+        Note over N: tras 3 intentos (NOTIFICATION_MAX_ATTEMPTS) queda FALLIDA
+        N->>MQDLQ: mensaje venenoso a la DLQ de la cola
     end
 ```
 
 - La topología, las routing keys y los payloads están congelados en [`eventos.md`](eventos.md). `notification.order`, `notification.event`, `notification.favorite` y `recommendation.history` tienen su DLQ `*.dlq`.
-- `orden.reintegrada` y `devolucion.aprobada` ya se publican desde el outbox, pero sus bindings hacia `notification.order` siguen pendientes de declarar; `entrada.utilizada` no tiene consumidor en esta entrega.
+- `orden.reintegrada` y `devolucion.aprobada` se consumen en `notification.order`; `evento.cancelado` también actualiza el snapshot de recommendation en `recommendation.events`. `entrada.utilizada` no tiene consumidor en esta entrega.
 - Si RabbitMQ está caído, el evento permanece en `outbox_event` y el publicador reintenta; la operación de negocio ya se completó.
 
 ## 8. Reporte del organizador
@@ -367,15 +369,39 @@ El reporte calcula vendidas, devueltas, netas, ocupación (`netas / capacidad`) 
 
 La consistencia es **fuerte dentro de cada servicio** (transacción local + constraints) y **eventual entre servicios**. La disponibilidad se lee de inventory, el QR y las ventas de orders, las preferencias de MongoDB y la capacidad de catalog. Los snapshots congelan nombre, fecha, precio, tipo, artistas y ciudad para que la compra, las notificaciones y las recomendaciones no dependan de una llamada en vivo. Las alternativas y consecuencias están en [`decisiones.md`](decisiones.md) (ADR-005 a ADR-019) y en el [`design.md`](../openspec/changes/entrega-2-completo/design.md) (decisiones 1 a 15).
 
+## 9.1 Matriz de resiliencia
+
+| Llamada | Timeout | Retry | Circuit breaker | Fallback / degradación |
+|---|---|---|---|---|
+| Gateway → servicios | connect 2 s, response 10 s | no | no (el gateway no reenvía POST) | 502/504 al cliente |
+| orders → inventory | connect 2 s, read 5 s | `inventario` 3 intentos, backoff | `inventario` | `InventoryUnavailableException` → compensación |
+| orders → pagos | mock síncrono | `pagos` 2 intentos | `pagos` | `PaymentGatewayException` → orden `ERROR_PAGO` |
+| orders → catalog (snapshot) | connect 1 s, read 2 s | no | no | snapshot parcial; la compra sigue |
+| orders → catalog (reportes) | timeouts del cliente de reportes | no | no | snapshot de respaldo y `datosDesactualizados` |
+| catalog → inventory | connect 2 s, read 3 s | 3 intentos | no | 502 `INVENTORY_UNAVAILABLE`; el evento sigue en borrador |
+| catalog → queue | connect 2 s, read 3 s | 3 intentos | no | warning; publicación/edición continúa |
+| catalog → orders (cancelación) | connect 1 s, read 2 s | no | no | `cancelacionPendiente=true` y scheduler |
+| inventory → catalog | connect 2 s, read 2 s | 3 intentos | `catalog` | warning; la reserva local sigue |
+| inventory → queue | connect 2 s, read 3 s | 3 intentos | `queue` | warning; no bloquea la reserva no numerada |
+| recommendation → catalog | connect 2 s, read 3 s | 2 intentos | no | snapshot `eventos_vistos` |
+| notification → recommendation | connect 2 s, read 3 s | no | no | lista vacía de destinatarios; la notificación no se bloquea |
+| queue → Redis | 2 s | no | no | `QUEUE_UNAVAILABLE` / `QUEUE_NOT_OPEN` |
+
+Las llamadas marcadas “no” son deliberadas: son auxiliares, ya tienen timeout y un fallback
+barato (snapshot, warning o continuación), y un circuit breaker agregaría estado sin mejorar
+la compra. La deuda declarada es sumar breaker a orders→catalog si catalog se vuelve cuello de
+botella en la carga (hoy el snapshot es best-effort y no bloquea).
+
 ## 10. Deuda y trabajo pendiente
 
 Resueltas respecto de la Entrega 1: la saga y el outbox formales (6.2/6.3), la búsqueda paginada con cache Redis, el contrato de eventos con snapshot de `orden.pagada` (ADR-017/018) y la identidad por JWT en el gateway.
 
 Sigue pendiente o con simplificación documentada:
 
-- **Observabilidad centralizada:** logs JSON con correlación y MDC ya están en los servicios; Loki, Promtail y Grafana quedan para la tarea 9.4.
+- **Observabilidad centralizada:** logs JSON con correlación y MDC en los seis microservicios y el gateway; Loki + Promtail + Grafana en el `docker-compose.yml` para consultar por `correlationId` (9.1 y 9.4).
 - **`auth_db`:** el login usa usuarios de prueba con BCrypt en memoria (`DemoUserStore`); la base de usuarios del `design.md` no está implementada.
-- **Bindings de eventos:** `orden.reintegrada` y `devolucion.aprobada` no están enlazados a `notification.order`, y `entrada.utilizada` no tiene consumidor; ver [`eventos.md`](eventos.md).
+- **Reintegro dentro de la transacción:** `DevolucionService.aprobar`, `OrderService.cancelarEvento` y `ReintegroRetryService` llaman a la pasarela mock dentro de una transacción. Como el mock no hace I/O es correcto para esta entrega; con una pasarela real hay que mover el comando HTTP fuera de la transacción y reintentar por estado (`PROCESANDO`/`PENDIENTE`).
+- **`entrada.utilizada`:** se reserva para la bitácora/observabilidad; no tiene consumidor en esta entrega (ver [`eventos.md`](eventos.md)).
 - **N+1 en el listado de órdenes:** `OrderQueryService` sigue consultando ítems y entradas por orden; no se abordó en esta entrega.
 - **Reservas vencidas e idempotencia huérfana:** el scheduler libera cada 30 s y una clave `EN_PROCESO` se limpia al registrar una clave nueva; el comportamiento se conserva de la Entrega 1.
 - **Verificación con el stack levantado:** los tests Testcontainers y la suite E2E (8 flujos) requieren Docker; se ejecutan con `docker compose up --build` y `TICKETYA_E2E=true mvn -B -ntp verify` desde `integration-tests`.

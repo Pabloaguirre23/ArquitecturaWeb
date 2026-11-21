@@ -17,7 +17,13 @@ public record QueueProperties(
         @NotBlank String internalToken,
         @Min(1) long schedulerMs,
         boolean schedulerEnabled,
+        @NotNull Duration retention,
         @Valid @NotNull Token token) {
+
+    @AssertTrue(message = "retention tiene que ser de al menos 1 minuto")
+    public boolean isRetentionPositiva() {
+        return retention != null && retention.compareTo(Duration.ofMinutes(1)) >= 0;
+    }
 
     public record Token(@NotBlank String secret, @NotNull Duration ttl) {
 

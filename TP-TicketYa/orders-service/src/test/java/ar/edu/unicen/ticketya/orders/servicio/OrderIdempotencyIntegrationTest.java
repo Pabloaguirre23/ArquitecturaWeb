@@ -135,4 +135,44 @@ class OrderIdempotencyIntegrationTest {
         assertThat(segunda.entradas()).isEqualTo(primera.entradas());
         assertThat(segunda.entradas()).hasSize(1);
     }
+
+    @Test
+    void dosClavesDistintasConcurrentesSobreLaMismaReservaCobranUnaSolaVez() throws Exception {
+        CrearOrdenRequest request = new CrearOrdenRequest(reservaId, MedioPago.TARJETA, "APROBADO");
+        int hilos = 2;
+        ExecutorService pool = Executors.newFixedThreadPool(hilos);
+        CountDownLatch inicio = new CountDownLatch(1);
+        CountDownLatch fin = new CountDownLatch(hilos);
+        AtomicInteger exitos = new AtomicInteger();
+        List<String> errores = java.util.Collections.synchronizedList(new ArrayList<>());
+        for (int i = 0; i < hilos; i++) {
+            String clave = "compra-carrera-" + i + "-0001";
+            pool.submit(() -> {
+                try {
+                    inicio.await();
+                    orderService.crear(request, clienteId, clave);
+                    exitos.incrementAndGet();
+                } catch (ApiException ex) {
+                    errores.add(ex.getCode());
+                } catch (Exception ex) {
+                    errores.add(ex.getClass().getSimpleName());
+                } finally {
+                    fin.countDown();
+                }
+            });
+        }
+        inicio.countDown();
+        assertThat(fin.await(30, TimeUnit.SECONDS)).isTrue();
+        pool.shutdownNow();
+
+        // El índice único uq_orden_reserva garantiza una sola orden (y un solo cobro)
+        // aunque las claves de idempotencia sean distintas.
+        assertThat(exitos.get()).isEqualTo(1);
+        assertThat(errores).containsExactly("RESERVATION_ALREADY_PAID");
+        assertThat(ordenRepository.count()).isEqualTo(1);
+        Integer pagos = jdbcTemplate.queryForObject("SELECT count(*) FROM pago", Integer.class);
+        assertThat(pagos).isEqualTo(1);
+        Integer entradas = jdbcTemplate.queryForObject("SELECT count(*) FROM entrada", Integer.class);
+        assertThat(entradas).isEqualTo(1);
+    }
 }

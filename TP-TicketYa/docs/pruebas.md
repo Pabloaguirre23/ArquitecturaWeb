@@ -135,18 +135,32 @@ mvn -Dtest=OrderIdempotencyIntegrationTest test
 - Dos hilos con la misma `Idempotency-Key` y el mismo cuerpo: uno crea la orden y el otro
   recibe la respuesta guardada o `409 IDEMPOTENCY_IN_PROGRESS`. La tabla `orden` termina con
   una sola fila.
+- Dos hilos con **claves distintas** y la misma reserva: uno compra y el otro recibe
+  `409 RESERVATION_ALREADY_PAID`. Queda una sola orden, un solo pago y una sola entrada
+  (`dosClavesDistintasConcurrentesSobreLaMismaReservaCobranUnaSolaVez`).
 - Un reintento posterior devuelve el mismo `id` y las mismas entradas.
+
+En inventory, `ConfirmacionPostgresTest.confirmarUnaReservaYaVencidaPorElSchedulerResponde410YNoReponeDosVecesLaZona`
+verifica que si el scheduler ganó la carrera, el confirm devuelve 410 y no repone la zona dos
+veces. `ConfirmacionPostgresTest.liberarDosVecesReponeLaZonaUnaSolaVez` cubre el mismo
+rowcount en la liberación.
 
 ## 6. E2E por gateway
 
-La colección Postman se ejecuta completa con Newman:
+La colección vigente es la v2 con JWT (`postman/TicketYa.entrega2.postman_collection.json`):
 
 ```bash
-npx -y newman run postman/TicketYa.postman_collection.json --reporters cli
+npx -y newman run postman/TicketYa.entrega2.postman_collection.json \
+  -e postman/TicketYa.local.postman_environment.json \
+  --folder Auth --folder Catálogo --folder Inventario --folder Órdenes
 ```
 
-Resultado de la corrida del Día 6 (8/11/2026, `08ba5c5`): **45 requests, 45 assertions,
-0 fallos**. Incluye catálogo, búsqueda, publicación, reserva numerada y de zona, compra
+La corrida histórica de 45/45 requests y 45/45 assertions (Día 6) se hizo sobre
+`TicketYa.postman_collection.json` de la **Entrega 1, antes del JWT**. Se conserva como
+evidencia de esa etapa, pero **no** representa el flujo actual: esa colección usa `X-User-*`
+manuales, que el gateway descarta. La verificación automática vigente es `TicketYaE2EIT`
+(8 tests, 0 fallos, 0 omitidos) y la corrida Newman v2 queda pendiente de cierre manual.
+Incluye catálogo, búsqueda, publicación, reserva numerada y de zona, compra
 aprobada con QR, reintento idempotente, reuso de clave, pago rechazado, pago lento, consultas
 propias, devolución aprobada, devolución rechazada y cancelación. Los seis flujos críticos
 pasaron por el gateway.
@@ -270,10 +284,11 @@ y verifica el estado final de cada entrada en el detalle de la orden.
 
 Se clonó la rama `docs/p5-dia-6-7` en `fde94a1` desde GitHub, se eliminaron los volúmenes de
 prueba y se levantó el compose desde cero. En ese clone corrieron la suite completa
-(**135 tests, 0 fallos, 0 omitidos**) y la colección completa (**45/45 requests y
-45/45 assertions**), con los cuatro health en `200` y el gateway devolviendo `200`/`401`
-según corresponda. Evidencia:
-[`docs/evidencia/dia-7-rc.txt`](evidencia/dia-7-rc.txt).
+(**135 tests, 0 fallos, 0 omitidos**) y la colección de la Entrega 1 (**45/45 requests y
+45/45 assertions**, antes del JWT), con los cuatro health en `200` y el gateway devolviendo
+`200`/`401` según corresponda. Evidencia:
+[`docs/evidencia/dia-7-rc.txt`](evidencia/dia-7-rc.txt). La repetición del clone limpio con
+la suite de la Entrega 2 y el JWT queda en 10.8.
 
 ## 7. Hallazgos del E2E
 

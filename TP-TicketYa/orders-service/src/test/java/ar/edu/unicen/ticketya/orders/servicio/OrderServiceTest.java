@@ -79,6 +79,8 @@ class OrderServiceTest {
     private OutboxService outboxService;
     @Mock
     private AuditService auditService;
+    @Mock
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     private OrderService orderService;
     private OrderPersistenceService orderPersistenceService;
@@ -94,11 +96,11 @@ class OrderServiceTest {
                 ordenRepository, ordenItemRepository, pagoRepository, reintegroRepository,
                 sagaCompraService, outboxService);
         orderEmissionService = new OrderEmissionService(ordenRepository, ticketService,
-                sagaCompraService, outboxService);
+                sagaCompraService, outboxService, jdbcTemplate);
         orderService = new OrderService(ordenRepository, ordenItemRepository, entradaRepository,
                 pagoRepository, reintegroRepository, inventoryClient, catalogClient, paymentGateway,
                 orderPersistenceService, orderEmissionService, orderCompensationService,
-                sagaCompraService, idempotencyService, clock, auditService);
+                sagaCompraService, idempotencyService, clock, auditService, jdbcTemplate);
     }
 
     @Test
@@ -451,10 +453,9 @@ class OrderServiceTest {
         pago.setOrdenId(ordenId);
         pago.setEstado(EstadoPago.APROBADO);
         pago.setMonto(new BigDecimal("30000.00"));
-        when(entradaRepository.findByEventoIdAndEstado(eventoId, EstadoEntrada.VALIDA))
-                .thenReturn(List.of(primera, segunda));
         when(entradaRepository.findByEventoIdAndEstado(eventoId, EstadoEntrada.EN_REINTEGRO))
                 .thenReturn(List.of(primera, segunda));
+        simularMarcadoValidas(eventoId, primera, segunda);
         when(pagoRepository.findByOrdenId(ordenId)).thenReturn(List.of(pago));
         when(pagoRepository.save(any(Pago.class))).thenAnswer(inv -> inv.getArgument(0));
         when(ordenItemRepository.findById(primera.getOrdenItemId())).thenReturn(Optional.of(item1));
@@ -483,7 +484,6 @@ class OrderServiceTest {
     @Test
     void cancelarEventoSinEntradasDevuelveCero() {
         UUID eventoId = UUID.randomUUID();
-        when(entradaRepository.findByEventoIdAndEstado(eventoId, EstadoEntrada.VALIDA)).thenReturn(List.of());
         when(entradaRepository.findByEventoIdAndEstado(eventoId, EstadoEntrada.EN_REINTEGRO)).thenReturn(List.of());
 
         var response = orderService.cancelarEvento(eventoId);
@@ -511,8 +511,8 @@ class OrderServiceTest {
         pago.setOrdenId(ordenId);
         pago.setEstado(EstadoPago.APROBADO);
         pago.setMonto(new BigDecimal("30000.00"));
-        when(entradaRepository.findByEventoIdAndEstado(eventoId, EstadoEntrada.VALIDA)).thenReturn(List.of(e1, e2, e3));
         when(entradaRepository.findByEventoIdAndEstado(eventoId, EstadoEntrada.EN_REINTEGRO)).thenReturn(List.of(e1, e2, e3));
+        simularMarcadoValidas(eventoId, e1, e2, e3);
         when(pagoRepository.findByOrdenId(ordenId)).thenReturn(List.of(pago));
         when(pagoRepository.save(any(Pago.class))).thenAnswer(inv -> inv.getArgument(0));
         when(ordenItemRepository.findById(e1.getOrdenItemId())).thenReturn(Optional.of(i1));
@@ -537,7 +537,6 @@ class OrderServiceTest {
                 eq(new BigDecimal("10000.00")), anyString());
 
         // reintento: no duplica reintegros ni llamadas para los ya aprobados
-        when(entradaRepository.findByEventoIdAndEstado(eventoId, EstadoEntrada.VALIDA)).thenReturn(List.of());
         var retry = orderService.cancelarEvento(eventoId);
         assertThat(retry.reintegrosSolicitados()).isEqualTo(3);
         assertThat(reintegros).hasSize(3);
@@ -555,8 +554,25 @@ class OrderServiceTest {
         return entrada;
     }
 
-    private Entrada entradaCancelacion(UUID eventoId, UUID ordenId) {
-        Entrada entrada = new Entrada();
+    /**
+     * Simula el UPDATE masivo de cancelación sobre las entidades del test:
+     * la primera llamada marca las VALIDA y devuelve cuántas movió; la
+     * siguiente devuelve 0, como el rowcount real.
+     */
+    private void simularMarcadoValidas(UUID eventoId, Entrada... entradas) {
+        when(entradaRepository.marcarValidasEnReintegro(eventoId)).thenAnswer(invocation -> {
+            int marcadas = 0;
+            for (Entrada entrada : entradas) {
+                if (entrada.getEstado() == EstadoEntrada.VALIDA) {
+                    entrada.setEstado(EstadoEntrada.EN_REINTEGRO);
+                    marcadas++;
+                }
+            }
+            return marcadas;
+        });
+    }
+
+    private Entrada entradaCancelacion(UUID eventoId, UUID ordenId) {        Entrada entrada = new Entrada();
         entrada.setId(UUID.randomUUID());
         entrada.setOrdenId(ordenId);
         entrada.setOrdenItemId(UUID.randomUUID());

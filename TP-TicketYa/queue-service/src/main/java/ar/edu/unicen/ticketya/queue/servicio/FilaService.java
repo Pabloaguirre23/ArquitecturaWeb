@@ -5,6 +5,7 @@ import ar.edu.unicen.ticketya.queue.web.ApiException;
 import ar.edu.unicen.ticketya.queue.web.dto.FilaEstadoResponse;
 import ar.edu.unicen.ticketya.queue.web.dto.PosicionResponse;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -76,7 +77,12 @@ public class FilaService {
                 Integer.toString(intervalo),
                 Long.toString(clock.millis()),
                 eventoId.toString());
-        boolean creada = codigo(resultado, 0) == 1;
+        int codigo = codigo(resultado, 0);
+        boolean creada = codigo == 1;
+        if (codigo == 2) {
+            // Venía de un cierre por AGOTADO: sacarle el TTL antes de reabrir.
+            persistir(eventoId);
+        }
         return new Apertura(creada, new FilaEstadoResponse(
                 eventoId,
                 texto(resultado, 1),
@@ -92,8 +98,14 @@ public class FilaService {
                 motivo,
                 Long.toString(clock.millis()),
                 eventoId.toString());
-        if (codigo(resultado, 0) == 0) {
+        int codigo = codigo(resultado, 0);
+        if (codigo == 0) {
             throw ApiException.notFound("QUEUE_NOT_OPEN", "Este evento no tiene fila virtual");
+        }
+        if (codigo == 1) {
+            // El estado cerrado se conserva para que el cliente consulte su
+            // posición, pero no para siempre: las claves vencen y liberan Redis.
+            aplicarRetencion(eventoId);
         }
         return new FilaEstadoResponse(
                 eventoId,
@@ -101,6 +113,21 @@ public class FilaService {
                 numero(resultado, 2),
                 numero(resultado, 3),
                 texto(resultado, 1));
+    }
+
+    private void aplicarRetencion(UUID eventoId) {
+        Duration retention = properties.retention();
+        redis.expire(estadoKey(eventoId), retention);
+        redis.expire(esperaKey(eventoId), retention);
+        redis.expire(secuenciaKey(eventoId), retention);
+        redis.expire(admitidosKey(eventoId), retention);
+    }
+
+    private void persistir(UUID eventoId) {
+        redis.persist(estadoKey(eventoId));
+        redis.persist(esperaKey(eventoId));
+        redis.persist(secuenciaKey(eventoId));
+        redis.persist(admitidosKey(eventoId));
     }
 
     public Ingreso ingresar(UUID eventoId, UUID userId) {

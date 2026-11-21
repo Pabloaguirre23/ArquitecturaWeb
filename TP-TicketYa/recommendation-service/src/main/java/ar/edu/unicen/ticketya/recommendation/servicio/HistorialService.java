@@ -105,9 +105,24 @@ public class HistorialService {
                 .set("artistas", payload.artistas() == null ? List.of() : payload.artistas())
                 .set("ciudad", payload.ciudad())
                 .set("fechaEvento", payload.fechaEvento())
-                .set("estado", "PUBLICADO")
+                // Solo al crear: si el evento ya fue cancelado, un orden.pagada
+                // reintentado no debe revivirlo como PUBLICADO.
+                .setOnInsert("estado", "PUBLICADO")
                 .set("actualizadoEn", Instant.now(clock));
         mongoTemplate.upsert(query, update, EventoVisto.class);
+    }
+
+    /**
+     * Marca el snapshot de un evento cancelado. Es idempotente y tolera que el
+     * evento todavía no tenga snapshot (nunca se vendió): en ese caso no hay
+     * nada que recomendar.
+     */
+    public void marcarCancelado(String eventoId) {
+        Query query = Query.query(Criteria.where("_id").is(eventoId));
+        Update update = new Update()
+                .set("estado", "CANCELADO")
+                .set("actualizadoEn", Instant.now(clock));
+        mongoTemplate.updateFirst(query, update, EventoVisto.class);
     }
 
     public List<HistorialCompra> historial(UUID clienteId) {

@@ -29,6 +29,7 @@ queue:
   internal-token: ${INTERNAL_TOKEN:ticketya-internal-dev}
   scheduler-ms: ${QUEUE_SCHEDULER_MS:5000}
   scheduler-enabled: ${QUEUE_SCHEDULER_ENABLED:true}
+  retention: ${QUEUE_RETENTION:7d}
   token:
     secret: ${QUEUE_TOKEN_SECRET:ticketya-queue-dev-secret-key-32b}
     ttl: ${QUEUE_TOKEN_TTL:5m}

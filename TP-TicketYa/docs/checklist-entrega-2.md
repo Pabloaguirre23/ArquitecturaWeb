@@ -22,7 +22,7 @@ implementación arranca el Día 1.
 | Sobre de eventos y payloads | Congelado el 20/11/2026 | [`eventos.md`](eventos.md) (1.5, PR #39) |
 | ADR de la Entrega 2 | ADR-014 a ADR-020 | [`decisiones.md`](decisiones.md) |
 | Contrato v2 y matriz de roles | Completo: acceso/reportes incluidos | `docs/api-contract.md` (1.3 y 6.7) |
-| JWT y autorización | 2.1–2.3 completos; 2.8 parcial (Postman por rol) | PR #29, [`seguridad.md`](seguridad.md), suite E2E |
+| JWT y autorización | 2.1–2.3 completos; 2.8 cubierto por matriz, E2E y carpeta Postman de seguridad | PR #29, [`seguridad.md`](seguridad.md), suite E2E |
 | Fila virtual | Completa (4.1–4.4, 5.1) | `queue-service/` y PR #24 |
 | Control de acceso QR | Completo (6.4) | PR #43 + E2E de doble escaneo; [`evidencia/entrega-2-dia-8.txt`](evidencia/entrega-2-dia-8.txt) |
 | Preferencias y recomendaciones | Completo (7.1–7.5 y 2.7) | `recommendation-service` + tests Mongo/Rabbit/HTTP y [`evidencia/entrega-2-dia-4.txt`](evidencia/entrega-2-dia-4.txt) |
@@ -31,10 +31,10 @@ implementación arranca el Día 1.
 | Consistencia, saga y outbox | Completo (3.2, 6.2, 6.3) | PR #25 y #27; corrida de carga con transacciones cortas |
 | Resiliencia | Completo: 5.3 en inventory y 6.6 en orders | PR #21, #25 y `OrdersResilienciaTest` (5 casos, WireMock) |
 | Cache | Completo (3.3, 3.4) | PR #27, tests de cache |
-| Observabilidad y log central | Parcial: 9.2 y 9.3 hechos; faltan 9.1 y 9.4 | PR #27 y #46; Loki pendiente |
-| Docker y compose | Completo (9.5–9.7) | 15/15 contenedores healthy con la UI; CI verde en PR #40/#41 |
+| Observabilidad y log central | Implementado: logs JSON+MDC en los 7 procesos y Loki/Promtail/Grafana en el compose; falta la corrida de verificación con el stack | `CorrelationFilter` y `logback-spring.xml` en cada servicio; `observability/` (9.1, 9.4) |
+| Docker y compose | Configuración válida (`docker compose config -q`); falta la corrida completa con la UI y observabilidad | `docker-compose.yml` (9.5–9.7) |
 | Integración, seguridad y carga | 10.1 8/8 sin omitidos; 10.3/10.4 completos; 10.2 parcial | [`pruebas.md`](pruebas.md) §12, [`informe-carga.md`](informe-carga.md) y [`evidencia/entrega-2-dia-8.txt`](evidencia/entrega-2-dia-8.txt) |
-| Cierre y tag | 10.9 validado; 10.8 pendiente (Tiago) | 7 tareas abiertas declaradas en `tasks.md` |
+| Cierre y tag | 10.9 validado; 10.8 pendiente de clone limpio y de mover el tag al commit final | 7 tareas abiertas declaradas en `tasks.md` |
 
 ## 1. Funcionalidad de la Entrega 2
 
@@ -49,18 +49,18 @@ implementación arranca el Día 1.
 
 ## 2. Arquitectura y requisitos no funcionales
 
-- [x] **Microservicios Spring Boot independientes:** siete servicios y el gateway, cada uno con su `pom.xml`, build y ejecución separada. → 9.5, 9.6
+- [x] **Microservicios Spring Boot independientes:** seis microservicios y el gateway, cada uno con su `pom.xml`, build y ejecución separada. → 9.5, 9.6
 - [x] **Punto de entrada único:** todo el tráfico externo entra por el gateway; las bases y brokers no están publicados. → 9.6
 - [x] **Comunicación asíncrona justificada:** RabbitMQ para notificaciones, historial de recomendaciones y eventos de catálogo; documentación de por qué. → 1.5, 6.3, 8.2. _(Contrato congelado en [`eventos.md`](eventos.md) y productores/consumidores implementados.)_
 - [x] **Base NoSQL:** MongoDB para preferencias e historial, con justificación y consultas. → 7.1. Evidencia: [`recommendation-service/README.md`](../recommendation-service/README.md#modelo-mongodb), índices verificados en `RecommendationMongoIntegrationTest` y [`evidencia/entrega-2-dia-2.txt`](evidencia/entrega-2-dia-2.txt).
 - [x] **Consistencia entre servicios y compensaciones:** saga de compra, outbox, idempotencia y política de consistencia documentada. → 6.2, 6.3, 3.2
 - [x] **Resiliencia:** timeouts, reintentos, circuit breaker y fallback en pasarela, inventory, catalog, queue y notification. → 5.3, 6.6, 2.3
 - [x] **Cache:** datos cacheados, TTL, invalidación y datos que no se cachean (disponibilidad, asientos, reservas). → 3.3, 3.4
-- [ ] **Trazabilidad:** log de cada solicitud con endpoint, usuario, estado y duración; correlación entre servicios. → 9.1
+- [x] **Trazabilidad:** log de cada solicitud con endpoint, usuario, estado y duración; correlación entre servicios. → 9.1. _(Logs JSON + MDC en los 7 procesos; `CorrelationFilterTest` en los cuatro servicios nuevos y los existentes de gateway/catalog/orders.)_
 - [x] **Bitácora:** operaciones críticas de compra, devolución, cancelación, publicación e ingreso. → 9.2, 9.3
-- [ ] **Log centralizado:** JSON a stdout + Loki/Promtail/Grafana consultable por correlación. → 9.4
+- [ ] **Log centralizado:** JSON a stdout + Loki/Promtail/Grafana consultable por correlación. → 9.4. _(Configuración y compose listos; falta captura de una consulta real por `correlationId`.)_
 - [x] **Seguridad:** JWT con roles `CLIENT`, `ORGANIZER`, `ADMIN` y `ACCESS_STAFF`; matriz endpoint × rol; endpoints internos protegidos. → 2.1–2.8
-- [ ] **Despliegue:** un contenedor por servicio y un `docker-compose.yml` único con bases, Redis, MongoDB, RabbitMQ y observabilidad. → 9.5, 9.6
+- [ ] **Despliegue:** un contenedor por servicio y un `docker-compose.yml` único con bases, Redis, MongoDB, RabbitMQ y observabilidad. → 9.5, 9.6. _(Compose y Dockerfiles listos; `docker compose config -q` pasa. Falta la corrida completa con el stack.)_
 - [x] **Rendimiento:** prueba de carga del flujo de compra con informe de usuarios, tiempos y errores. → 10.3, 10.4
 
 ## 3. Features y user stories
@@ -71,21 +71,21 @@ implementación arranca el Día 1.
 
 ## 4. Arquitectura y modelo de datos
 
-- [x] **Diagrama de módulos actualizado** con gateway, siete servicios, bases, Redis, MongoDB, RabbitMQ y observabilidad. → 10.5
+- [x] **Diagrama de módulos actualizado** con gateway, seis microservicios, bases, Redis, MongoDB, RabbitMQ y observabilidad. → 10.5
 - [x] **Diagrama de secuencia de compra** con saga, outbox, compensaciones y notificaciones. → 10.5
 - [x] **Diagrama de secuencia de fila virtual** (ingreso, tandas, token, reserva). → 10.5
 - [x] **Diagrama de secuencia de acceso QR** con concurrencia. → 10.5
 - [x] **ER por microservicio actualizado** con tablas nuevas, claves, relaciones y entidades solapadas. → 10.6
 - [x] **Modelo MongoDB** con colecciones, documentos e índices. → 10.6
 - [x] **Estrategia de consistencia** (fuerte vs. eventual) y manejo de fallos parciales documentado. → 6.2, 6.3, 10.5
-- [ ] **Decisiones tecnológicas justificadas:** MongoDB, Redis, RabbitMQ, JWT, Resilience4j, outbox, saga, cache y observabilidad. → 10.6. _(ADR-014 a ADR-018 cubren BFF, Service Discovery, gateway/`auth_db`, payload de `orden.pagada` y sobre de eventos.)_
+- [x] **Decisiones tecnológicas justificadas:** MongoDB, Redis, RabbitMQ, JWT, Resilience4j, outbox, saga, cache y observabilidad. → 10.6. _(ADR-014 a ADR-020 cubren BFF, Service Discovery, gateway/`auth_db`, payload de `orden.pagada`, sobre de eventos, fila virtual y usuarios demo.)_
 
 ## 5. Diseño de API REST
 
 - [x] **Contrato v2** con método, ruta, parámetros, roles, códigos y ejemplos JSON. → 1.3
 - [x] **OpenAPI por servicio** con `bearerAuth`, descripciones, ejemplos y códigos de error. → 2.4–2.7, 3.7, 5.5, 6.7, 7.5, 8.4
 - [x] **Endpoints internos** documentados aparte y no expuestos en el OpenAPI público. → 1.3, 2.3
-- [ ] **Colección Postman/Newman v2** con auth, fila, compra, acceso, reportes, recomendaciones, notificaciones y seguridad. → 10.2
+- [x] **Colección Postman/Newman v2** con auth, fila, compra, acceso, reportes, recomendaciones, notificaciones y seguridad. → 10.2. _(Contenido completo en `postman/TicketYa.entrega2.postman_collection.json`; la corrida automática de referencia es la suite E2E de Java. Ver `postman/README.md`.)_
 
 ## 6. Implementación
 
@@ -99,7 +99,7 @@ implementación arranca el Día 1.
 - [x] **Saga, outbox y compensaciones** en la compra. → 6.2, 6.3
 - [x] **Resiliencia** en todas las dependencias externas. → 5.3, 6.6, 2.3
 - [x] **Cache** de catálogo con TTL e invalidación. → 3.3, 3.4
-- [ ] **Observabilidad** con logs JSON, correlación, bitácora y Loki. → 9.1–9.4
+- [ ] **Observabilidad** con logs JSON, correlación, bitácora y Loki. → 9.1–9.4. _(9.1, 9.2 y 9.3 completos; Loki/Promtail/Grafana configurados en el compose, falta la captura de la consulta real.)_
 - [x] **Docker** por servicio y compose integral. → 9.5, 9.6
 - [x] **Datos de prueba** para usuarios, eventos de alta demanda, preferencias e historial. → 1.8, 7.1, 10.1
 
@@ -127,13 +127,13 @@ implementación arranca el Día 1.
 - [x] **`docs/README.md`** como índice actualizado. → 10.7
 - [x] **`docs/checklist-entrega-2.md`** al 100 % con evidencia. → 10.7
 - [x] **OpenAPI exportado** de cada servicio en `openapi/`. → tareas de cada servicio
-- [ ] **Colección Postman** actualizada. → 10.2
+- [x] **Colección Postman** actualizada. → 10.2. _(V2 con JWT y carpetas completas; la vieja quedó marcada como Entrega 1 pre-JWT.)_
 
 ## 9. Cierre
 
-- [x] **Suite completa** de los siete servicios verde, sin tests omitidos. → 10.8
+- [x] **Suite completa** de los seis microservicios y el gateway verde. → 10.8. _(Corrida local sin Docker: 566 tests, 0 fallos; los tests de Testcontainers se omiten por `disabledWithoutDocker` y los corre el CI con Docker. Falta la corrida final en el clone limpio.)_
 - [ ] **Clone limpio** con `docker compose up --build` y smoke test. → 10.8
-- [ ] **Tag `entrega-2`** sobre el commit entregado. → 10.8
+- [x] **Tag `entrega-2`** sobre el commit entregado. → 10.8. _(Existe en `4be2f86`; mover al commit final después de mergear esta revisión.)_
 - [x] **Repositorio del curso accesible** y enlace de entrega verificado. → 10.8, 10.9
 - [x] **Change validado** con `openspec validate entrega-2-completo --strict`. → 10.9 _(20/11: valido; quedan 7 tareas abiertas declaradas)_
 - [ ] **Change archivado** después de la entrega. → Workflow follow-up

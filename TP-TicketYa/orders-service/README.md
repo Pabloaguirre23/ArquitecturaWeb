@@ -29,6 +29,8 @@ Servicio de órdenes, pagos, entradas/QR y compensaciones de TicketYa.
 2. Reclama la clave en `idempotency_key` con estado `EN_PROCESO` en una transacción propia.
    Si ya existe: misma respuesta (misma clave y cuerpo), `422 IDEMPOTENCY_KEY_REUSED`
    (cuerpo distinto) o `409 IDEMPOTENCY_IN_PROGRESS` con `Retry-After`.
+   Antes de cobrar, verifica que la reserva no tenga otra orden; el índice único
+   `uq_orden_reserva` cierra la carrera y responde `409 RESERVATION_ALREADY_PAID`.
 3. Consulta la reserva a inventory (`GET /internal/reservations/{id}`), valida dueño y vigencia.
 4. Guarda la orden, los ítems, el pago `PENDIENTE` y la saga en `ORDEN_CREADA` (`EN_PROCESO`)
    en una transacción corta (`OrderPersistenceService`); el total se calcula en el servidor.

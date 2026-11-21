@@ -1,10 +1,12 @@
 package ar.edu.unicen.ticketya.catalog.servicio;
 
 import ar.edu.unicen.ticketya.catalog.dominio.Asiento;
+import ar.edu.unicen.ticketya.catalog.dominio.EstadoEvento;
 import ar.edu.unicen.ticketya.catalog.dominio.Lugar;
 import ar.edu.unicen.ticketya.catalog.dominio.Sector;
 import ar.edu.unicen.ticketya.catalog.dominio.TipoSector;
 import ar.edu.unicen.ticketya.catalog.repositorio.AsientoRepository;
+import ar.edu.unicen.ticketya.catalog.repositorio.EventoRepository;
 import ar.edu.unicen.ticketya.catalog.repositorio.LugarRepository;
 import ar.edu.unicen.ticketya.catalog.repositorio.SectorRepository;
 import ar.edu.unicen.ticketya.catalog.web.ApiException;
@@ -35,15 +37,18 @@ public class VenueService {
     private final SectorRepository sectorRepository;
     private final AsientoRepository asientoRepository;
     private final CatalogCacheService catalogCacheService;
+    private final EventoRepository eventoRepository;
 
     public VenueService(LugarRepository lugarRepository,
                         SectorRepository sectorRepository,
                         AsientoRepository asientoRepository,
-                        CatalogCacheService catalogCacheService) {
+                        CatalogCacheService catalogCacheService,
+                        EventoRepository eventoRepository) {
         this.lugarRepository = lugarRepository;
         this.sectorRepository = sectorRepository;
         this.asientoRepository = asientoRepository;
         this.catalogCacheService = catalogCacheService;
+        this.eventoRepository = eventoRepository;
     }
 
     @Transactional
@@ -89,6 +94,15 @@ public class VenueService {
     @Transactional
     public SectorResponse crearSector(UUID lugarId, CrearSectorRequest request) {
         Lugar lugar = buscarLugar(lugarId);
+        // Si el lugar tiene eventos ya publicados, el sector nuevo quedaría sin
+        // precio y editarEvento fallaría para siempre (los precios solo se
+        // asignan en BORRADOR). Se rechaza antes de crear estructuras huérfanas.
+        long publicados = eventoRepository.countByLugarIdAndEstadoIn(lugarId,
+                List.of(EstadoEvento.PUBLICADO, EstadoEvento.AGOTADO));
+        if (publicados > 0) {
+            throw ApiException.conflict("VENUE_HAS_PUBLISHED_EVENTS",
+                    "No se pueden agregar sectores a un lugar con eventos publicados");
+        }
         String nombre = request.nombre().trim();
         if (sectorRepository.existsByLugarIdAndNombre(lugar.getId(), nombre)) {
             throw ApiException.conflict("SECTOR_ALREADY_EXISTS",
