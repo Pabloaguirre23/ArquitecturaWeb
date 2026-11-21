@@ -6,7 +6,7 @@ import type { MedioPago, Order, Reservation } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
-import { QrPlaceholder } from '../components/QrPlaceholder'
+import { QrCode } from '../components/QrCode'
 import { USE_MOCKS } from '../config'
 import { errorMessage } from '../utils/errors'
 import { formatCurrency, formatDate } from '../utils/format'
@@ -84,7 +84,7 @@ export function CheckoutPage() {
           <div className="ticket-list">
             {order.entradas.map((ticket) => (
               <div className="ticket-card" key={ticket.id}>
-                <QrPlaceholder value={ticket.qrCode} />
+                <QrCode value={ticket.qrCode} />
                 <div>
                   <span className="badge ok">{ticket.estado}</span>
                   <h3>{order.eventoNombre}</h3>

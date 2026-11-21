@@ -258,7 +258,7 @@ Las pruebas de integración de catalog, concurrencia de inventory e idempotencia
 
 Reglas:
 
-1. `main` protegida; todo entra por Pull Request con al menos 1 aprobación.
+1. `main` requiere Pull Request y al menos 1 aprobación (la protección del repositorio la activa el admin; tarea 1.1).
 2. Un dueño por carpeta de microservicio.
 3. Rama por tarea: `feat/<servicio>-<tema>`.
 4. La documentación y los tests van en el mismo PR que el código.

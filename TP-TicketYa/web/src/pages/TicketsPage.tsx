@@ -6,7 +6,7 @@ import { useAuth } from '../auth/useAuth'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Loading } from '../components/Loading'
-import { QrPlaceholder } from '../components/QrPlaceholder'
+import { QrCode } from '../components/QrCode'
 import { errorMessage } from '../utils/errors'
 import { formatDate } from '../utils/format'
 
@@ -97,7 +97,7 @@ export function TicketsPage() {
         <div className="ticket-list">
           {tickets.map((ticket) => (
             <article className="ticket-card" key={ticket.id}>
-              <QrPlaceholder value={ticket.qrCode} />
+              <QrCode value={ticket.qrCode} />
               <div className="ticket-info">
                 <span className={ticket.estado === 'VALIDA' ? 'badge ok' : 'badge bad'}>
                   {ticket.estado}
