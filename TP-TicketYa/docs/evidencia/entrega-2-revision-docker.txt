@@ -2,7 +2,7 @@
 
 Fecha: 21/11/2026
 Rama: `fix/revision-entrega-2`
-Commit: `41e8af1`
+Código de la revisión: `41e8af1` · verificación final: `4afc2a5`
 Docker: 29.7.2 (Docker Desktop, macOS)
 Compose: `docker-compose.yml` integral (18 contenedores)
 

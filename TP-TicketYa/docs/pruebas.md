@@ -155,7 +155,7 @@ npx -y newman run postman/TicketYa.entrega2.postman_collection.json \
   --folder Auth --folder Catálogo --folder Inventario --folder Órdenes
 ```
 
-La corrida de la revisión (21/11/2026, commit `41e8af1`) sobre la v2 dio **30 requests,
+La corrida de la revisión (21/11/2026, verificación `4afc2a5` sobre el código de `41e8af1`) sobre la v2 dio **30 requests,
 37 assertions y 0 fallos**. La corrida histórica de 45/45 requests y 45/45 assertions
 (Día 6) se hizo sobre `TicketYa.postman_collection.json` de la **Entrega 1, antes del JWT**.
 Se conserva como evidencia de esa etapa, pero **no** representa el flujo actual: esa
