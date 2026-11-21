@@ -137,12 +137,33 @@ Las filas de inventory, queue y recommendation están en las secciones de arriba
 - Manual, con solo el gateway levantado: `docs/evidencia/entrega-2-p4-jwt.txt`
   (`401` sin token, token inválido y `X-User-*` sin token; login `401`/`400`/`200`;
   `403` con rol equivocado; `403` con `X-User-Role: ADMIN` falsificado; `404` en `/internal/**`).
-- Automática: `mvn test` en `api-gateway`, 46 tests en verde (`JwtServiceTest`,
+- Automática: `mvn test` en `api-gateway`, 53 tests en verde (`JwtServiceTest`,
   `AuthControllerTest`, `IdentityHeaderFilterTest`, `GatewayRoutingTest`, `GatewayRevisionTest`,
   `HeaderPropagationTest`). `HeaderPropagationTest` comprueba con un servidor simulado que el servicio
   recibe los `X-User-*` del JWT y no los falsificados.
 
+## Evidencia contra los servicios reales (20/11/2026)
+
+Compose completo (15 contenedores `healthy`), todo por el gateway en `:8080`, con tokens reales del
+login. Salida completa en `docs/evidencia/entrega-2-p4-seguridad-roles.txt`.
+
+| Servicio | Endpoint | Sin token | Rol no habilitado | Rol habilitado |
+|---|---|---|---|---|
+| catalog | `GET /api/catalog/events` | `200` (público) | n/a | n/a |
+| catalog | `POST /api/catalog/venues` | `401` | `403` (CLIENT, ORGANIZER) | `201` (ADMIN) |
+| catalog | `POST /api/catalog/events/{id}/cancel` | n/a | `403` (CLIENT, ORGANIZER) | `404` (ADMIN, evento inexistente) |
+| orders | `GET /api/orders` | `401` | `403` (ACCESS_STAFF) | `200` (CLIENT) |
+| orders | `POST /api/orders/returns/{id}/approve` | n/a | `403` (CLIENT) | `404` (ADMIN, devolución inexistente) |
+| orders | `POST /api/orders/access/validate` | n/a | `403` (CLIENT) | `404` (ACCESS_STAFF, QR inexistente) |
+| orders | `GET /api/orders/reports/events/{id}` | n/a | `403` (CLIENT) | `404` (ORGANIZER, evento inexistente) |
+| notification | `GET /api/notifications` | `401` | `403` (ORGANIZER) | `200` (CLIENT) |
+| recommendation | `GET /api/recommendations` | `401` | `403` (ORGANIZER) | `200` (CLIENT) |
+
+Un `404` con el rol habilitado y un recurso inexistente prueba que el filtro del gateway dejó pasar al
+rol. El éxito con datos reales de acceso, devoluciones y reportes lo cubren los tests de cada servicio
+(`AccessControllerTest`, `ReportControllerTest`) y la suite E2E.
+
 ## Pendiente
 
-- Verificar el `200` de punta a punta con los servicios reales levantados por el compose.
-- Evidencia de `401/403/200` de las filas de catalog y orders contra los servicios reales.
+- Newman completo por rol (10.2): la colección `postman/TicketYa.entrega2.postman_collection.json` ya
+  tiene Auth y Seguridad (22 tests en verde); falta que cada dueño complete su carpeta.
