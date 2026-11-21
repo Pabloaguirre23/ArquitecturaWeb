@@ -34,7 +34,7 @@ implementación arranca el Día 1.
 | Observabilidad y log central | Completo: logs JSON+MDC en los 7 procesos, Loki/Promtail/Grafana y consulta real por `correlationId` | `CorrelationFilter` y `logback-spring.xml`; `docs/evidencia/entrega-2-revision-docker.txt` (9.1, 9.4) |
 | Docker y compose | Completo: 18 contenedores, `up --build` y smoke test OK | `docs/evidencia/entrega-2-revision-docker.txt` (9.5–9.7) |
 | Integración, seguridad y carga | 10.1 8/8 sin omitidos; 10.3/10.4 completos; 10.2 parcial | [`pruebas.md`](pruebas.md) §12, [`informe-carga.md`](informe-carga.md) y [`evidencia/entrega-2-dia-8.txt`](evidencia/entrega-2-dia-8.txt) |
-| Cierre y tag | 10.9 validado; 10.8 pendiente de clone limpio y de mover el tag al commit final | Evidencia de suites/E2E/Newman/Loki en `docs/evidencia/entrega-2-revision-docker.txt` |
+| Cierre y tag | 10.9 validado; clone limpio y smoke OK; falta mover el tag al commit final | `docs/evidencia/entrega-2-revision-docker.txt` |
 
 ## 1. Funcionalidad de la Entrega 2
 
@@ -132,8 +132,8 @@ implementación arranca el Día 1.
 ## 9. Cierre
 
 - [x] **Suite completa** de los seis microservicios y el gateway verde. → 10.8. _(Con Docker: 566 tests, 0 fallos, 0 omitidos. Web: 36/36. Evidencia en `docs/evidencia/entrega-2-revision-docker.txt`.)_
-- [ ] **Clone limpio** con `docker compose up --build` y smoke test. → 10.8
-- [x] **Tag `entrega-2`** sobre el commit entregado. → 10.8. _(Existe en `4be2f86`; mover al commit final después de mergear esta revisión.)_
+- [x] **Clone limpio** con `docker compose up --build` y smoke test. → 10.8. _(18 contenedores, health, login, búsqueda con volúmenes vacíos, E2E 8/8 y Newman 30/30 desde el clone; evidencia en `docs/evidencia/entrega-2-revision-docker.txt`.)_
+- [x] **Tag `entrega-2`** sobre el commit entregado. → 10.8. _(Existe en `4be2f86`; hay que moverlo al commit final después de mergear esta revisión. No se movió desde acá para no reescribir un tag ya publicado.)_
 - [x] **Repositorio del curso accesible** y enlace de entrega verificado. → 10.8, 10.9
 - [x] **Change validado** con `openspec validate entrega-2-completo --strict`. → 10.9 _(20/11: valido; quedan 7 tareas abiertas declaradas)_
 - [ ] **Change archivado** después de la entrega. → Workflow follow-up

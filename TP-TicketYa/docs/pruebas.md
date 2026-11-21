@@ -288,8 +288,11 @@ prueba y se levantó el compose desde cero. En ese clone corrieron la suite comp
 (**135 tests, 0 fallos, 0 omitidos**) y la colección de la Entrega 1 (**45/45 requests y
 45/45 assertions**, antes del JWT), con los cuatro health en `200` y el gateway devolviendo
 `200`/`401` según corresponda. Evidencia:
-[`docs/evidencia/dia-7-rc.txt`](evidencia/dia-7-rc.txt). La repetición del clone limpio con
-la suite de la Entrega 2 y el JWT queda en 10.8.
+[`docs/evidencia/dia-7-rc.txt`](evidencia/dia-7-rc.txt).
+
+En la revisión del 21/11/2026 se repitió el clone limpio con la Entrega 2 completa: 18
+contenedores, volúmenes vacíos, smoke test, E2E **8/8** y Newman **30/30**. Evidencia:
+[`docs/evidencia/entrega-2-revision-docker.txt`](evidencia/entrega-2-revision-docker.txt).
 
 ## 7. Hallazgos del E2E
 
