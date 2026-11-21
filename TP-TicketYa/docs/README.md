@@ -17,7 +17,7 @@
 | [`plan-entrega-1.md`](plan-entrega-1.md) | Cronograma día por día, responsables y riesgos | P4 | Día 0 | Listo |
 | [`checklist-entrega-1.md`](checklist-entrega-1.md) | Verificación de todo lo pedido para la Entrega 1 | P4 | Día 0 a 9 | En revisión (observaciones 9/11) |
 | [`plan-entrega-2.md`](plan-entrega-2.md) | Cronograma 13–22/11, carga por integrante, ruta crítica y riesgos | P5 | Día 0 | Listo (planificación) |
-| [`checklist-entrega-2.md`](checklist-entrega-2.md) | Verificación de todo lo pedido para la Entrega 2 | P5 | Día 0 a 10 | Revisado 20/11; 1.1/2.8/6.6/9.1/9.4/10.2/10.8 declarados pendientes |
+| [`checklist-entrega-2.md`](checklist-entrega-2.md) | Verificación de todo lo pedido para la Entrega 2 | P5 | Día 0 a 10 | Revisado 21/11; 1.1/2.8/9.1/9.4/10.2/10.8 declarados pendientes |
 | [`equipo/entrega-2/`](equipo/entrega-2/README.md) | Briefs por integrante para la Entrega 2 | P5 | Día 0 | Listo |
 | [`features-y-user-stories.md`](features-y-user-stories.md) | Features y US-01 a US-38 con criterios de aceptación | P1/P2/P3 | Día 0 | Listo |
 | [`api-contract.md`](api-contract.md) | Contrato REST: método, ruta, parámetros, códigos y ejemplos JSON | P1/P2/P3 | Día 0 | Congelado 20/11/2026 (1.3); acceso/reportes incluidos |
@@ -26,7 +26,7 @@
 | [`arquitectura.md`](arquitectura.md) | Diagrama de módulos, secuencia de compra, fila, acceso QR y notificaciones | P4/P5 | Día 3 a 9 | Actualizado 10.5 (PR #47) |
 | [`modelo-datos.md`](modelo-datos.md) | ER por microservicio, claves, relaciones y entidades solapadas | P1/P2/P3/P5 | Día 5 | Actualizado el Día 6 (10.6): delta de Entrega 2, fila Redis y notificaciones |
 | [`decisiones.md`](decisiones.md) | ADR cortas: decisión, alternativas y consecuencias | P4/P5 | Día 5 a 9 | Listo (ADR-001 a ADR-020) |
-| [`pruebas.md`](pruebas.md) | Estrategia, comandos y evidencia de concurrencia, suite, E2E, multi-instancia y carga | P5 | Día 5 a 9 | Actualizado 20/11; E2E 8/8 sin omitidos |
+| [`pruebas.md`](pruebas.md) | Estrategia, comandos y evidencia de concurrencia, suite, E2E, multi-instancia, carga, resiliencia y UI | P5 | Día 5 a 9 | Actualizado 21/11; E2E 8/8, 6.6 con WireMock y 28 tests de UI |
 | [`evidencia/`](evidencia/) | Salidas de suite, E2E y clone limpio de los Días 4 a 9 | P5 | Día 4 a 9 | Incluye evidencia del Día 8 (E2E 8/8) |
 | `../openspec/changes/entrega-1-core/` | Propuesta, specs, diseño y tareas del cambio | Todos | Día 0 | Listo |
 | `../openspec/changes/entrega-2-completo/` | Propuesta, 15 specs, diseño y 64 tareas de la Entrega 2 | Todos | Día 0 | Listo (validado) |

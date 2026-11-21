@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { Layout } from './components/Layout'
+import { SessionNotice } from './components/SessionNotice'
 import { AccessPage } from './pages/AccessPage'
 import { CheckoutPage } from './pages/CheckoutPage'
 import { EventDetailPage } from './pages/EventDetailPage'
@@ -16,6 +17,7 @@ export function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <SessionNotice />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<Layout />}>

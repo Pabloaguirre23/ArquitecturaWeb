@@ -1,7 +1,9 @@
-# Pruebas — TicketYa Entrega 1
+# Pruebas — TicketYa Entrega 1 y 2
 
-Este documento reúne la estrategia, los comandos y la evidencia de las pruebas de los Días 2 a 7.
-Los comandos se ejecutan desde `ticketya/` salvo que se indique otro directorio.
+Este documento reúne la estrategia, los comandos y la evidencia de las pruebas de los Días 2 a 8.
+Los comandos se ejecutan desde `TP-TicketYa/` salvo que se indique otro directorio.
+Las tablas de §3 son históricas de la Entrega 1; la evidencia final de la Entrega 2 está en
+§12 (integración/E2E), §13 (resiliencia) y §14 (UI).
 
 ## 1. Estrategia
 
@@ -458,3 +460,28 @@ Resultado: **5 tests, 0 fallos, 0 errores, 0 omitidos**. Casos cubiertos con Wir
 
 La no doble venta y la no doble compra siguen cubiertas por
 `OrderIdempotencyIntegrationTest` y `AccessConcurrencyIntegrationTest` (Testcontainers).
+
+## 14. UI web (21/11/2026)
+
+```bash
+cd web
+npm ci
+npm run build
+npm run lint
+npm run test
+```
+
+Resultado: **13 archivos de tests, 28 tests, 0 fallos**; build de Vite y `oxlint` verdes.
+La suite cubre cliente HTTP, auth, asientos, checkout, recomendaciones, QR real, aviso de
+sesión expirada, `SearchPage` y `EventDetailPage`.
+
+Cambios de cierre:
+
+- **QR real**: `QrCode` genera la imagen con `qrcode` a partir del UUID de la entrada
+  (antes era un patrón decorativo). Si el canvas falla, muestra el código abreviado.
+- **Escaneo progresivo**: `QrScanner` usa `BarcodeDetector` + cámara cuando el navegador lo
+  soporta; si no, el control de acceso sigue con el código pegado a mano.
+- **Sesión expirada**: un 401 de un endpoint protegido muestra un aviso “Tu sesión expiró”
+  con enlace a login, en vez de desloguear en silencio.
+- **Menú mobile**: Popover nativo con los mismos links y acciones; en desktop la navegación
+  sigue inline. Sin dependencias nuevas de UI.

@@ -7,6 +7,66 @@ import { DemoBanner } from './DemoBanner'
 export function Layout() {
   const { user, isAuthenticated, logout } = useAuth()
 
+  function closeMenu() {
+    const menu = document.getElementById('nav-mobile')
+    if (menu instanceof HTMLElement && menu.matches(':popover-open')) {
+      menu.hidePopover()
+    }
+  }
+
+  const links = (
+    <>
+      {(!isAuthenticated || user?.role === 'CLIENT') && (
+        <NavLink to="/" end onClick={closeMenu}>
+          Buscar
+        </NavLink>
+      )}
+      {isAuthenticated && user?.role === 'CLIENT' && (
+        <NavLink to="/para-vos" onClick={closeMenu}>
+          Para vos
+        </NavLink>
+      )}
+      {isAuthenticated && user?.role === 'CLIENT' && (
+        <NavLink to="/tickets" onClick={closeMenu}>
+          Mis entradas
+        </NavLink>
+      )}
+      {isAuthenticated && (user?.role === 'ACCESS_STAFF' || user?.role === 'ADMIN') && (
+        <NavLink to="/access" onClick={closeMenu}>
+          Control de acceso
+        </NavLink>
+      )}
+      {isAuthenticated && (user?.role === 'ORGANIZER' || user?.role === 'ADMIN') && (
+        <NavLink to="/reports" onClick={closeMenu}>
+          Reportes
+        </NavLink>
+      )}
+    </>
+  )
+
+  const actions = isAuthenticated ? (
+    <>
+      <span className="user-chip" title={user?.email}>
+        {user?.nombre ?? user?.email}
+      </span>
+      <span className="role-chip">{roleLabel(user?.role)}</span>
+      <button
+        className="btn btn-ghost btn-small"
+        type="button"
+        onClick={() => {
+          closeMenu()
+          logout()
+        }}
+      >
+        Salir
+      </button>
+    </>
+  ) : (
+    <Link className="btn btn-primary btn-small" to="/login" onClick={closeMenu}>
+      Ingresar
+    </Link>
+  )
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
@@ -22,38 +82,26 @@ export function Layout() {
             <span>TicketYa</span>
           </Link>
 
-          <nav className="nav" aria-label="Navegación principal">
-            {(!isAuthenticated || user?.role === 'CLIENT') && (
-              <NavLink to="/" end>
-                Buscar
-              </NavLink>
-            )}
-            {isAuthenticated && user?.role === 'CLIENT' && <NavLink to="/para-vos">Para vos</NavLink>}
-            {isAuthenticated && user?.role === 'CLIENT' && <NavLink to="/tickets">Mis entradas</NavLink>}
-            {isAuthenticated && (user?.role === 'ACCESS_STAFF' || user?.role === 'ADMIN') && (
-              <NavLink to="/access">Control de acceso</NavLink>
-            )}
-            {isAuthenticated && (user?.role === 'ORGANIZER' || user?.role === 'ADMIN') && (
-              <NavLink to="/reports">Reportes</NavLink>
-            )}
+          <nav className="nav nav-desktop" aria-label="Navegación principal">
+            {links}
           </nav>
 
-          <div className="header-actions">
-            {isAuthenticated ? (
-              <>
-                <span className="user-chip" title={user?.email}>
-                  {user?.nombre ?? user?.email}
-                </span>
-                <span className="role-chip">{roleLabel(user?.role)}</span>
-                <button className="btn btn-ghost btn-small" type="button" onClick={logout}>
-                  Salir
-                </button>
-              </>
-            ) : (
-              <Link className="btn btn-primary btn-small" to="/login">
-                Ingresar
-              </Link>
-            )}
+          <div className="header-actions header-actions-desktop">{actions}</div>
+
+          <button
+            className="btn btn-ghost btn-small nav-toggle"
+            type="button"
+            popoverTarget="nav-mobile"
+            aria-controls="nav-mobile"
+          >
+            Menú
+          </button>
+
+          <div id="nav-mobile" popover="auto" className="nav-popover">
+            <nav className="nav-mobile-links" aria-label="Navegación principal móvil">
+              {links}
+            </nav>
+            <div className="header-actions nav-mobile-actions">{actions}</div>
           </div>
         </div>
       </header>

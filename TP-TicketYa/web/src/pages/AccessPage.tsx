@@ -6,6 +6,7 @@ import type { AccessValidation } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { QrScanner } from '../components/QrScanner'
 import { USE_MOCKS } from '../config'
 import { errorMessage } from '../utils/errors'
 import { formatDate } from '../utils/format'
@@ -57,6 +58,13 @@ export function AccessPage() {
       </div>
 
       <form className="card form-stack" onSubmit={handleSubmit} aria-busy={cargando}>
+        <QrScanner
+          onDetected={(value) => {
+            setQrCode(value)
+            setError(null)
+            setResultado(null)
+          }}
+        />
         <div className="field">
           <label htmlFor="qr-code">Código QR</label>
           <input
@@ -97,8 +105,8 @@ export function AccessPage() {
           </p>
         ) : (
           <p className="hint">
-            Copiá el código QR y el ID del evento desde “Mis entradas” con el botón
-            “Copiar QR + evento” y pegalos acá.
+            Escaneá el QR con la cámara o copiá el código y el ID del evento desde “Mis
+            entradas” con el botón “Copiar QR + evento”.
           </p>
         )}
       </form>
