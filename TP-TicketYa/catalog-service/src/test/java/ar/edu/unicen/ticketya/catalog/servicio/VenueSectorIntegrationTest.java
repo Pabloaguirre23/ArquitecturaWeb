@@ -3,10 +3,15 @@ package ar.edu.unicen.ticketya.catalog.servicio;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ar.edu.unicen.ticketya.catalog.dominio.EstadoEvento;
+import ar.edu.unicen.ticketya.catalog.dominio.Evento;
+import ar.edu.unicen.ticketya.catalog.dominio.TipoEvento;
 import ar.edu.unicen.ticketya.catalog.dominio.TipoSector;
+import ar.edu.unicen.ticketya.catalog.repositorio.EventoRepository;
 import ar.edu.unicen.ticketya.catalog.web.ApiException;
 import ar.edu.unicen.ticketya.catalog.web.dto.CrearSectorRequest;
 import ar.edu.unicen.ticketya.catalog.web.dto.SectorResponse;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +45,9 @@ class VenueSectorIntegrationTest {
     @Autowired
     private VenueService venueService;
 
+    @Autowired
+    private EventoRepository eventoRepository;
+
     @Test
     void crearUnSectorConNombreExistenteDevuelve409() {
         assertThatThrownBy(() -> venueService.crearSector(LUGAR,
@@ -66,5 +74,24 @@ class VenueSectorIntegrationTest {
                     assertThat(ex.getStatus().value()).isEqualTo(409);
                     assertThat(ex.getCode()).isEqualTo("SECTOR_ALREADY_EXISTS");
                 });
+    }
+
+    @Test
+    void crearUnSectorEnUnLugarConEventosSoloEnBorradorEsPermitido() {
+        Evento borrador = new Evento();
+        borrador.setNombre("Borrador " + UUID.randomUUID());
+        borrador.setTipo(TipoEvento.RECITAL);
+        borrador.setOrganizadorId(UUID.randomUUID());
+        borrador.setLugarId(LUGAR);
+        borrador.setFecha(OffsetDateTime.now().plusDays(30));
+        borrador.setEstado(EstadoEvento.BORRADOR);
+        eventoRepository.save(borrador);
+
+        String nombre = "Sector-Borrador-" + UUID.randomUUID();
+        SectorResponse creado = venueService.crearSector(LUGAR,
+                new CrearSectorRequest(nombre, TipoSector.NO_NUMERADO, 40, null, null));
+
+        assertThat(creado.nombre()).isEqualTo(nombre);
+        assertThat(creado.capacidad()).isEqualTo(40);
     }
 }
