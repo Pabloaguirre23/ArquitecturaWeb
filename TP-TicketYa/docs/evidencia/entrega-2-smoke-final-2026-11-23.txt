@@ -1,0 +1,61 @@
+# Smoke final sobre el contenido entregado — 23/11/2026
+
+Clone limpio de la rama `fix/cierre-docs-ui` en un directorio nuevo, sin `target/`, sin `.env`
+y sin volúmenes previos.
+
+Commit verificado: **`fc04130`**. El merge de esta rama sobre `main` tiene el mismo árbol; este
+archivo de evidencia es el único agregado posterior.
+
+Docker: 29.7.2 (Docker Desktop, macOS). Compose: `docker-compose.yml` integral.
+
+## 1. Build y contenedores
+
+`docker compose -f docker-compose.yml up -d --build` → **18 contenedores, todos `healthy`**
+(7 servicios, gateway, web, 4 PostgreSQL, MongoDB, Redis, RabbitMQ, Loki, Promtail y Grafana).
+
+El primer intento falló por un error transitorio de Maven Central al bajar `testcontainers`
+(`Premature end of Content-Length delimited message body`); el reintento con la caché de
+Docker terminó sin errores.
+
+## 2. Smoke por gateway
+
+- `GET http://localhost:8080/actuator/health` → `200` con `"status":"UP"`.
+- `POST /api/auth/login` (`cliente@ticketya.test` / `demo`) → JWT de 296 caracteres.
+- `GET /api/catalog/events?size=3` → 3 eventos del seed con volúmenes vacíos.
+- Web `http://localhost:3000/` → `200`; Grafana `http://localhost:3001/api/health` → `200`.
+
+## 3. E2E por gateway
+
+```bash
+cd integration-tests
+TICKETYA_E2E=true mvn -B -ntp verify
+```
+
+Resultado: **8 tests, 0 fallos, 0 errores, 0 omitidos**. `GatewayCatalogIT` (2) y
+`TicketYaE2EIT` (6): login, búsqueda, compra, QR, doble escaneo de acceso y reporte.
+
+## 4. Newman v2
+
+```bash
+npx -y newman run postman/TicketYa.entrega2.postman_collection.json \
+  -e postman/TicketYa.local.postman_environment.json
+```
+
+Resultado: **30 requests, 30 test-scripts, 37 assertions, 0 fallos** (43 ms promedio).
+
+## 5. Correlación real en Loki
+
+Loki no publica el puerto `3100` al host: se consulta desde Grafana (datasource provisionado)
+por el proxy `http://localhost:3001/api/datasources/proxy/1/...`.
+
+Se envió `GET /api/catalog/events?size=2` con `X-Correlation-Id: f5838bea-8ee6-40af-b4cf-3d25ff878a6f`
+( UUID válido; un id no-UUID se descarta y se genera uno nuevo, con warning).
+LogQL `{container=~".+"} |= "f5838bea-8ee6-40af-b4cf-3d25ff878a6f"` → **2 streams**:
+
+- `api-gateway` (`RequestLoggingFilter`)
+- `catalog-service` (`CorrelationFilter`)
+
+## 6. Conclusión
+
+El contenido que se taguea queda verificado sobre un clone limpio: build, 18 contenedores
+`healthy`, login, búsqueda, UI, Grafana, Loki, **E2E 8/8** y **Newman 30/37**, sin omitidos.

@@ -17,7 +17,7 @@ Repositorio del curso: <https://github.com/Pabloaguirre23/ArquitecturaWeb> (este
 | `notification-service` | 8085 | `notification_db` (5436) | Notificaciones asíncronas con reintentos y DLQ |
 | `rabbitmq` | 5672 / 15672 | — | Bus de eventos (`orden.pagada` → historial) |
 | `queue-service` | 8086 | Redis 7 (6379) | Fila virtual: tandas, posición y token de compra |
-| `loki` / `promtail` / `grafana` | 3100 / — / 3001 | — | Logs JSON centralizados y consulta por `correlationId` |
+| `loki` / `promtail` / `grafana` | — / — / 3001 | — | Logs JSON centralizados y consulta por `correlationId` (Loki interno, vía Grafana) |
 | `web` (opcional) | 3000 | — | UI React/Vite que Nginx proxya al gateway |
 
 Son **seis microservicios** (catalog, inventory, orders, recommendation, notification y queue)
@@ -77,7 +77,8 @@ curl http://localhost:8080/actuator/health
 
 Solo el gateway publica el puerto `8080`; las bases y brokers quedan en la red interna de
 Docker. La UI se publica en `3000`, Grafana en `http://localhost:3001` (usuario `admin`,
-password `GRAFANA_PASSWORD`, default `admin`) y Loki en `3100` para consultas directas. Para
+password `GRAFANA_ADMIN_PASSWORD`, default `admin`) y Loki se consulta desde Grafana
+(datasource provisionado) o dentro de la red de compose: no publica puerto al host. Para
 reiniciar sin datos:
 
 ```bash
@@ -185,7 +186,7 @@ Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
 | `QUEUE_SCHEDULER_MS` | `5000` | Frecuencia del scheduler de tandas |
 | `QUEUE_RETENTION` | `7d` | TTL de las claves Redis de un evento al cerrar la fila |
 | `RECOMMENDATION_SEED_ENABLED` | `true` | Carga preferencias e historial demo en MongoDB; `false` para datos limpios |
-| `GRAFANA_PASSWORD` | `admin` | Password del usuario `admin` de Grafana |
+| `GRAFANA_ADMIN_PASSWORD` | `admin` | Password del usuario `admin` de Grafana |
 | `JWT_SECRET` / `JWT_TTL` | dev / `8h` | Firma y vigencia del JWT del gateway |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Orígenes permitidos por CORS en el gateway |
 
@@ -278,7 +279,7 @@ Las pruebas de integración de catalog, concurrencia de inventory e idempotencia
 
 Reglas:
 
-1. `main` requiere Pull Request y al menos 1 aprobación (la protección del repositorio la activa el admin; tarea 1.1).
+1. `main` requiere Pull Request y al menos 1 aprobación (la protección está activa desde el 20/11; tarea 1.1).
 2. Un dueño por carpeta de microservicio.
 3. Rama por tarea: `feat/<servicio>-<tema>`.
 4. La documentación y los tests van en el mismo PR que el código.
