@@ -224,3 +224,24 @@ transversales de la Entrega 2: patrones del enunciado, gateway reactivo, payload
   contraseñas ni agregar usuarios sin tocar código. El secreto JWT y los roles siguen siendo
   los reales del contrato, así que el resto de los servicios no distingue este origen. Para
   producción habría que reemplazar `DemoUserStore` por `auth_db` o un IdP, y rotar el secreto.
+
+## ADR-021 — Secretos con default de desarrollo en el compose integral
+
+- **Contexto:** el compose integral (`docker-compose.yml`) debe levantar el sistema completo con
+  `docker compose up --build` en un clone limpio, sin pasos de configuración previos. El gateway,
+  inventory y queue validan sus secretos al arrancar (fail-fast): `JWT_SECRET`,
+  `QUEUE_TOKEN_SECRET` e `INTERNAL_TOKEN`. Si el compose no los inyecta, el arranque falla en un
+  entorno recién clonado.
+- **Decisión:** el compose integral interpola los secretos con default de desarrollo
+  (`${JWT_SECRET:-ticketya-dev-secret-change-me-32-bytes-min!!}`,
+  `${QUEUE_TOKEN_SECRET:-ticketya-queue-dev-secret-key-32b}`,
+  `${INTERNAL_TOKEN:-ticketya-internal-dev}`) para que la demo y la corrección levanten sin `.env`.
+  Son los mismos valores demo que documenta `.env.example`; no son secretos reales. El fail-fast
+  de los servicios sigue activo cuando la variable no está definida (tests unitarios del gateway
+  y de queue) y en cualquier despliegue que no use este compose.
+- **Alternativas:** `${VAR:?}` en el compose (exige `.env` antes del primer `up` y suma fricción a
+  la corrección); secretos en un vault (fuera del alcance de la materia); quitar los defaults y
+  romper el clone limpio (rechazado).
+- **Consecuencias:** el compose de la entrega **no es apto para producción**: hay que inyectar
+  secretos reales por entorno y, para producción, reemplazar los `:-` por `:?`. Queda registrado
+  como deuda aceptada de desarrollo, igual que los usuarios demo en memoria (ADR-020).

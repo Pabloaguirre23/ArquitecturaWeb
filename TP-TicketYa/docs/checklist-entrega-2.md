@@ -18,9 +18,9 @@ implementación arranca el Día 1.
 | Criterios US-25 a US-38 | Completos y trazados | `docs/features-y-user-stories.md` (tarea 1.2) |
 | recommendation-service | Build, tests, health y Docker OK | `recommendation-service/` (tareas 1.7, 2.7, 7.1–7.5) |
 | notification-service | Completo: compra, cancelación, favorito y consulta | `notification-service/` (8.1–8.4) y PR #27 |
-| Acceso al repo del curso | 5 colaboradores con push; branch protection activa (1 aprobación + 9 checks) | Tarea 1.1; PRs #55–#59 |
+| Acceso al repo del curso | 5 colaboradores con push; branch protection activa (1 aprobación + 10 checks) | Tarea 1.1; PRs #55–#59 |
 | Sobre de eventos y payloads | Congelado el 20/11/2026 | [`eventos.md`](eventos.md) (1.5, PR #39) |
-| ADR de la Entrega 2 | ADR-014 a ADR-020 | [`decisiones.md`](decisiones.md) |
+| ADR de la Entrega 2 | ADR-014 a ADR-021 | [`decisiones.md`](decisiones.md) |
 | Contrato v2 y matriz de roles | Completo: acceso/reportes incluidos | `docs/api-contract.md` (1.3 y 6.7) |
 | JWT y autorización | 2.1–2.3 completos; 2.8 cubierto por matriz, E2E y carpeta Postman de seguridad | PR #29, [`seguridad.md`](seguridad.md), suite E2E |
 | Fila virtual | Completa (4.1–4.4, 5.1) | `queue-service/` y PR #24 |
@@ -78,7 +78,7 @@ implementación arranca el Día 1.
 - [x] **ER por microservicio actualizado** con tablas nuevas, claves, relaciones y entidades solapadas. → 10.6
 - [x] **Modelo MongoDB** con colecciones, documentos e índices. → 10.6
 - [x] **Estrategia de consistencia** (fuerte vs. eventual) y manejo de fallos parciales documentado. → 6.2, 6.3, 10.5
-- [x] **Decisiones tecnológicas justificadas:** MongoDB, Redis, RabbitMQ, JWT, Resilience4j, outbox, saga, cache y observabilidad. → 10.6. _(ADR-014 a ADR-020 cubren BFF, Service Discovery, gateway/`auth_db`, payload de `orden.pagada`, sobre de eventos, fila virtual y usuarios demo.)_
+- [x] **Decisiones tecnológicas justificadas:** MongoDB, Redis, RabbitMQ, JWT, Resilience4j, outbox, saga, cache y observabilidad. → 10.6. _(ADR-014 a ADR-021 cubren BFF, Service Discovery, gateway/`auth_db`, payload de `orden.pagada`, sobre de eventos, fila virtual, usuarios demo y secretos de desarrollo.)_
 
 ## 5. Diseño de API REST
 

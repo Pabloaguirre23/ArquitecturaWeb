@@ -303,7 +303,7 @@ recomendaciones, cache, Docker y CI están integrados; el estado verificable est
 [`docs/checklist-entrega-2.md`](docs/checklist-entrega-2.md), la estrategia en
 [`docs/pruebas.md`](docs/pruebas.md) y la prueba de carga en
 [`docs/informe-carga.md`](docs/informe-carga.md). La suite E2E corre 8/8 sin omitidos contra
-el compose. La branch protection de `main` exige 1 aprobación y los 9 checks del CI, y el
+el compose. La branch protection de `main` exige 1 aprobación y los 10 checks del CI, y el
 tag `entrega-2` apunta al commit entregado. Queda solo archivar el change OpenSpec después
 de la entrega. Las suites con Docker (566 tests), el E2E (8/8), Newman (30 requests,
 37 assertions), el clone limpio y la consulta real en Loki están documentados en
