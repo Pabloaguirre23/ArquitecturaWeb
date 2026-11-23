@@ -365,6 +365,7 @@ El reporte calcula vendidas, devueltas, netas, ocupación (`netas / capacidad`) 
 | Notificación lenta o caída | Consumo asíncrono, reintentos con backoff y DLQ; la compra no espera |
 | Bitácora caída | `audit_log` con `REQUIRES_NEW` y error capturado: no revierte la operación |
 | Reporte con catalog caído | Caché de 60 s o snapshot local y `datosDesactualizados: true` |
+| Dependencias salientes lentas o caídas | Timeouts, reintentos con idempotencia y circuit breaker con Resilience4j en pagos e inventory; fallback a caché o compensación |
 | Reserva vencida | Scheduler cada 30 s y validación perezosa al consultar/pagar |
 
 La consistencia es **fuerte dentro de cada servicio** (transacción local + constraints) y **eventual entre servicios**. La disponibilidad se lee de inventory, el QR y las ventas de orders, las preferencias de MongoDB y la capacidad de catalog. Los snapshots congelan nombre, fecha, precio, tipo, artistas y ciudad para que la compra, las notificaciones y las recomendaciones no dependan de una llamada en vivo. Las alternativas y consecuencias están en [`decisiones.md`](decisiones.md) (ADR-005 a ADR-019) y en el [`design.md`](../openspec/changes/entrega-2-completo/design.md) (decisiones 1 a 15).
@@ -394,7 +395,7 @@ botella en la carga (hoy el snapshot es best-effort y no bloquea).
 
 ## 10. Deuda y trabajo pendiente
 
-Resueltas respecto de la Entrega 1: la saga y el outbox formales (6.2/6.3), la búsqueda paginada con cache Redis, el contrato de eventos con snapshot de `orden.pagada` (ADR-017/018) y la identidad por JWT en el gateway.
+Resueltas respecto de la Entrega 1: la saga y el outbox formales (6.2/6.3), la búsqueda paginada con cache Redis, el contrato de eventos con snapshot de `orden.pagada` (ADR-017/018), la identidad por JWT en el gateway y la resiliencia con Resilience4j en pagos e inventory (6.6).
 
 Sigue pendiente o con simplificación documentada:
 
@@ -405,3 +406,5 @@ Sigue pendiente o con simplificación documentada:
 - **N+1 en el listado de órdenes:** `OrderQueryService` sigue consultando ítems y entradas por orden; no se abordó en esta entrega.
 - **Reservas vencidas e idempotencia huérfana:** el scheduler libera cada 30 s y una clave `EN_PROCESO` se limpia al registrar una clave nueva; el comportamiento se conserva de la Entrega 1.
 - **Verificación con el stack levantado:** los tests Testcontainers y la suite E2E (8 flujos) requieren Docker; se ejecutan con `docker compose up --build` y `TICKETYA_E2E=true mvn -B -ntp verify` desde `integration-tests`.
+- **Recuperación de órdenes `PENDIENTE_PAGO`:** si el proceso se interrumpe después de aprobar el pago en la pasarela pero antes de persistir el resultado, no hay un job que reconcilie ese cobro con la orden. Se documenta como deuda: no entra en el *freeze* de la entrega.
+- **`cancelarEvento` monolítico:** la cancelación de un evento recorre entradas, pagos y reintegros en un único método de `OrderService`. Conviene descomponerlo en pasos con estado persistido y reintento independiente, siguiendo el patrón de `saga_compra`. También queda como deuda fuera del *freeze*.

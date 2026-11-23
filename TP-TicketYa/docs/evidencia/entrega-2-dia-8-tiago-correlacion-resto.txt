@@ -1,0 +1,21 @@
+# Evidencia 9.1: correlación en notification, inventory, queue y recommendation (P4)
+Fecha: 22/11/2026 15:45
+Cuatro requests con X-Correlation-Id=da414d2b-16f4-41ad-bf65-ab82d96fb2ed (una por servicio, todas por el gateway).
+
+## api-gateway
+{"@timestamp":"2026-11-22T18:45:05.544835584Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.gateway.web.RequestLoggingFilter","thread_name":"reactor-http-nio-3","level":"INFO","level_value":20000,"path":"/api/notifications","role":"CLIENT","method":"GET","correlationId":"da414d2b-16f4-41ad-bf65-ab82d96fb2ed","userId":"33333333-3333-4333-8333-333333333333","durationMs":"126","status":"200","service":"api-gateway"}
+{"@timestamp":"2026-11-22T18:45:05.752350375Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.gateway.web.RequestLoggingFilter","thread_name":"reactor-http-nio-4","level":"INFO","level_value":20000,"path":"/api/recommendations","role":"CLIENT","method":"GET","correlationId":"da414d2b-16f4-41ad-bf65-ab82d96fb2ed","userId":"33333333-3333-4333-8333-333333333333","durationMs":"194","status":"200","service":"api-gateway"}
+{"@timestamp":"2026-11-22T18:45:05.821927709Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.gateway.web.RequestLoggingFilter","thread_name":"reactor-http-nio-1","level":"INFO","level_value":20000,"path":"/api/inventory/events/00000000-0000-4000-8000-000000000000/availability","correlationId":"da414d2b-16f4-41ad-bf65-ab82d96fb2ed","method":"GET","durationMs":"55","status":"404","service":"api-gateway"}
+{"@timestamp":"2026-11-22T18:45:05.874700834Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.gateway.web.RequestLoggingFilter","thread_name":"reactor-http-nio-2","level":"INFO","level_value":20000,"path":"/api/queue/events/00000000-0000-4000-8000-000000000000/position","role":"CLIENT","method":"GET","correlationId":"da414d2b-16f4-41ad-bf65-ab82d96fb2ed","userId":"33333333-3333-4333-8333-333333333333","durationMs":"36","status":"404","service":"api-gateway"}
+
+## notification-service
+{"@timestamp":"2026-11-22T18:45:05.536871709Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.notification.web.CorrelationFilter","thread_name":"http-nio-8085-exec-8","level":"INFO","level_value":20000,"path":"/api/notifications","role":"CLIENT","method":"GET","correlationId":"da414d2b-16f4-41ad-bf65-ab82d96fb2ed","userId":"33333333-3333-4333-8333-333333333333","durationMs":"44","status":"200","service":"notification-service"}
+
+## inventory-service
+{"@timestamp":"2026-11-22T18:45:05.819075792Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.inventory.web.CorrelationFilter","thread_name":"http-nio-8082-exec-10","level":"INFO","level_value":20000,"path":"/api/inventory/events/00000000-0000-4000-8000-000000000000/availability","correlationId":"da414d2b-16f4-41ad-bf65-ab82d96fb2ed","method":"GET","durationMs":"45","status":"404","service":"inventory-service"}
+
+## queue-service
+{"@timestamp":"2026-11-22T18:45:05.872368834Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.queue.web.CorrelationFilter","thread_name":"http-nio-8086-exec-8","level":"INFO","level_value":20000,"path":"/api/queue/events/00000000-0000-4000-8000-000000000000/position","role":"CLIENT","method":"GET","correlationId":"da414d2b-16f4-41ad-bf65-ab82d96fb2ed","userId":"33333333-3333-4333-8333-333333333333","durationMs":"29","status":"404","service":"queue-service"}
+
+## recommendation-service
+{"@timestamp":"2026-11-22T18:45:05.749599Z","@version":"1","message":"request completada","logger_name":"ar.edu.unicen.ticketya.recommendation.web.CorrelationFilter","thread_name":"http-nio-8084-exec-10","level":"INFO","level_value":20000,"path":"/api/recommendations","role":"CLIENT","method":"GET","correlationId":"da414d2b-16f4-41ad-bf65-ab82d96fb2ed","userId":"33333333-3333-4333-8333-333333333333","durationMs":"180","status":"200","service":"recommendation-service"}

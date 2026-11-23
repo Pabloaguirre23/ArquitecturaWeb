@@ -15,9 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Toma `X-Correlation-Id` (o genera uno) y lo deja en el MDC. Además deja una
- * línea de log JSON por request con usuario, rol, método, ruta, estado y
- * duración, para correlacionar la traza completa desde el gateway (9.1).
+ * Toma `X-Correlation-Id` (o genera uno), lo deja en el MDC y en la respuesta, y escribe
+ * una línea de log por request con usuario, rol, método, ruta, estado y duración (9.1).
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
