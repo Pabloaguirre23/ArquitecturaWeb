@@ -53,6 +53,7 @@ Exchange: `ticketya.events` (topic, durable). Dead-letter exchange: `ticketya.ev
 | `devolucion.aprobada` | `notification.order` | notification-service (8.2) | `notification.order.dlq` |
 | `evento.actualizado` | `notification.event` | notification-service (8.3) | `notification.event.dlq` |
 | `evento.cancelado` | `notification.event` | notification-service (8.3) | `notification.event.dlq` |
+| `evento.cancelado` | `recommendation.events` | recommendation-service (7.4) | `recommendation.events.dlq` |
 | `evento.publicado` | `notification.favorite` | notification-service (8.3) | `notification.favorite.dlq` |
 | `entrada.utilizada` | — | sin consumidor en esta entrega | — |
 
@@ -69,6 +70,7 @@ se compensa, se publica `orden.reintegrada` en lugar de `orden.pagada`.
 {
   "ordenId": "f0000000-0000-4000-8000-000000000001",
   "clienteId": "33333333-3333-4333-8333-333333333333",
+  "clienteEmail": "cliente@ticketya.test",
   "eventoId": "d0000000-0000-4000-8000-000000000001",
   "eventoNombre": "Festival de Rock Tandil 2027",
   "eventoTipo": "FESTIVAL",
@@ -83,6 +85,7 @@ se compensa, se publica `orden.reintegrada` en lugar de `orden.pagada`.
 |---|---|---|
 | `ordenId` | sí | Referencia de la orden y clave de idempotencia de negocio. |
 | `clienteId` | sí | Dueño del historial y destinatario de la notificación. |
+| `clienteEmail` | recomendado | Destinatario real del aviso. Lo propaga el gateway desde el JWT (`X-User-Email`); si falta, notification usa una dirección determinística de desarrollo. |
 | `eventoId` | sí | Evento comprado; se excluye de recomendaciones futuras. |
 | `eventoNombre` | recomendado | Texto de la notificación y motivo de recomendación. |
 | `eventoTipo` | sí | Ranking por tipo favorito. |
@@ -111,9 +114,8 @@ puntual de orders/reportes, no como fuente del historial.
 }
 ```
 
-Ordena lo publica desde el outbox; el binding hacia `notification.order` está
-pendiente de declarar en notification-service (8.2). recommendation-service **no** está
-suscripto: el historial solo registra compras pagadas.
+Ordena lo publica desde el outbox; notification-service lo consume en `notification.order`
+(8.2). recommendation-service **no** está suscripto: el historial solo registra compras pagadas.
 
 ### 3.3 `evento.publicado` / `evento.actualizado` / `evento.cancelado`
 
@@ -133,8 +135,9 @@ suscripto: el historial solo registra compras pagadas.
 - `evento.publicado`: notification-service busca clientes con el artista favorito en la
   ciudad y les avisa (8.3).
 - `evento.actualizado` y `evento.cancelado`: notification-service avisa a los compradores.
-- recommendation-service puede actualizar su snapshot `eventos_vistos` en una tarea futura;
-  no es obligatorio para 7.3/7.4.
+- recommendation-service consume `evento.cancelado` en `recommendation.events` y marca su
+  snapshot `eventos_vistos` como `CANCELADO`, para no recomendar eventos dados de baja ni en
+  `/similar` ni en el fallback.
 
 ### 3.4 `devolucion.aprobada`
 

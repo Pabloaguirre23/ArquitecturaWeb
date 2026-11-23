@@ -134,8 +134,10 @@ public class IdempotencyService {
         repository.deleteById(key);
     }
 
-    public String hash(String reservaId, String medioPago, String token) {
-        String contenido = reservaId + "|" + medioPago + "|" + token;
+    public String hash(String clienteId, String reservaId, String medioPago, String token) {
+        // clienteId incluido: una clave "prestada" por otro cliente no devuelve
+        // la orden ajena; el hash no coincide y responde 422.
+        String contenido = clienteId + "|" + reservaId + "|" + medioPago + "|" + token;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(digest.digest(contenido.getBytes(StandardCharsets.UTF_8)));

@@ -236,7 +236,7 @@ Sector no numerado:
 }
 ```
 
-Errores: `400 VALIDATION_ERROR` (capacidad ≤ 0, sector numerado sin filas, capacidad > 20000, filas > 100 o asientosPorFila > 200), `403`, `404 VENUE_NOT_FOUND`, `409 SECTOR_ALREADY_EXISTS` (ya existe un sector con ese nombre en el lugar).
+Errores: `400 VALIDATION_ERROR` (capacidad ≤ 0, sector numerado sin filas, capacidad > 20000, filas > 100 o asientosPorFila > 200), `403`, `404 VENUE_NOT_FOUND`, `409 SECTOR_ALREADY_EXISTS` (ya existe un sector con ese nombre en el lugar), `409 VENUE_HAS_PUBLISHED_EVENTS` (el lugar tiene eventos `PUBLICADO`/`AGOTADO`; un sector nuevo quedaría sin precio y rompería la edición del evento).
 
 ### 3.5 Listar sectores — `GET /api/catalog/venues/{venueId}/sectors` (público)
 
@@ -817,7 +817,7 @@ Headers: `Idempotency-Key: <clave>`.
 }
 ```
 
-Errores: `400 VALIDATION_ERROR`, `403 NOT_RESERVATION_OWNER`, `404 RESERVATION_NOT_FOUND`, `409 IDEMPOTENCY_IN_PROGRESS` (con `Retry-After`), `410 RESERVATION_EXPIRED`, `422 IDEMPOTENCY_KEY_REUSED` (misma clave, cuerpo distinto), `502 PAYMENT_GATEWAY_ERROR`.
+Errores: `400 VALIDATION_ERROR`, `403 NOT_RESERVATION_OWNER`, `404 RESERVATION_NOT_FOUND`, `409 IDEMPOTENCY_IN_PROGRESS` (con `Retry-After`), `409 RESERVATION_ALREADY_PAID` (la reserva ya tiene una orden; índice único `uq_orden_reserva`), `410 RESERVATION_EXPIRED`, `422 IDEMPOTENCY_KEY_REUSED` (misma clave, cuerpo distinto), `502 PAYMENT_GATEWAY_ERROR`.
 
 ### 5.2 Listar mis órdenes — `GET /api/orders?page=0&size=20` (autenticado)
 
@@ -1020,10 +1020,13 @@ Reglas:
 - Respuesta `200` con el documento guardado y `actualizadoEn`.
 
 ```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"cliente@ticketya.test","password":"demo"}' | jq -r .token)
+
 curl -X PUT http://localhost:8080/api/recommendations/preferences \
   -H "Content-Type: application/json" \
-  -H "X-User-Id: 33333333-3333-4333-8333-333333333333" \
-  -H "X-User-Role: CLIENT" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"tipos":["RECITAL"],"artistas":["Los Piojos"],"ciudad":"Tandil"}'
 ```
 
@@ -1090,9 +1093,12 @@ Devuelve los eventos que compraron otros clientes que también compraron el even
 (“quienes compraron este también compraron”), ordenados por cantidad de compradores en común.
 
 ```bash
-curl http://localhost:8084/api/recommendations/events/d0000000-0000-4000-8000-000000000001/similar \
-  -H "X-User-Id: 33333333-3333-4333-8333-333333333333" \
-  -H "X-User-Role: CLIENT"
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"cliente@ticketya.test","password":"demo"}' | jq -r .token)
+
+curl http://localhost:8080/api/recommendations/events/d0000000-0000-4000-8000-000000000001/similar \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ```json
@@ -1156,7 +1162,7 @@ No hay WebSockets. El cliente hace polling de `GET /api/queue/events/{eventoId}/
 
 Lo llama catalog al publicar un evento de alta demanda. Header `X-Internal-Token`. Sin cuerpo.
 
-**201** si la fila se crea, **200** si ya existía. Repetirlo no pisa `batchSize` ni `intervaloSegundos`. Si ya está `CERRADA`, no vuelve a `queue:open`.
+**201** si la fila se crea, **200** si ya existía o se reabre. Repetirlo no pisa `batchSize` ni `intervaloSegundos`. Si estaba `CERRADA` por `AGOTADO`, vuelve a `ABIERTA` y se le quita el TTL de retención (se agregó capacidad). Si estaba `CERRADA` por `CANCELADO` o `FINALIZADO`, sigue cerrada. Al cerrar, las claves del evento reciben `QUEUE_RETENTION` (7 días por defecto).
 
 ```json
 { "eventoId": "11111111-1111-4111-8111-111111111111", "estado": "ABIERTA", "batchSize": 50, "intervaloSegundos": 30 }
@@ -1241,7 +1247,11 @@ Devuelve solo las notificaciones del cliente autenticado (`X-User-Id`), ordenada
 
 ```bash
 GATEWAY=http://localhost:8080
-CLIENTE=2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+
+# 0) Login: el gateway emite el JWT. No se mandan X-User-* a mano.
+TOKEN=$(curl -s -X POST "$GATEWAY/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"cliente@ticketya.test","password":"demo"}' | jq -r .token)
 
 # 1) Buscar
 curl "$GATEWAY/api/catalog/events?ciudad=Tandil&orden=FECHA_ASC"
@@ -1253,24 +1263,24 @@ curl "$GATEWAY/api/inventory/events/$EVENTO/seats?sectorId=$SECTOR"
 # 3) Reservar (10 minutos)
 curl -X POST "$GATEWAY/api/inventory/reservations" \
   -H "Content-Type: application/json" \
-  -H "X-User-Id: $CLIENTE" -H "X-User-Role: CLIENT" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"eventoId":"'"$EVENTO"'","items":[{"sectorId":"'"$SECTOR"'","asientoIds":["'"$ASIENTO"'"]}]}'
 
 # 4) Pagar (idempotente)
 curl -X POST "$GATEWAY/api/orders" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: compra-$RESERVA" \
-  -H "X-User-Id: $CLIENTE" -H "X-User-Role: CLIENT" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"reservaId":"'"$RESERVA"'","medioPago":"TARJETA","token":"APROBADO"}'
 
 # 5) Ver entradas
 curl "$GATEWAY/api/orders/tickets" \
-  -H "X-User-Id: $CLIENTE" -H "X-User-Role: CLIENT"
+  -H "Authorization: Bearer $TOKEN"
 
 # 6) Devolver una entrada (si faltan más de 72 h)
 curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
   -H "Content-Type: application/json" \
-  -H "X-User-Id: $CLIENTE" -H "X-User-Role: CLIENT" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"motivo":"No puedo asistir"}'
 ```
 
@@ -1314,11 +1324,13 @@ curl -X POST "$GATEWAY/api/orders/tickets/$ENTRADA/returns" \
 | 409 | `EVENT_NOT_CANCELLABLE` | Evento finalizado o ya cancelado |
 | 409 | `EVENT_NOT_ON_SALE` | Evento cancelado/finalizado al reservar |
 | 409 | `SECTOR_ALREADY_EXISTS` | Ya existe un sector con ese nombre en el lugar |
+| 409 | `VENUE_HAS_PUBLISHED_EVENTS` | El lugar tiene eventos publicados; un sector nuevo rompería su edición |
 | 409 | `EVENT_FINISHED` | La fecha del evento ya pasó al reservar |
 | 409 | `RESERVATION_NOT_CANCELLABLE` | La reserva confirmada no se cancela: hay que devolverla |
 | 409 | `SEAT_NOT_AVAILABLE` | Asiento reservado o vendido |
 | 409 | `INSUFFICIENT_AVAILABILITY` | Zona sin lugares suficientes |
 | 409 | `RESERVATION_NOT_CONFIRMABLE` | Reserva liberada o vencida al confirmar |
+| 409 | `RESERVATION_ALREADY_PAID` | La reserva ya se usó en otra orden (índice único por `reserva_id`) |
 | 409 | `TICKET_NOT_VALID` | Entrada no válida para devolución |
 | 409 | `RETURN_ALREADY_EXISTS` | Ya hay una devolución abierta |
 | 409 | `RETURN_ALREADY_RESOLVED` | La devolución ya fue resuelta |

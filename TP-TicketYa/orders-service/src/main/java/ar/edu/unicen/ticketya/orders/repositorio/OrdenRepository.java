@@ -13,6 +13,8 @@ public interface OrdenRepository extends JpaRepository<Orden, UUID> {
 
     Optional<Orden> findByIdAndClienteId(UUID id, UUID clienteId);
 
+    Optional<Orden> findByReservaId(UUID reservaId);
+
     Page<Orden> findByClienteIdOrderByCreatedAtDesc(UUID clienteId, Pageable pageable);
 
     List<Orden> findByEventoIdAndEstado(UUID eventoId, EstadoOrden estado);

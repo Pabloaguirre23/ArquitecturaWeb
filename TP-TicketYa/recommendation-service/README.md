@@ -179,7 +179,7 @@ Reglas:
 ]
 ```
 
-Mientras P1 no implemente 3.5, el servicio usa `eventos_vistos`. El cliente aplica timeout de 2 s/3 s y dos intentos para errores transitorios; un 4xx no se reintenta.
+El endpoint interno de catalog (3.5) devuelve los candidatos; si no responde, el servicio usa el snapshot local `eventos_vistos`. El cliente aplica timeout de 2 s/3 s y dos intentos para errores transitorios; un 4xx no se reintenta.
 
 ## Consumidor de `orden.pagada`
 
@@ -208,8 +208,18 @@ El listener `OrdenPagadaListener` consume `ticketya.events` con routing key `ord
 
 - El upsert usa `$setOnInsert` sobre la clave única `(eventId, clienteId, eventoId)`: un duplicado no duplica el historial.
 - Una orden con estado distinto de `PAGADA` o un evento `orden.reintegrada` no se registra.
+- El snapshot se actualiza con `$setOnInsert("estado", "PUBLICADO")`: si el evento ya fue cancelado, un `orden.pagada` reintentado no lo revive.
 - Los errores van a `recommendation.history.dlq` (`default-requeue-rejected=false`), sin reencolar infinitamente.
-- La topología se declara al arrancar: exchange `ticketya.events`, DLX `ticketya.events.dlx`, cola `recommendation.history` y DLQ `recommendation.history.dlq`.
+- La topología se declara al arrancar: exchange `ticketya.events`, DLX `ticketya.events.dlx`, colas `recommendation.history` y `recommendation.events` con sus DLQ.
+
+## Consumidor de `evento.cancelado`
+
+`EventoCanceladoListener` consume `evento.cancelado` en `recommendation.events` (DLQ
+`recommendation.events.dlq`) y llama a `HistorialService.marcarCancelado(eventoId)`, que hace
+`updateFirst` sobre `eventos_vistos` con `estado=CANCELADO`. Sin este binding, el snapshot
+quedaba siempre `PUBLICADO` y `/similar` y el fallback seguían recomendando eventos cancelados.
+Si el evento nunca tuvo compras no hay snapshot y el update no crea uno: no hay nada que
+recomendar.
 
 ## Modelo MongoDB
 

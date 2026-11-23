@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "TicketYa — Entrega 2",
-    "description": "Esqueleto de la colección de la Entrega 2 (tareas 2.8 y 10.2). Todo entra por el gateway con JWT.\n\nUso:\n1. Levantar el stack (docker compose -f TP-TicketYa/docker-compose.yml up --build) o, para Auth y Seguridad, solo el gateway.\n2. Correr primero la carpeta Auth: guarda los tokens en variables de colección.\n3. Cada dueño completa su carpeta usando Authorization: Bearer {{tokenClient}} (o el rol que corresponda). No se usan más los headers X-User-*.\n\nUsuarios demo (contraseña en passwordDemo): admin, organizador, cliente y acceso@ticketya.test.",
+    "name": "TicketYa — Entrega 2 (JWT, flujo completo)",
+    "description": "Colección de la Entrega 2 (tareas 2.8 y 10.2). Todo entra por el gateway con JWT; no se usan X-User-* manuales. Correr primero Auth (guarda los tokens) y después Catálogo → Inventario → Órdenes → Acceso. La carpeta Fila llama directo a queue-service en {{queueUrl}} porque abrir/cerrar no se expone por el gateway. Los IDs de evento/sector salen del seed; si se usa otro evento, actualizar las variables de colección. La suite E2E de Java (integration-tests) es la verificación autoritativa contra el stack real.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -43,6 +43,34 @@
     },
     {
       "key": "tokenAccess",
+      "value": ""
+    },
+    {
+      "key": "queueUrl",
+      "value": "http://localhost:8086"
+    },
+    {
+      "key": "internalToken",
+      "value": "ticketya-internal-dev"
+    },
+    {
+      "key": "eventoId",
+      "value": "d0000000-0000-4000-8000-000000000001"
+    },
+    {
+      "key": "sectorId",
+      "value": "b0000000-0000-4000-8000-000000000002"
+    },
+    {
+      "key": "reservaId",
+      "value": ""
+    },
+    {
+      "key": "ordenId",
+      "value": ""
+    },
+    {
+      "key": "qrCode",
       "value": ""
     }
   ],
@@ -298,47 +326,463 @@
     {
       "name": "Catálogo",
       "description": "Dueño: Iván (P1). Lugares, sectores, eventos, precios, publicar y cancelar, con el rol que corresponde.",
-      "item": []
+      "item": [
+        {
+          "name": "Buscar eventos (público)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/catalog/events?size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 y página', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var b = pm.response.json();",
+                  "  pm.expect(b.content).to.be.an('array');",
+                  "  if (b.content.length) {",
+                  "    // Preferir un evento normal: los de alta demanda exigen X-Queue-Token.",
+                  "    var normal = b.content.find(function (e) { return !e.altaDemanda; });",
+                  "    pm.collectionVariables.set('eventoId', (normal || b.content[0]).id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detalle del evento",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/catalog/events/{{eventoId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con sectores', function () { pm.response.to.have.status(200); var b = pm.response.json(); pm.expect(b.sectores).to.be.an('array'); var zona = b.sectores.find(function (s) { return s.tipo === 'NO_NUMERADO'; }); if (zona) { pm.collectionVariables.set('sectorId', zona.sectorId); } });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Inventario",
       "description": "Dueño: Pablo (P2). Disponibilidad, mapa de asientos, reservas.",
-      "item": []
+      "item": [
+        {
+          "name": "Disponibilidad del evento",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/inventory/events/{{eventoId}}/availability"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reservar un lugar de zona",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/inventory/reservations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventoId\": \"{{eventoId}}\",\n  \"items\": [\n    {\n      \"sectorId\": \"{{sectorId}}\",\n      \"cantidad\": 1\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 con reserva', function () { pm.response.to.have.status(201); var b = pm.response.json(); pm.collectionVariables.set('reservaId', b.id); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Fila",
       "description": "Dueño: Pablo (P2). Join y posición con CLIENT; abrir y cerrar son internos.",
-      "item": []
+      "item": [
+        {
+          "name": "Abrir fila (interno, directo a queue)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internalToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{queueUrl}}/internal/events/{{eventoId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 o 200', function () { pm.expect([200, 201]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unirme a la fila",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/queue/events/{{eventoId}}/join"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 o 200', function () { pm.expect([200, 201]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar posición",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/queue/events/{{eventoId}}/position"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con estado', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().estado).to.be.a('string'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Órdenes",
       "description": "Dueño: Caro (P3). Compra, entradas, devoluciones.",
-      "item": []
+      "item": [
+        {
+          "name": "Pagar la reserva",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "compra-{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservaId\": \"{{reservaId}}\",\n  \"medioPago\": \"TARJETA\",\n  \"token\": \"APROBADO\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 PAGADA', function () { pm.response.to.have.status(201); var b = pm.response.json(); pm.expect(b.estado).to.eql('PAGADA'); pm.collectionVariables.set('ordenId', b.id); if (b.entradas.length) { pm.collectionVariables.set('qrCode', b.entradas[0].qrCode); } });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mis entradas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/tickets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Acceso",
       "description": "Dueño: Caro (P3). POST /api/orders/access/validate con ACCESS_STAFF (pendiente de backend 6.4).",
-      "item": []
+      "item": [
+        {
+          "name": "Validar QR (ACCESS_STAFF)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenAccess}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/access/validate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qrCode\": \"{{qrCode}}\",\n  \"eventoId\": \"{{eventoId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 y uso único', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().estado).to.eql('UTILIZADA'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Reportes",
       "description": "Dueño: Caro (P3). GET /api/orders/reports/events/{id} con ORGANIZER o ADMIN (pendiente de backend 6.5). No inventar respuestas.",
-      "item": []
+      "item": [
+        {
+          "name": "Reporte del evento (ORGANIZER)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenOrganizer}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/reports/events/{{eventoId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con totales', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().totales).to.exist; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Preferencias",
       "description": "Dueño: Franco (P5). GET y PUT /api/recommendations/preferences con CLIENT.",
-      "item": []
+      "item": [
+        {
+          "name": "Consultar preferencias",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recommendations/preferences"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guardar preferencias",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recommendations/preferences",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipos\": [\n    \"RECITAL\",\n    \"TEATRO\"\n  ],\n  \"artistas\": [\n    \"Los Piojos\"\n  ],\n  \"ciudad\": \"Tandil\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Recomendaciones",
       "description": "Dueño: Franco (P5). GET /api/recommendations y /events/{id}/similar con CLIENT.",
-      "item": []
+      "item": [
+        {
+          "name": "Recomendaciones para el cliente",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/recommendations"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con motivos', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().recomendaciones).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Notificaciones",
       "description": "Dueño: Iván (P1). GET /api/notifications y /{id} con CLIENT.",
-      "item": []
+      "item": [
+        {
+          "name": "Mis notificaciones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenClient}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/notifications"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     },
     {
       "name": "Seguridad",

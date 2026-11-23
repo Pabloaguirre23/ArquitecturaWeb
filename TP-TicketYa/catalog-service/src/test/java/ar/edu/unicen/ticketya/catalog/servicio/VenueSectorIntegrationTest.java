@@ -9,10 +9,12 @@ import ar.edu.unicen.ticketya.catalog.dominio.TipoEvento;
 import ar.edu.unicen.ticketya.catalog.dominio.TipoSector;
 import ar.edu.unicen.ticketya.catalog.repositorio.EventoRepository;
 import ar.edu.unicen.ticketya.catalog.web.ApiException;
+import ar.edu.unicen.ticketya.catalog.web.dto.CrearLugarRequest;
 import ar.edu.unicen.ticketya.catalog.web.dto.CrearSectorRequest;
 import ar.edu.unicen.ticketya.catalog.web.dto.SectorResponse;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,8 +32,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers(disabledWithoutDocker = true)
 class VenueSectorIntegrationTest {
 
-    private static final UUID LUGAR = UUID.fromString("a0000000-0000-4000-8000-000000000001");
-
     @Container
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
 
@@ -45,12 +45,25 @@ class VenueSectorIntegrationTest {
     @Autowired
     private VenueService venueService;
 
+    private UUID lugarId;
+
     @Autowired
     private EventoRepository eventoRepository;
 
+    @BeforeEach
+    void crearLugarSinEventos() {
+        // El seed tiene eventos publicados en ambos lugares; para probar el
+        // alta de sectores se usa un lugar nuevo, que es el caso permitido.
+        lugarId = venueService.crearLugar(new CrearLugarRequest(
+                "Lugar-" + UUID.randomUUID(), "Calle de prueba 100", "Tandil",
+                new java.math.BigDecimal("-37.3"), new java.math.BigDecimal("-59.1"))).id();
+    }
+
     @Test
     void crearUnSectorConNombreExistenteDevuelve409() {
-        assertThatThrownBy(() -> venueService.crearSector(LUGAR,
+        venueService.crearSector(lugarId,
+                new CrearSectorRequest("Platea", TipoSector.NUMERADO, null, 2, 2));
+        assertThatThrownBy(() -> venueService.crearSector(lugarId,
                 new CrearSectorRequest("Platea", TipoSector.NUMERADO, null, 2, 2)))
                 .isInstanceOfSatisfying(ApiException.class, ex -> {
                     assertThat(ex.getStatus().value()).isEqualTo(409);
@@ -62,13 +75,13 @@ class VenueSectorIntegrationTest {
     void crearUnSectorUnicoLoPersisteYNoPermiteRepetirlo() {
         String nombre = "Sector-" + UUID.randomUUID();
 
-        SectorResponse creado = venueService.crearSector(LUGAR,
+        SectorResponse creado = venueService.crearSector(lugarId,
                 new CrearSectorRequest(nombre, TipoSector.NO_NUMERADO, 50, null, null));
 
         assertThat(creado.nombre()).isEqualTo(nombre);
         assertThat(creado.capacidad()).isEqualTo(50);
 
-        assertThatThrownBy(() -> venueService.crearSector(LUGAR,
+        assertThatThrownBy(() -> venueService.crearSector(lugarId,
                 new CrearSectorRequest(nombre, TipoSector.NO_NUMERADO, 50, null, null)))
                 .isInstanceOfSatisfying(ApiException.class, ex -> {
                     assertThat(ex.getStatus().value()).isEqualTo(409);
@@ -82,13 +95,13 @@ class VenueSectorIntegrationTest {
         borrador.setNombre("Borrador " + UUID.randomUUID());
         borrador.setTipo(TipoEvento.RECITAL);
         borrador.setOrganizadorId(UUID.randomUUID());
-        borrador.setLugarId(LUGAR);
+        borrador.setLugarId(lugarId);
         borrador.setFecha(OffsetDateTime.now().plusDays(30));
         borrador.setEstado(EstadoEvento.BORRADOR);
         eventoRepository.save(borrador);
 
         String nombre = "Sector-Borrador-" + UUID.randomUUID();
-        SectorResponse creado = venueService.crearSector(LUGAR,
+        SectorResponse creado = venueService.crearSector(lugarId,
                 new CrearSectorRequest(nombre, TipoSector.NO_NUMERADO, 40, null, null));
 
         assertThat(creado.nombre()).isEqualTo(nombre);

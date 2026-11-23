@@ -79,7 +79,7 @@ class OrderControllerTest {
                         new BigDecimal("15000.00"), new BigDecimal("15000.00"))),
                 List.of(),
                 OffsetDateTime.parse("2026-11-03T12:00:00-03:00"), null, null);
-        when(orderService.crear(any(CrearOrdenRequest.class), any(), eq("compra-0001"))).thenReturn(response);
+        when(orderService.crear(any(CrearOrdenRequest.class), any(), any(), eq("compra-0001"))).thenReturn(response);
 
         mockMvc.perform(post("/api/orders")
                         .header("Idempotency-Key", "compra-0001")
@@ -96,7 +96,7 @@ class OrderControllerTest {
 
     @Test
     void crearConReservaAjenaDevuelve403() throws Exception {
-        when(orderService.crear(any(CrearOrdenRequest.class), any(), eq("compra-0001")))
+        when(orderService.crear(any(CrearOrdenRequest.class), any(), any(), eq("compra-0001")))
                 .thenThrow(ApiException.forbidden("NOT_RESERVATION_OWNER",
                         "La reserva pertenece a otro cliente"));
 
@@ -115,7 +115,7 @@ class OrderControllerTest {
 
     @Test
     void crearConReservaInexistenteDevuelve404() throws Exception {
-        when(orderService.crear(any(CrearOrdenRequest.class), any(), eq("compra-0001")))
+        when(orderService.crear(any(CrearOrdenRequest.class), any(), any(), eq("compra-0001")))
                 .thenThrow(ApiException.notFound("RESERVATION_NOT_FOUND",
                         "No existe la reserva 11111111-1111-4111-8111-111111111111"));
 
@@ -134,7 +134,7 @@ class OrderControllerTest {
 
     @Test
     void crearConReservaVencidaDevuelve410() throws Exception {
-        when(orderService.crear(any(CrearOrdenRequest.class), any(), eq("compra-0001")))
+        when(orderService.crear(any(CrearOrdenRequest.class), any(), any(), eq("compra-0001")))
                 .thenThrow(ApiException.gone("RESERVATION_EXPIRED",
                         "La reserva está vencida y no se puede pagar"));
 
@@ -153,7 +153,7 @@ class OrderControllerTest {
 
     @Test
     void crearConClaveReusadaDevuelve422() throws Exception {
-        when(orderService.crear(any(CrearOrdenRequest.class), any(), eq("compra-0001")))
+        when(orderService.crear(any(CrearOrdenRequest.class), any(), any(), eq("compra-0001")))
                 .thenThrow(ApiException.unprocessable("IDEMPOTENCY_KEY_REUSED",
                         "La Idempotency-Key ya se usó con un cuerpo distinto"));
 

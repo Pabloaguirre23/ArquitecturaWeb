@@ -23,7 +23,9 @@ public class RabbitConfig {
     public static final String EXCHANGE = "ticketya.events";
     public static final String DLX = "ticketya.events.dlx";
     public static final String ROUTING_KEY = "orden.pagada";
+    public static final String ROUTING_KEY_EVENTO_CANCELADO = "evento.cancelado";
     public static final String DLQ = "recommendation.history.dlq";
+    public static final String EVENT_DLQ = "recommendation.events.dlq";
 
     @Bean
     public TopicExchange ticketyaEventsExchange() {
@@ -66,6 +68,38 @@ public class RabbitConfig {
         return BindingBuilder.bind(recommendationHistoryDlq)
                 .to(ticketyaEventsDlx)
                 .with(queueName);
+    }
+
+    @Bean
+    public Queue recommendationEventsQueue(
+            @Value("${recommendation.rabbit.event-queue:recommendation.events}") String queueName) {
+        return QueueBuilder.durable(queueName)
+                .deadLetterExchange(DLX)
+                .deadLetterRoutingKey(EVENT_DLQ)
+                .build();
+    }
+
+    @Bean
+    public Queue recommendationEventsDlq() {
+        return QueueBuilder.durable(EVENT_DLQ).build();
+    }
+
+    @Bean
+    public Binding recommendationEventsCanceladoBinding(
+            @Qualifier("recommendationEventsQueue") Queue recommendationEventsQueue,
+            TopicExchange ticketyaEventsExchange) {
+        return BindingBuilder.bind(recommendationEventsQueue)
+                .to(ticketyaEventsExchange)
+                .with(ROUTING_KEY_EVENTO_CANCELADO);
+    }
+
+    @Bean
+    public Binding recommendationEventsDlqBinding(
+            @Qualifier("recommendationEventsDlq") Queue recommendationEventsDlq,
+            DirectExchange ticketyaEventsDlx) {
+        return BindingBuilder.bind(recommendationEventsDlq)
+                .to(ticketyaEventsDlx)
+                .with(EVENT_DLQ);
     }
 
     @Bean

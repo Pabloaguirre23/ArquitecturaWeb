@@ -135,24 +135,39 @@ mvn -Dtest=OrderIdempotencyIntegrationTest test
 - Dos hilos con la misma `Idempotency-Key` y el mismo cuerpo: uno crea la orden y el otro
   recibe la respuesta guardada o `409 IDEMPOTENCY_IN_PROGRESS`. La tabla `orden` termina con
   una sola fila.
+- Dos hilos con **claves distintas** y la misma reserva: uno compra y el otro recibe
+  `409 RESERVATION_ALREADY_PAID`. Queda una sola orden, un solo pago y una sola entrada
+  (`dosClavesDistintasConcurrentesSobreLaMismaReservaCobranUnaSolaVez`).
 - Un reintento posterior devuelve el mismo `id` y las mismas entradas.
+
+En inventory, `ConfirmacionPostgresTest.confirmarUnaReservaYaVencidaPorElSchedulerResponde410YNoReponeDosVecesLaZona`
+verifica que si el scheduler ganó la carrera, el confirm devuelve 410 y no repone la zona dos
+veces. `ConfirmacionPostgresTest.liberarDosVecesReponeLaZonaUnaSolaVez` cubre el mismo
+rowcount en la liberación.
 
 ## 6. E2E por gateway
 
-La colección Postman se ejecuta completa con Newman:
+La colección vigente es la v2 con JWT (`postman/TicketYa.entrega2.postman_collection.json`):
 
 ```bash
-npx -y newman run postman/TicketYa.postman_collection.json --reporters cli
+npx -y newman run postman/TicketYa.entrega2.postman_collection.json \
+  -e postman/TicketYa.local.postman_environment.json \
+  --folder Auth --folder Catálogo --folder Inventario --folder Órdenes
 ```
 
-Resultado de la corrida del Día 6 (8/11/2026, `08ba5c5`): **45 requests, 45 assertions,
-0 fallos**. Incluye catálogo, búsqueda, publicación, reserva numerada y de zona, compra
-aprobada con QR, reintento idempotente, reuso de clave, pago rechazado, pago lento, consultas
-propias, devolución aprobada, devolución rechazada y cancelación. Los seis flujos críticos
-pasaron por el gateway.
+La corrida de la revisión (21/11/2026, verificación `4afc2a5` sobre el código de `41e8af1`) sobre la v2 dio **30 requests,
+37 assertions y 0 fallos**. La corrida histórica de 45/45 requests y 45/45 assertions
+(Día 6) se hizo sobre `TicketYa.postman_collection.json` de la **Entrega 1, antes del JWT**.
+Se conserva como evidencia de esa etapa, pero **no** representa el flujo actual: esa
+colección usa `X-User-*` manuales, que el gateway descarta. La verificación automática de
+referencia sigue siendo `TicketYaE2EIT` (8 tests, 0 fallos, 0 omitidos). La corrida v2
+recorre Auth, Catálogo, Inventario, Fila, Órdenes, Acceso, Reportes, Preferencias,
+Recomendaciones, Notificaciones y Seguridad, todo por el gateway (la carpeta Fila llama
+directo a `queue-service` porque sus endpoints de apertura/cierre son internos).
 
-Evidencia: [`docs/evidencia/dia-6-newman.txt`](evidencia/dia-6-newman.txt). La corrida
-anterior del Día 4 queda en [`docs/evidencia/dia-4-newman.txt`](evidencia/dia-4-newman.txt).
+Evidencia: [`docs/evidencia/entrega-2-revision-docker.txt`](evidencia/entrega-2-revision-docker.txt).
+La corrida histórica de la colección de Entrega 1 queda en
+[`docs/evidencia/dia-6-newman.txt`](evidencia/dia-6-newman.txt).
 
 Los seis flujos críticos quedan cubiertos así:
 
@@ -270,10 +285,14 @@ y verifica el estado final de cada entrada en el detalle de la orden.
 
 Se clonó la rama `docs/p5-dia-6-7` en `fde94a1` desde GitHub, se eliminaron los volúmenes de
 prueba y se levantó el compose desde cero. En ese clone corrieron la suite completa
-(**135 tests, 0 fallos, 0 omitidos**) y la colección completa (**45/45 requests y
-45/45 assertions**), con los cuatro health en `200` y el gateway devolviendo `200`/`401`
-según corresponda. Evidencia:
+(**135 tests, 0 fallos, 0 omitidos**) y la colección de la Entrega 1 (**45/45 requests y
+45/45 assertions**, antes del JWT), con los cuatro health en `200` y el gateway devolviendo
+`200`/`401` según corresponda. Evidencia:
 [`docs/evidencia/dia-7-rc.txt`](evidencia/dia-7-rc.txt).
+
+En la revisión del 21/11/2026 se repitió el clone limpio con la Entrega 2 completa: 18
+contenedores, volúmenes vacíos, smoke test, E2E **8/8** y Newman **30/30**. Evidencia:
+[`docs/evidencia/entrega-2-revision-docker.txt`](evidencia/entrega-2-revision-docker.txt).
 
 ## 7. Hallazgos del E2E
 
@@ -461,7 +480,7 @@ Resultado: **5 tests, 0 fallos, 0 errores, 0 omitidos**. Casos cubiertos con Wir
 La no doble venta y la no doble compra siguen cubiertas por
 `OrderIdempotencyIntegrationTest` y `AccessConcurrencyIntegrationTest` (Testcontainers).
 
-## 14. UI web (21/11/2026)
+## 14. UI web (21/11/2026, actualizada el 23/11/2026)
 
 ```bash
 cd web
@@ -471,11 +490,12 @@ npm run lint
 npm run test
 ```
 
-Resultado: **13 archivos de tests, 28 tests, 0 fallos**; build de Vite y `oxlint` verdes.
-La suite cubre cliente HTTP, auth, asientos, checkout, recomendaciones, QR real, aviso de
-sesión expirada, `SearchPage` y `EventDetailPage`.
+Resultado: **16 archivos de tests, 36 tests, 0 fallos**; build de Vite (92 módulos) y `oxlint` verdes.
+La suite cubre cliente HTTP, auth, layout, asientos, checkout, acceso, entradas, recomendaciones,
+QR real, aviso de sesión expirada, `SearchPage`, `EventDetailPage`, `AccessPage`, `TicketsPage` y
+`CheckoutPage`.
 
-Cambios de cierre:
+Cambios de cierre (PR #54):
 
 - **QR real**: `QrCode` genera la imagen con `qrcode` a partir del UUID de la entrada
   (antes era un patrón decorativo). Si el canvas falla, muestra el código abreviado.
@@ -485,3 +505,16 @@ Cambios de cierre:
   con enlace a login, en vez de desloguear en silencio.
 - **Menú mobile**: Popover nativo con los mismos links y acciones; en desktop la navegación
   sigue inline. Sin dependencias nuevas de UI.
+
+Cambios de la revisión (23/11, PR #60):
+
+- **Checkout con vencimiento**: countdown de la reserva, aviso al vencer y CTA para elegir
+  lugares de nuevo; un 410 del backend se muestra con el mismo mensaje y no emite entradas.
+- **Idempotencia**: la `Idempotency-Key` se regenera al cambiar el medio de pago o el resultado
+  simulado, y cuando el backend responde `IDEMPOTENCY_KEY_REUSED`, para no reutilizar una clave
+  con otro cuerpo.
+- **Cierre de sesión limpio**: el logout descarta la reserva en curso y los datos de demo, así
+  otro usuario no ve entradas ni preferencias ajenas.
+- **Errores por código**: `utils/errors.ts` traduce los códigos de la fila (`QUEUE_REQUIRED`),
+  red/timeout y validaciones a mensajes accionables; tests nuevos de `AccessPage`,
+  `CheckoutPage` y `TicketsPage`.

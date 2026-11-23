@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "TicketYa — Entrega 1 (flujos E2E)",
-    "description": "Flujo base del Día 1 contra el gateway: catálogo, inventario y órdenes.\n\nAntes de correr:\n1. `docker compose -f docker-compose.dev.yml up -d`\n2. Levantar catalog, inventory, orders y api-gateway.\n3. Ejecutar la colección en orden (Catálogo → Inventario → Órdenes → Errores).\n\nVariables de identidad de la Entrega 1:\n- ADMIN: `11111111-1111-4111-8111-111111111111`\n- ORGANIZER: `22222222-2222-4222-8222-222222222222`\n- CLIENT: `33333333-3333-4333-8333-333333333333`\n\nLos IDs creados se guardan como variables de colección; no hace falta cargarlos a mano.",
+    "name": "TicketYa — Entrega 1 (pre-JWT, referencia histórica)",
+    "description": "Colección de la Entrega 1 conservada como referencia. Usa X-User-Id/X-User-Role directos; desde la Entrega 2 el gateway los descarta y esas requests responden 401. Para el flujo actual usar TicketYa.entrega2.postman_collection.json (Bearer) o la suite E2E de Java.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -2222,12 +2222,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "X-Internal-Token", "value": "{{internalToken}}" }
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internalToken}}"
+              }
             ],
             "url": {
               "raw": "{{queueUrl}}/internal/events/{{queueEventoId}}",
-              "host": ["{{queueUrl}}"],
-              "path": ["internal", "events", "{{queueEventoId}}"]
+              "host": [
+                "{{queueUrl}}"
+              ],
+              "path": [
+                "internal",
+                "events",
+                "{{queueEventoId}}"
+              ]
             }
           }
         },
@@ -2254,13 +2263,27 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "X-User-Id", "value": "{{queueClientId}}" },
-              { "key": "X-User-Role", "value": "CLIENT" }
+              {
+                "key": "X-User-Id",
+                "value": "{{queueClientId}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENT"
+              }
             ],
             "url": {
               "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/join",
-              "host": ["{{queueUrl}}"],
-              "path": ["api", "queue", "events", "{{queueEventoId}}", "join"]
+              "host": [
+                "{{queueUrl}}"
+              ],
+              "path": [
+                "api",
+                "queue",
+                "events",
+                "{{queueEventoId}}",
+                "join"
+              ]
             }
           }
         },
@@ -2285,13 +2308,27 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "X-User-Id", "value": "{{queueClientId}}" },
-              { "key": "X-User-Role", "value": "CLIENT" }
+              {
+                "key": "X-User-Id",
+                "value": "{{queueClientId}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENT"
+              }
             ],
             "url": {
               "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/join",
-              "host": ["{{queueUrl}}"],
-              "path": ["api", "queue", "events", "{{queueEventoId}}", "join"]
+              "host": [
+                "{{queueUrl}}"
+              ],
+              "path": [
+                "api",
+                "queue",
+                "events",
+                "{{queueEventoId}}",
+                "join"
+              ]
             }
           }
         },
@@ -2317,13 +2354,27 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "X-User-Id", "value": "{{queueClientId}}" },
-              { "key": "X-User-Role", "value": "CLIENT" }
+              {
+                "key": "X-User-Id",
+                "value": "{{queueClientId}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENT"
+              }
             ],
             "url": {
               "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/position",
-              "host": ["{{queueUrl}}"],
-              "path": ["api", "queue", "events", "{{queueEventoId}}", "position"]
+              "host": [
+                "{{queueUrl}}"
+              ],
+              "path": [
+                "api",
+                "queue",
+                "events",
+                "{{queueEventoId}}",
+                "position"
+              ]
             }
           }
         },
@@ -2360,13 +2411,27 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "X-User-Id", "value": "{{queueClientId}}" },
-              { "key": "X-User-Role", "value": "CLIENT" }
+              {
+                "key": "X-User-Id",
+                "value": "{{queueClientId}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENT"
+              }
             ],
             "url": {
               "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/position",
-              "host": ["{{queueUrl}}"],
-              "path": ["api", "queue", "events", "{{queueEventoId}}", "position"]
+              "host": [
+                "{{queueUrl}}"
+              ],
+              "path": [
+                "api",
+                "queue",
+                "events",
+                "{{queueEventoId}}",
+                "position"
+              ]
             }
           }
         },
@@ -2391,8 +2456,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "X-Internal-Token", "value": "{{internalToken}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internalToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -2400,8 +2471,15 @@
             },
             "url": {
               "raw": "{{queueUrl}}/internal/events/{{queueEventoId}}/close",
-              "host": ["{{queueUrl}}"],
-              "path": ["internal", "events", "{{queueEventoId}}", "close"]
+              "host": [
+                "{{queueUrl}}"
+              ],
+              "path": [
+                "internal",
+                "events",
+                "{{queueEventoId}}",
+                "close"
+              ]
             }
           }
         },
@@ -2426,13 +2504,27 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "X-User-Id", "value": "{{queueClientId}}" },
-              { "key": "X-User-Role", "value": "CLIENT" }
+              {
+                "key": "X-User-Id",
+                "value": "{{queueClientId}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENT"
+              }
             ],
             "url": {
               "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/position",
-              "host": ["{{queueUrl}}"],
-              "path": ["api", "queue", "events", "{{queueEventoId}}", "position"]
+              "host": [
+                "{{queueUrl}}"
+              ],
+              "path": [
+                "api",
+                "queue",
+                "events",
+                "{{queueEventoId}}",
+                "position"
+              ]
             }
           }
         },
@@ -2455,13 +2547,27 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "X-User-Id", "value": "{{queueClientId}}" },
-              { "key": "X-User-Role", "value": "CLIENT" }
+              {
+                "key": "X-User-Id",
+                "value": "{{queueClientId}}"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "CLIENT"
+              }
             ],
             "url": {
               "raw": "{{queueUrl}}/api/queue/events/{{queueEventoId}}/join",
-              "host": ["{{queueUrl}}"],
-              "path": ["api", "queue", "events", "{{queueEventoId}}", "join"]
+              "host": [
+                "{{queueUrl}}"
+              ],
+              "path": [
+                "api",
+                "queue",
+                "events",
+                "{{queueEventoId}}",
+                "join"
+              ]
             }
           }
         }

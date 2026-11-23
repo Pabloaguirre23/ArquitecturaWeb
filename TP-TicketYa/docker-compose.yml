@@ -175,6 +175,7 @@ services:
       RABBITMQ_PASSWORD: ticketya
       CATALOG_URL: http://catalog-service:8081
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-ticketya-internal-dev}
+      RECOMMENDATION_SEED_ENABLED: ${RECOMMENDATION_SEED_ENABLED:-true}
     expose:
       - "8084"
     depends_on:
@@ -238,6 +239,8 @@ services:
 
   queue-service:
     build: ./queue-service
+    ports:
+      - "8086:8086"
     environment:
       SERVER_PORT: 8086
       REDIS_HOST: redis
@@ -247,6 +250,7 @@ services:
       QUEUE_BATCH_SIZE: ${QUEUE_BATCH_SIZE:-50}
       QUEUE_INTERVAL_SECONDS: ${QUEUE_INTERVAL_SECONDS:-30}
       QUEUE_SCHEDULER_MS: ${QUEUE_SCHEDULER_MS:-5000}
+      QUEUE_RETENTION: ${QUEUE_RETENTION:-7d}
     expose:
       - "8086"
     depends_on:
@@ -261,8 +265,7 @@ services:
         VITE_USE_MOCKS: "false"
         VITE_API_URL: /api
     ports:
-      - "3000:80"
-    # El HEALTHCHECK de la imagen consulta `localhost`, que en Alpine resuelve
+      - "3000:80"    # El HEALTHCHECK de la imagen consulta `localhost`, que en Alpine resuelve
     # primero a ::1 (IPv6); nginx solo escucha en IPv4 y el contenedor queda
     # unhealthy aunque sirva tráfico. Este override consulta 127.0.0.1.
     healthcheck:

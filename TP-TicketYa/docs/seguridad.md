@@ -165,5 +165,10 @@ rol. El éxito con datos reales de acceso, devoluciones y reportes lo cubren los
 
 ## Pendiente
 
-- Newman completo por rol (10.2): la colección `postman/TicketYa.entrega2.postman_collection.json` ya
-  tiene Auth y Seguridad (22 tests en verde); falta que cada dueño complete su carpeta.
+- Sin pendientes abiertos de seguridad. La colección Postman v2 recorre auth, seguridad, fila,
+  compra, acceso, reportes, recomendaciones y notificaciones (30 requests, 37 assertions verdes);
+  ver [`pruebas.md`](pruebas.md) y `evidencia/entrega-2-revision-docker.txt`.
+- **Deuda aceptada:** el compose integral inyecta secretos de desarrollo por default
+  (`JWT_SECRET`, `QUEUE_TOKEN_SECRET`, `INTERNAL_TOKEN`) para que el clone limpio levante sin
+  configuración. En producción se deben inyectar secretos reales y usar `${VAR:?}`; ver ADR-021
+  en [`decisiones.md`](decisiones.md).

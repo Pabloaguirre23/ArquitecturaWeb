@@ -19,7 +19,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class ConfirmacionPostgresTest {
 
     private static final UUID EVENTO = UUID.fromString("d0000000-0000-4000-8000-000000000001");
@@ -71,6 +71,29 @@ class ConfirmacionPostgresTest {
         assertThat(error.getCode()).isEqualTo("RESERVATION_EXPIRED");
         assertThat(estadoReserva(reservaId)).isEqualTo("VENCIDA");
         assertThat(estadoAsiento(asientoId)).isEqualTo("LIBRE");
+    }
+
+    @Test
+    void confirmarUnaReservaYaVencidaPorElSchedulerResponde410YNoReponeDosVecesLaZona() {
+        int antes = disponibles();
+        UUID reservaId = reservarZona(2, true);
+        // El scheduler ganó la carrera: marcó VENCIDA y repuso la zona.
+        jdbcTemplate.update("UPDATE reserva SET estado = 'VENCIDA' WHERE id = ?", reservaId);
+        jdbcTemplate.update("""
+                UPDATE sector_inventario SET disponibles = LEAST(capacidad, disponibles + 2)
+                 WHERE evento_id = ? AND sector_id = ?
+                """, EVENTO, CAMPO);
+        assertThat(disponibles()).isEqualTo(antes);
+
+        ApiException error = catchThrowableOfType(
+                () -> confirmacionService.confirmar(reservaId), ApiException.class);
+
+        // El contrato es estable (410), sin importar quién venció la reserva.
+        assertThat(error.getStatus().value()).isEqualTo(410);
+        assertThat(error.getCode()).isEqualTo("RESERVATION_EXPIRED");
+        assertThat(estadoReserva(reservaId)).isEqualTo("VENCIDA");
+        // Y la zona no se repone por segunda vez.
+        assertThat(disponibles()).isEqualTo(antes);
     }
 
     @Test

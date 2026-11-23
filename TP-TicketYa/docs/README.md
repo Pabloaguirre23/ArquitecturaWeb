@@ -25,8 +25,8 @@
 | [`eventos.md`](eventos.md) | Sobre de eventos, routing keys, colas/DLQ y payloads | P4/P5 | Día 1 y 3 | Congelado 20/11/2026 (1.5); bindings de reintegros declarados |
 | [`arquitectura.md`](arquitectura.md) | Diagrama de módulos, secuencia de compra, fila, acceso QR y notificaciones | P4/P5 | Día 3 a 9 | Actualizado 10.5 (PR #47) |
 | [`modelo-datos.md`](modelo-datos.md) | ER por microservicio, claves, relaciones y entidades solapadas | P1/P2/P3/P5 | Día 5 | Actualizado el Día 6 (10.6): delta de Entrega 2, fila Redis y notificaciones |
-| [`decisiones.md`](decisiones.md) | ADR cortas: decisión, alternativas y consecuencias | P4/P5 | Día 5 a 9 | Listo (ADR-001 a ADR-020) |
-| [`pruebas.md`](pruebas.md) | Estrategia, comandos y evidencia de concurrencia, suite, E2E, multi-instancia, carga, resiliencia y UI | P5 | Día 5 a 9 | Actualizado 21/11; E2E 8/8, 6.6 con WireMock y 28 tests de UI |
+| [`decisiones.md`](decisiones.md) | ADR cortas: decisión, alternativas y consecuencias | P4/P5 | Día 5 a 9 | Listo (ADR-001 a ADR-021) |
+| [`pruebas.md`](pruebas.md) | Estrategia, comandos y evidencia de concurrencia, suite, E2E, multi-instancia, carga, resiliencia y UI | P5 | Día 5 a 9 | Actualizado 23/11; E2E 8/8, 6.6 con WireMock y 36 tests de UI |
 | [`evidencia/`](evidencia/) | Salidas de suite, E2E y clone limpio de los Días 4 a 9 | P5 | Día 4 a 9 | Incluye evidencia del Día 8 (E2E 8/8) |
 | `../openspec/changes/entrega-1-core/` | Propuesta, specs, diseño y tareas del cambio | Todos | Día 0 | Listo |
 | `../openspec/changes/entrega-2-completo/` | Propuesta, 15 specs, diseño y 64 tareas de la Entrega 2 | Todos | Día 0 | Listo (validado) |

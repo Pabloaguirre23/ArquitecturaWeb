@@ -50,6 +50,7 @@ class OrdenPagadaContractTest {
         Orden orden = new Orden();
         orden.setId(UUID.fromString((String) esperado.get("ordenId")));
         orden.setClienteId(UUID.fromString((String) esperado.get("clienteId")));
+        orden.setClienteEmail((String) esperado.get("clienteEmail"));
         orden.setEventoId(UUID.fromString((String) esperado.get("eventoId")));
         orden.setEventoNombre((String) esperado.get("eventoNombre"));
         orden.setEventoTipo((String) esperado.get("eventoTipo"));

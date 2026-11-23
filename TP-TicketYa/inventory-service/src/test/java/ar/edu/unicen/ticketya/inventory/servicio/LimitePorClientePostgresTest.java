@@ -29,7 +29,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class LimitePorClientePostgresTest {
 
     private static final UUID EVENTO = UUID.fromString("d0000000-0000-4000-8000-000000000001");

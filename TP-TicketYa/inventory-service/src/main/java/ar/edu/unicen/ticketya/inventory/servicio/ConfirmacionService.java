@@ -124,8 +124,25 @@ public class ConfirmacionService {
         if (reserva.getEstado() == EstadoReserva.CONFIRMADA) {
             return Paso.CONFIRMADA;
         }
+        if (reserva.getEstado() == EstadoReserva.VENCIDA) {
+            // El job de vencimiento ya la venció y liberó los lugares. El contrato
+            // es el mismo 410 que si la venciera esta llamada.
+            return Paso.VENCIDA;
+        }
         if (reserva.getEstado() == EstadoReserva.VIGENTE && !reserva.getExpiresAt().isAfter(ahora)) {
-            jdbcTemplate.update(VENCER_RESERVA, reservaId, ahora);
+            int vencidas = jdbcTemplate.update(VENCER_RESERVA, reservaId, ahora);
+            if (vencidas != 1) {
+                // Otra transacción (scheduler o un confirm concurrente) ganó el
+                // UPDATE: ya liberó los lugares y reponer acá inflaría la zona.
+                EstadoReserva estadoGanador = buscar(reservaId).getEstado();
+                if (estadoGanador == EstadoReserva.CONFIRMADA) {
+                    return Paso.CONFIRMADA;
+                }
+                if (estadoGanador == EstadoReserva.VENCIDA) {
+                    return Paso.VENCIDA;
+                }
+                return Paso.NO_CONFIRMABLE;
+            }
             liberarLugares(reservaId, reserva.getEventoId());
             disponibilidadSincronizador.sincronizar(reserva.getEventoId());
             return Paso.VENCIDA;

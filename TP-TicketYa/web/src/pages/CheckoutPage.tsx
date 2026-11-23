@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { createOrder } from '../api/orders'
@@ -7,9 +7,8 @@ import { useAuth } from '../auth/useAuth'
 import { EmptyState } from '../components/EmptyState'
 import { Loading } from '../components/Loading'
 import { QrCode } from '../components/QrCode'
-import { USE_MOCKS } from '../config'
-import { errorMessage } from '../utils/errors'
-import { formatCurrency, formatDate } from '../utils/format'
+import { errorCode, errorMessage } from '../utils/errors'
+import { formatCountdown, formatCurrency, formatDate } from '../utils/format'
 import { newIdempotencyKey } from '../utils/idempotency'
 import { clearReservation, readReservation } from '../utils/reservationStorage'
 
@@ -24,10 +23,37 @@ export function CheckoutPage() {
   const [reservation] = useState<Reservation | null>(() => readReservation())
   const [medioPago, setMedioPago] = useState<MedioPago>('TARJETA')
   const [paymentToken, setPaymentToken] = useState('APROBADO')
-  const [idempotencyKey] = useState(() => newIdempotencyKey())
+  const [idempotencyKey, setIdempotencyKey] = useState(() => newIdempotencyKey())
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorActual, setErrorActual] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+
+  const reservaVencida = reservation
+    ? new Date(reservation.expiresAt).getTime() <= now
+    : false
+
+  useEffect(() => {
+    if (!reservation || order) {
+      return
+    }
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [reservation, order])
+
+  // La clave de idempotencia identifica el cuerpo de la compra. Si cambia el
+  // medio de pago o el resultado simulado, se regenera para no reutilizar una
+  // clave con otro cuerpo (422 IDEMPOTENCY_KEY_REUSED).
+  function cambiarMedioPago(valor: MedioPago) {
+    setMedioPago(valor)
+    setIdempotencyKey(newIdempotencyKey())
+  }
+
+  function cambiarTokenPago(valor: string) {
+    setPaymentToken(valor)
+    setIdempotencyKey(newIdempotencyKey())
+  }
 
   if (user && user.role !== 'CLIENT') {
     return (
@@ -40,11 +66,12 @@ export function CheckoutPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!reservation) {
+    if (!reservation || reservaVencida) {
       return
     }
     setLoading(true)
     setError(null)
+    setErrorActual(null)
     try {
       const result = await createOrder(
         { reservaId: reservation.id, medioPago, token: paymentToken },
@@ -53,7 +80,12 @@ export function CheckoutPage() {
       setOrder(result)
       clearReservation()
     } catch (caught) {
+      const code = errorCode(caught)
+      setErrorActual(code)
       setError(errorMessage(caught))
+      if (code === 'IDEMPOTENCY_KEY_REUSED') {
+        setIdempotencyKey(newIdempotencyKey())
+      }
     } finally {
       setLoading(false)
     }
@@ -138,10 +170,27 @@ export function CheckoutPage() {
         <span className="badge">Checkout</span>
         <h1>Confirmá tu compra</h1>
         <p className="muted">
-          Reserva válida hasta {formatDate(reservation.expiresAt)}. Después de ese plazo los
-          lugares se liberan.
+          Reserva válida hasta {formatDate(reservation.expiresAt)}.{' '}
+          {reservaVencida ? (
+            <strong className="countdown countdown-expired">Reserva vencida</strong>
+          ) : (
+            <>
+              Quedan <strong className="countdown">{formatCountdown(reservation.expiresAt)}</strong>.
+              Después de ese plazo los lugares se liberan.
+            </>
+          )}
         </p>
       </header>
+
+      {reservaVencida && (
+        <div className="error-box" role="alert">
+          <strong>La reserva venció.</strong>
+          <p>Los lugares se liberaron y no se puede completar el pago con esta reserva.</p>
+          <Link className="btn btn-primary" to={`/events/${reservation.eventoId}`}>
+            Elegir lugares de nuevo
+          </Link>
+        </div>
+      )}
 
       <div className="detail-grid">
         <section className="card">
@@ -171,7 +220,7 @@ export function CheckoutPage() {
                 id="medioPago"
                 name="medioPago"
                 value={medioPago}
-                onChange={(event) => setMedioPago(event.target.value as MedioPago)}
+                onChange={(event) => cambiarMedioPago(event.target.value as MedioPago)}
               >
                 {paymentOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -181,35 +230,46 @@ export function CheckoutPage() {
               </select>
             </div>
 
-            {USE_MOCKS && (
-              <div className="field">
-                <label htmlFor="paymentToken">Resultado simulado de la pasarela</label>
-                <select
-                  id="paymentToken"
-                  name="paymentToken"
-                  value={paymentToken}
-                  onChange={(event) => setPaymentToken(event.target.value)}
-                >
-                  <option value="APROBADO">Aprobado</option>
-                  <option value="RECHAZADO">Rechazado</option>
-                  <option value="LENTO">Lento (timeout)</option>
-                </select>
-              </div>
-            )}
+            <div className="field">
+              <label htmlFor="paymentToken">Resultado de la pasarela (demo)</label>
+              <select
+                id="paymentToken"
+                name="paymentToken"
+                value={paymentToken}
+                onChange={(event) => cambiarTokenPago(event.target.value)}
+              >
+                <option value="APROBADO">Aprobado</option>
+                <option value="RECHAZADO">Rechazado</option>
+                <option value="LENTO">Lento (timeout)</option>
+              </select>
+              <p className="hint">
+                La pasarela de la Entrega 2 es mock: el token elige el resultado y permite
+                demostrar rechazo y timeout también contra el backend real.
+              </p>
+            </div>
 
             {error && (
-              <p id="checkout-error" className="form-error" role="alert">
-                {error}
-              </p>
+              <div className="form-error" role="alert">
+                <p id="checkout-error">{error}</p>
+                {(errorActual === 'RESERVATION_EXPIRED' || reservaVencida) && (
+                  <Link className="btn btn-ghost" to={`/events/${reservation.eventoId}`}>
+                    Elegir lugares de nuevo
+                  </Link>
+                )}
+              </div>
             )}
 
             <button
               className="btn btn-primary"
               type="submit"
-              disabled={loading}
+              disabled={loading || reservaVencida}
               aria-describedby={error ? 'checkout-error' : undefined}
             >
-              {loading ? 'Procesando pago…' : `Pagar ${formatCurrency(reservation.total)}`}
+              {loading
+                ? 'Procesando pago…'
+                : reservaVencida
+                  ? 'Reserva vencida'
+                  : `Pagar ${formatCurrency(reservation.total)}`}
             </button>
 
             <p className="hint">

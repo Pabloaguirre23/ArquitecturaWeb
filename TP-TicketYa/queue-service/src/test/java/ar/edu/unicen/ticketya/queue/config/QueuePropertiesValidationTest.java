@@ -37,6 +37,7 @@ class QueuePropertiesValidationTest {
                 "queue.internal-token=ticketya-internal-dev",
                 "queue.scheduler-ms=5000",
                 "queue.scheduler-enabled=false",
+                "queue.retention=7d",
                 "queue.token.secret=ticketya-queue-dev-secret-key-32b",
                 "queue.token.ttl=5m"
         };

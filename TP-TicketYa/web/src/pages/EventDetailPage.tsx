@@ -61,7 +61,7 @@ export function EventDetailPage() {
       .then((result) => {
         if (!cancelled) {
           setEvent(result)
-          setSectorId(result.sectores[0]?.sectorId ?? null)
+          setSectorId(result.sectores.find((sector) => sector.disponibles > 0)?.sectorId ?? null)
         }
       })
       .catch((caught) => {

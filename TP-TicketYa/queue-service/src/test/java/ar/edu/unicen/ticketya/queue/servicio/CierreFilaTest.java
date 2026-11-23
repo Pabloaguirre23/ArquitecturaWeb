@@ -84,6 +84,7 @@ class CierreFilaTest {
         Estado cierre = cerrar(evento, "CANCELADO");
         assertThat(cierre.estado()).isEqualTo("CERRADA");
         assertThat(cierre.motivo()).isEqualTo("CANCELADO");
+        assertThat(redis.getExpire(FilaService.estadoKey(evento))).isPositive();
 
         Estado repetido = cerrar(evento, "AGOTADO");
         assertThat(repetido.motivo()).isEqualTo("CANCELADO");
@@ -111,10 +112,33 @@ class CierreFilaTest {
     }
 
     @Test
-    void reabrirUnaFilaCerradaNoLaDevuelveAlScheduler() {
+    void reabrirUnaFilaCerradaPorAgotadoLaVuelveAPonerEnElScheduler() {
         UUID evento = UUID.randomUUID();
         abrir(evento);
         cerrar(evento, "AGOTADO");
+        assertThat(redis.getExpire(FilaService.estadoKey(evento))).isPositive();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Internal-Token", "ticketya-internal-dev");
+        ResponseEntity<Estado> respuesta = rest.exchange(
+                "/internal/events/" + evento,
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Estado.class);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(respuesta.getBody()).isNotNull();
+        assertThat(respuesta.getBody().estado()).isEqualTo("ABIERTA");
+        assertThat(redis.opsForSet().isMember(FilaService.OPEN_KEY, evento.toString())).isTrue();
+        // Al reabrir se le quita el TTL para que el estado no desaparezca en medio de la venta.
+        assertThat(redis.getExpire(FilaService.estadoKey(evento))).isEqualTo(-1);
+    }
+
+    @Test
+    void unEventoCanceladoNoSeReabre() {
+        UUID evento = UUID.randomUUID();
+        abrir(evento);
+        cerrar(evento, "CANCELADO");
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Internal-Token", "ticketya-internal-dev");

@@ -9,15 +9,18 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import ar.edu.unicen.ticketya.catalog.dominio.Asiento;
+import ar.edu.unicen.ticketya.catalog.dominio.EstadoEvento;
 import ar.edu.unicen.ticketya.catalog.dominio.Lugar;
 import ar.edu.unicen.ticketya.catalog.dominio.Sector;
 import ar.edu.unicen.ticketya.catalog.dominio.TipoSector;
 import ar.edu.unicen.ticketya.catalog.repositorio.AsientoRepository;
+import ar.edu.unicen.ticketya.catalog.repositorio.EventoRepository;
 import ar.edu.unicen.ticketya.catalog.repositorio.LugarRepository;
 import ar.edu.unicen.ticketya.catalog.repositorio.SectorRepository;
 import ar.edu.unicen.ticketya.catalog.web.ApiException;
 import ar.edu.unicen.ticketya.catalog.web.dto.CrearSectorRequest;
 import ar.edu.unicen.ticketya.catalog.web.dto.SectorResponse;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -42,8 +45,33 @@ class VenueServiceTest {
     @Mock
     private CatalogCacheService catalogCacheService;
 
+    @Mock
+    private EventoRepository eventoRepository;
+
     @InjectMocks
     private VenueService venueService;
+
+    @Test
+    void noSePuedeAgregarUnSectorAUnLugarConEventosPublicados() {
+        UUID lugarId = UUID.randomUUID();
+        Lugar lugar = new Lugar();
+        lugar.setId(lugarId);
+        when(lugarRepository.findById(lugarId)).thenReturn(Optional.of(lugar));
+        when(eventoRepository.countByLugarIdAndEstadoIn(lugarId,
+                List.of(EstadoEvento.PUBLICADO, EstadoEvento.AGOTADO))).thenReturn(1L);
+
+        assertThatThrownBy(() -> venueService.crearSector(lugarId,
+                new CrearSectorRequest("Platea", TipoSector.NUMERADO, null, 2, 3)))
+                .isInstanceOf(ApiException.class)
+                .satisfies(ex -> {
+                    ApiException api = (ApiException) ex;
+                    assertThat(api.getStatus().value()).isEqualTo(409);
+                    assertThat(api.getCode()).isEqualTo("VENUE_HAS_PUBLISHED_EVENTS");
+                });
+
+        verify(sectorRepository, never()).save(any(Sector.class));
+        verify(asientoRepository, never()).saveAll(anyList());
+    }
 
     @Test
     void unSectorNumeradoGeneraTodosLosAsientos() {

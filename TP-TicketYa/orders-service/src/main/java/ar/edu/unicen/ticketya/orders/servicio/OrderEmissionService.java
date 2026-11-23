@@ -7,6 +7,7 @@ import ar.edu.unicen.ticketya.orders.dominio.OrdenItem;
 import ar.edu.unicen.ticketya.orders.eventos.OrderDomainEvents;
 import ar.edu.unicen.ticketya.orders.repositorio.OrdenRepository;
 import java.util.List;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,17 +25,30 @@ public class OrderEmissionService {
     private final TicketService ticketService;
     private final SagaCompraService sagaCompraService;
     private final OutboxService outboxService;
+    private final JdbcTemplate jdbcTemplate;
 
     public OrderEmissionService(OrdenRepository ordenRepository, TicketService ticketService,
-                                SagaCompraService sagaCompraService, OutboxService outboxService) {
+                                SagaCompraService sagaCompraService, OutboxService outboxService,
+                                JdbcTemplate jdbcTemplate) {
         this.ordenRepository = ordenRepository;
         this.ticketService = ticketService;
         this.sagaCompraService = sagaCompraService;
         this.outboxService = outboxService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<Entrada> marcarPagadaYEmitir(Orden orden, List<OrdenItem> items) {
+        // Se serializa con cancelarEvento usando el mismo advisory lock por evento.
+        // Si la cancelación ya insertó evento_cancelado, la compra no emite y el
+        // llamador compensa con reintegro en lugar de dejar entradas inválidas.
+        jdbcTemplate.execute("SELECT pg_advisory_xact_lock(hashtext('evento:" + orden.getEventoId() + "'))");
+        Boolean cancelado = jdbcTemplate.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM evento_cancelado WHERE evento_id = ?)",
+                Boolean.class, orden.getEventoId());
+        if (Boolean.TRUE.equals(cancelado)) {
+            throw new IllegalStateException("El evento fue cancelado; no se emiten entradas");
+        }
         List<Entrada> entradas = ticketService.emitir(orden, items);
         if (entradas == null || entradas.isEmpty()) {
             throw new IllegalStateException("La orden no puede quedar PAGADA sin entradas");

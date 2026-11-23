@@ -62,5 +62,7 @@ public interface EventoRepository extends JpaRepository<Evento, UUID> {
 
     List<Evento> findByEstadoInAndFechaBefore(Collection<EstadoEvento> estados, OffsetDateTime fecha);
 
+    long countByLugarIdAndEstadoIn(UUID lugarId, Collection<EstadoEvento> estados);
+
     List<Evento> findByCancelacionPendienteTrue();
 }

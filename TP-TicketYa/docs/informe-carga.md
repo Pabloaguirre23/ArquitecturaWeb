@@ -42,7 +42,7 @@ botella y dejar los resultados crudos y el comando reproducible.
 | Servicios | `docker compose -f docker-compose.yml up -d --build` |
 | Gateway | `http://localhost:8080` (único puerto publicado) |
 
-El compose levanta 13 contenedores: 7 servicios, 4 PostgreSQL, MongoDB, RabbitMQ y Redis.
+El compose levanta seis microservicios, el gateway, cuatro PostgreSQL, MongoDB, RabbitMQ, Redis y la UI opcional. La corrida de carga se hizo sin la UI y sin la stack de observabilidad.
 Todos quedaron `healthy` antes de cada corrida.
 
 > Los números son una **cota inferior**: la VM de Docker tiene 4 GB y comparte CPU con

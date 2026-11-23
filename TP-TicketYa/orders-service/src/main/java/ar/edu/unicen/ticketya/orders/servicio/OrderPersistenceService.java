@@ -52,7 +52,8 @@ public class OrderPersistenceService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public OrdenCreada crearPendiente(ReservationDto reserva, UUID clienteId, CrearOrdenRequest request) {
+    public OrdenCreada crearPendiente(ReservationDto reserva, UUID clienteId, String clienteEmail,
+                                      CrearOrdenRequest request) {
         BigDecimal total = reserva.items().stream()
                 .map(ReservationDto.Item::subtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -63,8 +64,11 @@ public class OrderPersistenceService {
         orden.setEventoId(reserva.eventoId());
         orden.setEventoNombre(reserva.eventoNombre());
         orden.setEventoFecha(reserva.eventoFecha());
-        // Snapshot de ADR-017: el payload de orden.pagada no consulta catalog después.
-        orden.setClienteEmail(reserva.clienteEmail());
+        // El email viene del JWT propagado por el gateway; inventory no lo
+        // conoce. Si no llegara, se conserva el del snapshot de la reserva.
+        orden.setClienteEmail(clienteEmail != null && !clienteEmail.isBlank()
+                ? clienteEmail.trim()
+                : reserva.clienteEmail());
         orden.setEventoOrganizadorId(reserva.eventoOrganizadorId());
         orden.setSectorNombre(reserva.sectorNombre());
         orden.setEventoTipo(reserva.eventoTipo());

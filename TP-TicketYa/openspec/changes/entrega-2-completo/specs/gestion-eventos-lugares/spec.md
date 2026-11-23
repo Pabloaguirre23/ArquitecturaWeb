@@ -52,7 +52,9 @@ El sistema SHALL permitir al organizador definir el límite de entradas por clie
 
 #### Scenario: Cambio con ventas
 - **WHEN** se intenta bajar el límite por debajo de las entradas ya vendidas a un cliente
-- **THEN** se responde 409 y no se aplica el cambio
+- **THEN** la reducción queda fuera de esta entrega: el contrato documenta que requiere
+  consultar las ventas de orders/inventory. El límite sí se puede configurar en `BORRADOR`
+  y viaja en el snapshot de inventario.
 
 ### Requirement: Datos internos para reportes y recomendaciones
 
