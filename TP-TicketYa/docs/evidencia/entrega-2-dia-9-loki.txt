@@ -1,0 +1,17 @@
+# Evidencia 9.4: busqueda por X-Correlation-Id en Loki (P4)
+Fecha: 22/11/2026 15:53
+Request: GET /api/orders con X-Correlation-Id=bc7d67ca-f90c-478f-807c-10385e09e095
+Consulta LogQL: {service=~".+"} |= "bc7d67ca-f90c-478f-807c-10385e09e095"
+
+## Servicios que registraron la correlacion (etiqueta service de Loki)
+   1 "service":"api-gateway"
+   1 "service":"orders-service"
+
+## Estado de Grafana
+{
+  "database": "ok",
+  "version": "11.4.0",
+  "commit": "b58701869e1a11b696010a6f28bd96b68a2cf0d0"
+}
+## Datasource provisionado (Loki)
+"name":"Loki","type":"loki"
