@@ -7,9 +7,9 @@ import { ApiError } from '../api/client'
  */
 const MENSAJES: Record<string, string> = {
   QUEUE_REQUIRED:
-    'Este evento tiene fila virtual. Unite a la fila desde la API (o esperá tu turno en la app) y volvé a intentar con el token de la fila.',
+    'Este evento usa fila virtual y esta web todavía no la incluye; la compra se hace por API.',
   QUEUE_TOKEN_INVALID:
-    'El token de la fila venció o no corresponde a este evento. Volvé a ingresar a la fila para comprar.',
+    'Este evento usa fila virtual y el token no es válido o venció. La compra desde la web no está disponible; se hace por API.',
   QUEUE_NOT_OPEN:
     'La fila virtual de este evento todavía no está abierta. Probá de nuevo cuando comience la venta.',
   RESERVATION_EXPIRED:

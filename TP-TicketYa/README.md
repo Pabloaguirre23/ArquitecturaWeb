@@ -77,7 +77,7 @@ curl http://localhost:8080/actuator/health
 
 Solo el gateway publica el puerto `8080`; las bases y brokers quedan en la red interna de
 Docker. La UI se publica en `3000`, Grafana en `http://localhost:3001` (usuario `admin`,
-password `GRAFANA_PASSWORD`, default `admin`) y Loki en `3100` para consultas directas. Para
+password `GRAFANA_ADMIN_PASSWORD`, default `admin`) y Loki en `3100` para consultas directas. Para
 reiniciar sin datos:
 
 ```bash
@@ -185,7 +185,7 @@ Los servicios traen valores por defecto para desarrollo. Se pueden pisar con:
 | `QUEUE_SCHEDULER_MS` | `5000` | Frecuencia del scheduler de tandas |
 | `QUEUE_RETENTION` | `7d` | TTL de las claves Redis de un evento al cerrar la fila |
 | `RECOMMENDATION_SEED_ENABLED` | `true` | Carga preferencias e historial demo en MongoDB; `false` para datos limpios |
-| `GRAFANA_PASSWORD` | `admin` | Password del usuario `admin` de Grafana |
+| `GRAFANA_ADMIN_PASSWORD` | `admin` | Password del usuario `admin` de Grafana |
 | `JWT_SECRET` / `JWT_TTL` | dev / `8h` | Firma y vigencia del JWT del gateway |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Orígenes permitidos por CORS en el gateway |
 
@@ -278,7 +278,7 @@ Las pruebas de integración de catalog, concurrencia de inventory e idempotencia
 
 Reglas:
 
-1. `main` requiere Pull Request y al menos 1 aprobación (la protección del repositorio la activa el admin; tarea 1.1).
+1. `main` requiere Pull Request y al menos 1 aprobación (la protección está activa desde el 20/11; tarea 1.1).
 2. Un dueño por carpeta de microservicio.
 3. Rama por tarea: `feat/<servicio>-<tema>`.
 4. La documentación y los tests van en el mismo PR que el código.

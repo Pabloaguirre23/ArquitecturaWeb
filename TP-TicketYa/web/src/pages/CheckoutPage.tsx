@@ -140,14 +140,27 @@ export function CheckoutPage() {
   }
 
   if (order) {
+    const reintegroEnCurso = order.estado === 'REINTEGRO_PENDIENTE'
     return (
       <div className="page-gap">
         <div className="error-box" role="alert">
-          <strong>El pago no se pudo completar.</strong>
-          <p>La orden quedó en estado {order.estado}. No se emitieron entradas.</p>
+          {reintegroEnCurso ? (
+            <>
+              <strong>El pago se cobró, pero la compra no se completó.</strong>
+              <p>
+                La orden quedó en estado {order.estado}: el reintegro está en curso y no se
+                emitieron entradas.
+              </p>
+            </>
+          ) : (
+            <>
+              <strong>El pago no se pudo completar.</strong>
+              <p>La orden quedó en estado {order.estado}. No se emitieron entradas.</p>
+            </>
+          )}
         </div>
         <EmptyState
-          title="Probá con otro medio de pago"
+          title="Volvé a elegir tus lugares"
           description="La reserva se liberó. Podés volver al evento y elegir tus lugares de nuevo."
           actionLabel="Volver al evento"
           actionTo={`/events/${order.eventoId}`}

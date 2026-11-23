@@ -8,7 +8,15 @@ describe('errores de la UI', () => {
 
     expect(errorCode(error)).toBe('QUEUE_REQUIRED')
     expect(errorMessage(error)).toContain('fila virtual')
+    expect(errorMessage(error)).toContain('por API')
     expect(errorMessage(error)).not.toContain('Este evento exige un token')
+  })
+
+  it('traduce QUEUE_TOKEN_INVALID sin prometer una fila que la web no tiene', () => {
+    const error = new ApiError(403, 'Token de fila inválido', 'QUEUE_TOKEN_INVALID')
+
+    expect(errorMessage(error)).toContain('fila virtual')
+    expect(errorMessage(error)).toContain('por API')
   })
 
   it('traduce la reserva vencida y conserva los códigos desconocidos', () => {
