@@ -71,7 +71,7 @@ flowchart LR
 - Cada servicio es dueño de su base o colección y no comparte tablas. Los cruces son REST por `/internal/**` (con `X-Internal-Token`) o eventos de dominio por RabbitMQ.
 - `inventory-service` valida el token de la fila localmente con `QUEUE_TOKEN_SECRET`, sin llamar a `queue-service` en el camino crítico de la reserva.
 - Los productores escriben el evento en un `outbox_event` dentro de la transacción de negocio; un publicador separado lo entrega a RabbitMQ con al menos una vez.
-- El compose levanta seis microservicios y el gateway, cuatro PostgreSQL, MongoDB, Redis, RabbitMQ y la UI opcional. Solo el gateway (8080) y la web (3000) publican puertos; Loki (3100) y Grafana (3001) se publican para observabilidad. Los usuarios de prueba del login viven en `DemoUserStore` (BCrypt en memoria): `auth_db`, previsto en el `design.md`, queda como evolución no implementada en esta entrega.
+- El compose levanta seis microservicios y el gateway, cuatro PostgreSQL, MongoDB, Redis, RabbitMQ y la UI opcional. Solo el gateway (8080), la web (3000) y Grafana (3001) publican puertos; Loki (3100) queda interno y se consulta desde el datasource de Grafana. Los usuarios de prueba del login viven en `DemoUserStore` (BCrypt en memoria): `auth_db`, previsto en el `design.md`, queda como evolución no implementada en esta entrega.
 
 ### Límites de servicio y dueño del dato
 

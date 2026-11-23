@@ -17,7 +17,7 @@ Repositorio del curso: <https://github.com/Pabloaguirre23/ArquitecturaWeb> (este
 | `notification-service` | 8085 | `notification_db` (5436) | Notificaciones asíncronas con reintentos y DLQ |
 | `rabbitmq` | 5672 / 15672 | — | Bus de eventos (`orden.pagada` → historial) |
 | `queue-service` | 8086 | Redis 7 (6379) | Fila virtual: tandas, posición y token de compra |
-| `loki` / `promtail` / `grafana` | 3100 / — / 3001 | — | Logs JSON centralizados y consulta por `correlationId` |
+| `loki` / `promtail` / `grafana` | — / — / 3001 | — | Logs JSON centralizados y consulta por `correlationId` (Loki interno, vía Grafana) |
 | `web` (opcional) | 3000 | — | UI React/Vite que Nginx proxya al gateway |
 
 Son **seis microservicios** (catalog, inventory, orders, recommendation, notification y queue)
@@ -77,7 +77,8 @@ curl http://localhost:8080/actuator/health
 
 Solo el gateway publica el puerto `8080`; las bases y brokers quedan en la red interna de
 Docker. La UI se publica en `3000`, Grafana en `http://localhost:3001` (usuario `admin`,
-password `GRAFANA_ADMIN_PASSWORD`, default `admin`) y Loki en `3100` para consultas directas. Para
+password `GRAFANA_ADMIN_PASSWORD`, default `admin`) y Loki se consulta desde Grafana
+(datasource provisionado) o dentro de la red de compose: no publica puerto al host. Para
 reiniciar sin datos:
 
 ```bash

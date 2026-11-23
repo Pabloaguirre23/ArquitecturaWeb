@@ -518,3 +518,12 @@ Cambios de la revisión (23/11, PR #60):
 - **Errores por código**: `utils/errors.ts` traduce los códigos de la fila (`QUEUE_REQUIRED`),
   red/timeout y validaciones a mensajes accionables; tests nuevos de `AccessPage`,
   `CheckoutPage` y `TicketsPage`.
+
+## 15. Smoke final sobre el contenido entregado (23/11/2026)
+
+Clone limpio sin `target/`, `.env` ni volúmenes + `docker compose up -d --build` sobre la
+revisión de cierre. Resultado: **18 contenedores `healthy`**, login (JWT de 296 caracteres),
+búsqueda con el seed, web y Grafana 200, **E2E 8/8 sin omitidos**, **Newman 30 requests y
+37 assertions**, y correlación real en Loki con dos streams (`api-gateway` y `catalog-service`)
+para un mismo `X-Correlation-Id`. Evidencia:
+[`evidencia/entrega-2-smoke-final-2026-11-23.txt`](evidencia/entrega-2-smoke-final-2026-11-23.txt).
