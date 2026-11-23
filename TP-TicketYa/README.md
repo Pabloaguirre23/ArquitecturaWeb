@@ -138,7 +138,8 @@ OpenAPI crudo: `http://localhost:<puerto>/v3/api-docs`.
 La UI del cliente vive en [`web/`](web/) y es un extra opcional de la Entrega 2. El compose
 integral la publica en `http://localhost:3000` y Nginx proxya `/api` al gateway real. Incluye
 login JWT, búsqueda, detalle con asientos, checkout, mis entradas y la pantalla **Para vos**
-con preferencias, recomendaciones explicables y eventos similares.
+con preferencias, recomendaciones explicables y eventos similares; además, las pantallas de
+**control de acceso** (escaneo de QR, 6.4) y **reportes del organizador** (6.5) para staff.
 
 Para desarrollo con recarga en caliente, en modo demo sin backend:
 

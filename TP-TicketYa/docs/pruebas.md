@@ -480,7 +480,7 @@ Resultado: **5 tests, 0 fallos, 0 errores, 0 omitidos**. Casos cubiertos con Wir
 La no doble venta y la no doble compra siguen cubiertas por
 `OrderIdempotencyIntegrationTest` y `AccessConcurrencyIntegrationTest` (Testcontainers).
 
-## 14. UI web (21/11/2026)
+## 14. UI web (21/11/2026, actualizada el 23/11/2026)
 
 ```bash
 cd web
@@ -490,11 +490,12 @@ npm run lint
 npm run test
 ```
 
-Resultado: **13 archivos de tests, 28 tests, 0 fallos**; build de Vite y `oxlint` verdes.
-La suite cubre cliente HTTP, auth, asientos, checkout, recomendaciones, QR real, aviso de
-sesión expirada, `SearchPage` y `EventDetailPage`.
+Resultado: **16 archivos de tests, 36 tests, 0 fallos**; build de Vite (92 módulos) y `oxlint` verdes.
+La suite cubre cliente HTTP, auth, layout, asientos, checkout, acceso, entradas, recomendaciones,
+QR real, aviso de sesión expirada, `SearchPage`, `EventDetailPage`, `AccessPage`, `TicketsPage` y
+`CheckoutPage`.
 
-Cambios de cierre:
+Cambios de cierre (PR #54):
 
 - **QR real**: `QrCode` genera la imagen con `qrcode` a partir del UUID de la entrada
   (antes era un patrón decorativo). Si el canvas falla, muestra el código abreviado.
@@ -504,3 +505,16 @@ Cambios de cierre:
   con enlace a login, en vez de desloguear en silencio.
 - **Menú mobile**: Popover nativo con los mismos links y acciones; en desktop la navegación
   sigue inline. Sin dependencias nuevas de UI.
+
+Cambios de la revisión (23/11, PR #60):
+
+- **Checkout con vencimiento**: countdown de la reserva, aviso al vencer y CTA para elegir
+  lugares de nuevo; un 410 del backend se muestra con el mismo mensaje y no emite entradas.
+- **Idempotencia**: la `Idempotency-Key` se regenera al cambiar el medio de pago o el resultado
+  simulado, y cuando el backend responde `IDEMPOTENCY_KEY_REUSED`, para no reutilizar una clave
+  con otro cuerpo.
+- **Cierre de sesión limpio**: el logout descarta la reserva en curso y los datos de demo, así
+  otro usuario no ve entradas ni preferencias ajenas.
+- **Errores por código**: `utils/errors.ts` traduce los códigos de la fila (`QUEUE_REQUIRED`),
+  red/timeout y validaciones a mensajes accionables; tests nuevos de `AccessPage`,
+  `CheckoutPage` y `TicketsPage`.
