@@ -133,7 +133,7 @@ implementación arranca el Día 1.
 
 - [x] **Suite completa** de los seis microservicios y el gateway verde. → 10.8. _(Con Docker: 566 tests, 0 fallos, 0 omitidos. Web: 36/36. Evidencia en `docs/evidencia/entrega-2-revision-docker.txt`.)_
 - [x] **Clone limpio** con `docker compose up --build` y smoke test. → 10.8. _(18 contenedores, health, login, búsqueda con volúmenes vacíos, E2E 8/8 y Newman 30/30 desde el clone; evidencia en `docs/evidencia/entrega-2-revision-docker.txt`.)_
-- [x] **Tag `entrega-2`** sobre el commit entregado. → 10.8. _(Existe en `4be2f86`; hay que moverlo al commit final después de mergear esta revisión. No se movió desde acá para no reescribir un tag ya publicado.)_
+- [x] **Tag `entrega-2`** sobre el commit entregado. → 10.8. _(Se mueve al merge final de esta revisión el 23/11; ver el cierre del PR #60.)_
 - [x] **Repositorio del curso accesible** y enlace de entrega verificado. → 10.8, 10.9
-- [x] **Change validado** con `openspec validate entrega-2-completo --strict`. → 10.9 _(20/11: valido; quedan 7 tareas abiertas declaradas)_
+- [x] **Change validado** con `openspec validate entrega-2-completo --strict`. → 10.9 _(Validado el 23/11; 64/64 tareas cerradas. Solo queda archivar el change después de la entrega.)_
 - [ ] **Change archivado** después de la entrega. → Workflow follow-up
