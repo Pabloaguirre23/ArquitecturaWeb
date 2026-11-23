@@ -14,11 +14,11 @@ implementación arranca el Día 1.
 
 | Área | Estado | Evidencia |
 |---|---|---|
-| Change OpenSpec | Validado el 20/11 | `openspec validate entrega-2-completo --strict` |
+| Change OpenSpec | Validado el 23/11 | `openspec validate entrega-2-completo --strict` |
 | Criterios US-25 a US-38 | Completos y trazados | `docs/features-y-user-stories.md` (tarea 1.2) |
 | recommendation-service | Build, tests, health y Docker OK | `recommendation-service/` (tareas 1.7, 2.7, 7.1–7.5) |
 | notification-service | Completo: compra, cancelación, favorito y consulta | `notification-service/` (8.1–8.4) y PR #27 |
-| Acceso al repo del curso | 5 colaboradores con push; branch protection pendiente | Tarea 1.1 |
+| Acceso al repo del curso | 5 colaboradores con push; branch protection activa (1 aprobación + 9 checks) | Tarea 1.1; PRs #55–#59 |
 | Sobre de eventos y payloads | Congelado el 20/11/2026 | [`eventos.md`](eventos.md) (1.5, PR #39) |
 | ADR de la Entrega 2 | ADR-014 a ADR-020 | [`decisiones.md`](decisiones.md) |
 | Contrato v2 y matriz de roles | Completo: acceso/reportes incluidos | `docs/api-contract.md` (1.3 y 6.7) |
@@ -33,8 +33,8 @@ implementación arranca el Día 1.
 | Cache | Completo (3.3, 3.4) | PR #27, tests de cache |
 | Observabilidad y log central | Completo: logs JSON+MDC en los 7 procesos, Loki/Promtail/Grafana y consulta real por `correlationId` | `CorrelationFilter` y `logback-spring.xml`; `docs/evidencia/entrega-2-revision-docker.txt` (9.1, 9.4) |
 | Docker y compose | Completo: 18 contenedores, `up --build` y smoke test OK | `docs/evidencia/entrega-2-revision-docker.txt` (9.5–9.7) |
-| Integración, seguridad y carga | 10.1 8/8 sin omitidos; 10.3/10.4 completos; 10.2 parcial | [`pruebas.md`](pruebas.md) §12, [`informe-carga.md`](informe-carga.md) y [`evidencia/entrega-2-dia-8.txt`](evidencia/entrega-2-dia-8.txt) |
-| Cierre y tag | 10.9 validado; clone limpio y smoke OK; falta mover el tag al commit final | `docs/evidencia/entrega-2-revision-docker.txt` |
+| Integración, seguridad y carga | 10.1 8/8 sin omitidos; 10.2 completo (Postman v2: 30 requests, 37 assertions); 10.3/10.4 completos | [`pruebas.md`](pruebas.md) §12, [`informe-carga.md`](informe-carga.md) y [`evidencia/entrega-2-dia-8.txt`](evidencia/entrega-2-dia-8.txt) |
+| Cierre y tag | 10.9 validado; clone limpio y smoke OK; tag `entrega-2` sobre el commit final de la entrega | `docs/evidencia/entrega-2-revision-docker.txt` |
 
 ## 1. Funcionalidad de la Entrega 2
 
@@ -108,7 +108,7 @@ implementación arranca el Día 1.
 - [x] **Unitarios** de la lógica nueva (fila, acceso, reportes, recomendaciones, notificaciones, saga, cache). → tareas de cada servicio
 - [x] **No doble venta** con 100 hilos y última unidad de zona, sigue verde con la fila y el token. → 5.4, 10.1
 - [x] **Integración entre servicios** con Testcontainers/Compose: login, fila, compra, QR, reporte, recomendación y notificación. → 10.1 _(20/11: 8 tests, 0 fallos, 0 omitidos; incluye acceso QR y reporte. Evidencia en `evidencia/entrega-2-dia-8.txt`.)_
-- [x] **Seguridad de endpoints:** cada endpoint solo accesible por sus roles; 401 sin token y 403 con rol incorrecto. → 2.8 _(gateway + tests de servicio + E2E; la carpeta Postman por rol de 2.8 queda parcial en 10.2)_
+- [x] **Seguridad de endpoints:** cada endpoint solo accesible por sus roles; 401 sin token y 403 con rol incorrecto. → 2.8 _(gateway + tests de servicio + E2E; la carpeta Postman de seguridad está en la colección v2 de 10.2)_
 - [x] **Idempotencia de eventos:** duplicados no duplican historial ni notificaciones. → 7.3, 8.2 _(tests de recommendation y notification + E2E)_
 - [x] **Resiliencia:** timeout, 5xx, circuito abierto y recuperación con WireMock. → 5.3, 6.6
 - [x] **Prueba de carga** de 500 y 1000 usuarios con resultados crudos y análisis. → 10.3, 10.4
